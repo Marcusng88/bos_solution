@@ -22,7 +22,7 @@ PORT=8000
 DATABASE_URL=postgresql://postgres:RE-_tXFsy9K8D$M@db.zktakfluvzuxhwwvccqs.supabase.co:5432/postgres
 
 # Supabase Configuration
-SUPABASE_URL=https://zktakfluvzuxhwwvccqs.supabase.co
+SUPABASE_URL=url_here
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 
