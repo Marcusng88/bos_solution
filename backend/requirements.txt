@@ -1,0 +1,26 @@
+# FastAPI and ASGI server
+fastapi
+uvicorn[standard]
+
+# Database - Using asyncpg for async PostgreSQL
+asyncpg
+sqlalchemy
+alembic
+
+# Environment and configuration
+python-dotenv
+pydantic
+pydantic-settings
+
+# Authentication and security
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# HTTP client for external APIs
+httpx
+aiohttp
+
+# Development and testing
+pytest
+pytest-asyncio
