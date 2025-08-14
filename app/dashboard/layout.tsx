@@ -1,11 +1,15 @@
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs"
-import { redirect } from "next/navigation"
+import type React from "react"
 
-export default function LoginPage() {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <>
       <SignedIn>
-        {redirect("/dashboard")}
+        {children}
       </SignedIn>
       <SignedOut>
         <RedirectToSignIn />

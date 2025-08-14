@@ -29,20 +29,20 @@ export function AISummary({ timeRange }: AISummaryProps) {
 
   const insights = [
     {
-      type: "positive",
+      type: "positive" as const,
       icon: TrendingUp,
       title: "Strong Performance",
       description: "Your Facebook campaign 'Summer Sale 2024' is performing 23% above expectations with a CTR of 3.2%.",
     },
     {
-      type: "warning",
+      type: "warning" as const,
       icon: AlertTriangle,
       title: "Attention Needed",
       description:
         "Instagram campaign 'Product Launch' has a high cost per conversion ($45). Consider adjusting targeting.",
     },
     {
-      type: "success",
+      type: "success" as const,
       icon: CheckCircle,
       title: "Goal Achieved",
       description:
@@ -73,7 +73,7 @@ export function AISummary({ timeRange }: AISummaryProps) {
             Your campaigns performed well during {timeText}, generating <strong>1,234 conversions</strong> from{" "}
             <strong>24,567 clicks</strong> with a total spend of <strong>$12,847</strong>. The average cost per
             conversion decreased by <strong>8%</strong> compared to the previous period, indicating improved efficiency.
-            Your top-performing campaign was "Summer Sale 2024" with a conversion rate of <strong>5.8%</strong>.
+            Your top-performing campaign was &quot;Summer Sale 2024&quot; with a conversion rate of <strong>5.8%</strong>.
           </p>
         </div>
 

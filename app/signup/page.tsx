@@ -1,16 +1,15 @@
-import { SignupForm } from "@/components/auth/signup-form"
-import { AuthLayout } from "@/components/auth/auth-layout"
+import { SignedIn, SignedOut, RedirectToSignUp } from "@clerk/nextjs"
+import { redirect } from "next/navigation"
 
 export default function SignupPage() {
   return (
-    <AuthLayout
-      title="Create your account"
-      subtitle="Start your AI-powered marketing journey"
-      footerText="Already have an account?"
-      footerLinkText="Sign in"
-      footerLinkHref="/login"
-    >
-      <SignupForm />
-    </AuthLayout>
+    <>
+      <SignedIn>
+        {redirect("/dashboard")}
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignUp />
+      </SignedOut>
+    </>
   )
 }
