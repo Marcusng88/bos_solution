@@ -121,3 +121,106 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Floating Animations */
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(-1deg);
+  }
+  75% {
+    transform: translateY(-15px) rotate(0.5deg);
+  }
+}
+
+@keyframes float-medium {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-8px) rotate(2deg);
+  }
+  66% {
+    transform: translateY(-12px) rotate(-1deg);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+.animate-float-medium {
+  animation: float-medium 4s ease-in-out infinite;
+}
+
+/* Moving Around Screen Animations */
+@keyframes move-around-slow {
+  0% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+  20% {
+    transform: translate(100px, -50px) rotate(5deg);
+  }
+  40% {
+    transform: translate(200px, 100px) rotate(-3deg);
+  }
+  60% {
+    transform: translate(-50px, 150px) rotate(8deg);
+  }
+  80% {
+    transform: translate(-150px, -100px) rotate(-5deg);
+  }
+  100% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+}
+
+@keyframes move-around-medium {
+  0% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+  25% {
+    transform: translate(-120px, -80px) rotate(-4deg);
+  }
+  50% {
+    transform: translate(150px, -120px) rotate(6deg);
+  }
+  75% {
+    transform: translate(80px, 180px) rotate(-2deg);
+  }
+  100% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+}
+
+@keyframes move-around-fast {
+  0% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+  33% {
+    transform: translate(80px, -60px) rotate(3deg);
+  }
+  66% {
+    transform: translate(-100px, 120px) rotate(-7deg);
+  }
+  100% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+}
+
+.animate-float-slow {
+  animation: move-around-slow 25s ease-in-out infinite;
+}
+
+.animate-float-medium {
+  animation: move-around-medium 20s ease-in-out infinite;
+}
+
+.animate-float-fast {
+  animation: move-around-fast 15s ease-in-out infinite;
+}
