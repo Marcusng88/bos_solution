@@ -1,0 +1,16 @@
+competitor_name,platform,content_type,post_date,content_title,engagement_score,likes,comments,shares,views,hashtags,content_category,sentiment_score
+Nike,Instagram,Video,2025-08-15,"5-Minute Morning Workout",8.5,12500,450,230,45000,"#MorningWorkout #JustDoIt #Fitness",Fitness,0.8
+Adidas,LinkedIn,Article,2025-08-15,"Sustainable Manufacturing: Our 2025 Goals",7.8,3200,180,420,15000,"#Sustainability #Innovation #FutureOfSport",Sustainability,0.9
+Under Armour,TikTok,Video,2025-08-14,"Transformation Tuesday: Customer Stories",9.2,18000,680,340,62000,"#TransformationTuesday #UnderArmour #Motivation",User Generated Content,0.85
+Puma,Instagram,Image,2025-08-14,"New Summer Collection Drop",6.4,8900,320,150,28000,"#SummerVibes #PumaStyle #Fashion",Product Launch,0.7
+Nike,YouTube,Video,2025-08-13,"Advanced Training Techniques",8.9,25000,890,560,95000,"#Training #ProTips #Athletics",Education,0.75
+Adidas,Instagram,Story,2025-08-13,"Behind the Scenes: Eco Factory Tour",7.1,15600,420,280,38000,"#BehindTheScenes #Sustainability #Manufacturing",Sustainability,0.82
+Under Armour,Twitter,Text,2025-08-12,"Mental Health Matters: 3 Mindfulness Tips",8.3,5600,290,180,22000,"#MentalHealth #Mindfulness #WellBeing",Wellness,0.88
+Puma,Instagram,Video,2025-08-12,"Street Style Lookbook",7.6,14200,510,220,41000,"#StreetStyle #Fashion #UrbanWear",Fashion,0.73
+Nike,TikTok,Video,2025-08-11,"Quick HIIT Workout Challenge",9.5,32000,1200,890,128000,"#HIITChallenge #FitnessChallenge #QuickWorkout",Fitness,0.91
+Adidas,Facebook,Video,2025-08-11,"Recycled Materials: From Ocean to Shoes",6.9,8700,340,470,31000,"#OceanPlastic #Sustainability #Innovation",Sustainability,0.86
+Under Armour,Instagram,Image,2025-08-10,"Athlete Spotlight: Sarah's Journey",7.4,11800,380,190,29000,"#AthleteSpotlight #Inspiration #Journey",User Generated Content,0.79
+Puma,YouTube,Video,2025-08-10,"Sneaker Technology Explained",5.8,9400,220,140,18500,"#Technology #Innovation #Sneakers",Education,0.65
+Nike,Instagram,Carousel,2025-08-09,"Workout Gear Essentials",8.1,16700,590,320,44000,"#WorkoutGear #Essentials #Training",Product Focus,0.77
+Adidas,LinkedIn,Article,2025-08-09,"Women in Sports: Breaking Barriers",8.7,4100,230,520,19000,"#WomenInSports #Equality #Inspiration",Social Impact,0.92
+Under Armour,TikTok,Video,2025-08-08,"Pre-Workout Routine Tips",8.6,21000,750,410,71000,"#PreWorkout #RoutineTips #FitnessTips",Education,0.84

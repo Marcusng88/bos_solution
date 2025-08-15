@@ -130,6 +130,43 @@ export class ApiClient {
       method: 'PUT',
     });
   }
+
+  // Dashboard AI endpoints
+  async getDashboardStats(userId: string) {
+    return this.request('/dashboard/stats', { userId });
+  }
+
+  async getAISuggestions(userId: string) {
+    return this.request('/dashboard/ai-suggestions', { userId });
+  }
+
+  async getCompetitorGaps(userId: string) {
+    return this.request('/dashboard/competitor-gaps', { userId });
+  }
+
+  async getRecentActivities(userId: string) {
+    return this.request('/dashboard/recent-activities', { userId });
+  }
+
+  async getAIAnalysis(userId: string, analysisType: string = 'comprehensive') {
+    return this.request('/dashboard/ai-analysis', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({ analysis_type: analysisType }),
+    });
+  }
+
+  async getCompetitiveIntelligence(userId: string) {
+    return this.request('/dashboard/competitive-intelligence', { userId });
+  }
+
+  async getContentOpportunities(userId: string) {
+    return this.request('/dashboard/content-opportunities', { userId });
+  }
+
+  async getEngagementForecast(userId: string) {
+    return this.request('/dashboard/engagement-forecast', { userId });
+  }
 }
 
 /**

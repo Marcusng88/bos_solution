@@ -1,0 +1,16 @@
+content_category,our_volume,competitor_avg_volume,gap_percentage,opportunity_score,trend_direction,market_saturation
+Fitness,15,28,-46.4,8.5,Increasing,Low
+Sustainability,3,18,-83.3,9.2,Rapidly Increasing,Very Low
+User Generated Content,8,22,-63.6,7.8,Stable,Medium
+Education,5,16,-68.8,8.1,Increasing,Low
+Wellness,2,12,-83.3,8.9,Rapidly Increasing,Very Low
+Product Launch,12,15,-20.0,6.2,Stable,High
+Fashion,18,14,+28.6,5.4,Decreasing,High
+Technology,4,8,-50.0,7.3,Stable,Medium
+Social Impact,1,9,-88.9,9.5,Rapidly Increasing,Very Low
+Behind The Scenes,6,11,-45.5,7.6,Increasing,Medium
+Athlete Stories,7,13,-46.2,7.9,Stable,Medium
+Product Focus,20,16,+25.0,5.1,Stable,High
+Collaboration,2,7,-71.4,8.3,Increasing,Low
+Seasonal,14,12,+16.7,4.8,Decreasing,High
+Community,3,10,-70.0,8.7,Increasing,Low

@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
     
+    # AI/GenAI Configuration
+    GOOGLE_GENAI_API_KEY: str = Field(env="GOOGLE_GENAI_API_KEY")
+    GENAI_MODEL: str = Field(default="gemini-2.0-flash-exp", env="GENAI_MODEL")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

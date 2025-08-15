@@ -16,7 +16,9 @@ from app.core.database import init_db
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    await init_db()
+    # Skip database initialization for CSV-only mode
+    # await init_db()
+    print("🚀 Server started successfully - Using CSV data mode")
     yield
     # Shutdown
     # Add cleanup code here if needed
@@ -34,12 +36,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     
-    # CORS middleware
+    # CORS middleware - More permissive for development
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_HOSTS,
+        allow_origins=["*"],  # Allow all origins for development
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
     

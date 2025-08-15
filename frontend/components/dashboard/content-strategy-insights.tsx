@@ -1,12 +1,43 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock } from "lucide-react"
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Loader2 } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
-export function ContentStrategyInsights() {
+interface ContentStrategyInsightsProps {
+  userId: string
+}
+
+export function ContentStrategyInsights({ userId }: ContentStrategyInsightsProps) {
+  const [isLoading, setIsLoading] = useState(true)
+  const [insights, setInsights] = useState<any>(null)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    loadStrategyInsights()
+  }, [userId])
+
+  const loadStrategyInsights = async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getContentOpportunities(userId)
+      setInsights(response)
+    } catch (error) {
+      console.error('Error loading strategy insights:', error)
+      toast({
+        title: "Error loading insights",
+        description: "Failed to load strategy insights. Using sample data.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
   const strategicInsights = [
     {
       type: "opportunity",

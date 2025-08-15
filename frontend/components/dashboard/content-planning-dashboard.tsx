@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,10 +9,116 @@ import { ContentCalendar } from "./content-calendar"
 import { AISuggestionsPanel } from "./ai-suggestions-panel"
 import { CompetitorGapSuggestions } from "./competitor-gap-suggestions"
 import { ContentStrategyInsights } from "./content-strategy-insights"
-import { Plus, Calendar, Sparkles, Search, Target, AlertTriangle } from "lucide-react"
+import { Plus, Calendar, Sparkles, Search, Target, AlertTriangle, Loader2 } from "lucide-react"
+import { useApiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
+
+interface DashboardStats {
+  scheduled_posts: { value: string; change: string }
+  gap_opportunities: { value: string; change: string }
+  competitive_edge: { value: string; change: string }
+  threat_alerts: { value: string; change: string }
+}
+
+interface RecentActivity {
+  action: string
+  content: string
+  time: string
+  status: string
+}
 
 export function ContentPlanningDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const { apiClient, userId } = useApiClient()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      
+      // Load dashboard stats and activities in parallel
+      const [statsResponse, activitiesResponse] = await Promise.all([
+        apiClient.getDashboardStats(userId),
+        apiClient.getRecentActivities(userId)
+      ])
+      
+      setDashboardStats(statsResponse as DashboardStats)
+      setRecentActivities(activitiesResponse as RecentActivity[])
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+      toast({
+        title: "Error loading dashboard",
+        description: "Failed to load dashboard data. Using fallback data.",
+        variant: "destructive"
+      })
+      
+      // Fallback data in case of error
+      setDashboardStats({
+        scheduled_posts: { value: "24", change: "+3 from last week" },
+        gap_opportunities: { value: "8", change: "High-impact content gaps" },
+        competitive_edge: { value: "+23%", change: "vs competitor average" },
+        threat_alerts: { value: "3", change: "Competitor moves to watch" }
+      })
+      
+      setRecentActivities([
+        {
+          action: "Gap Identified",
+          content: "Video content opportunity vs Nike",
+          time: "1 hour ago",
+          status: "opportunity"
+        },
+        {
+          action: "AI Generated",
+          content: "Summer Sale Campaign - Instagram Post",
+          time: "2 hours ago",
+          status: "success"
+        },
+        {
+          action: "Competitor Alert",
+          content: "Adidas launched sustainability campaign",
+          time: "3 hours ago",
+          status: "alert"
+        },
+        {
+          action: "Published",
+          content: "Weekly Newsletter Content",
+          time: "6 hours ago",
+          status: "draft"
+        }
+      ])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCreateContent = async () => {
+    try {
+      // Trigger AI analysis for new content suggestions
+      await apiClient.getAIAnalysis(userId, "content_generation")
+      toast({
+        title: "AI Analysis Started",
+        description: "Generating new content suggestions based on latest competitor insights..."
+      })
+      
+      // Refresh suggestions after a short delay
+      setTimeout(() => {
+        loadDashboardData()
+      }, 2000)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate new content suggestions",
+        variant: "destructive"
+      })
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -22,8 +128,12 @@ export function ContentPlanningDashboard() {
           <h1 className="text-3xl font-bold tracking-tight">AI Content Planning</h1>
           <p className="text-muted-foreground">Competitor-driven content strategy with AI assistance</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={handleCreateContent} disabled={isLoading}>
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
           Create Content
         </Button>
       </div>
@@ -36,8 +146,16 @@ export function ContentPlanningDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24</div>
-            <p className="text-xs text-muted-foreground">+3 from last week</p>
+            <div className="text-2xl font-bold">
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                dashboardStats?.scheduled_posts.value || "24"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats?.scheduled_posts.change || "+3 from last week"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -46,8 +164,16 @@ export function ContentPlanningDashboard() {
             <Search className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
-            <p className="text-xs text-muted-foreground">High-impact content gaps</p>
+            <div className="text-2xl font-bold">
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                dashboardStats?.gap_opportunities.value || "8"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats?.gap_opportunities.change || "High-impact content gaps"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -56,8 +182,16 @@ export function ContentPlanningDashboard() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+23%</div>
-            <p className="text-xs text-muted-foreground">vs competitor average</p>
+            <div className="text-2xl font-bold">
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                dashboardStats?.competitive_edge.value || "+23%"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats?.competitive_edge.change || "vs competitor average"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -66,8 +200,16 @@ export function ContentPlanningDashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">3</div>
-            <p className="text-xs text-muted-foreground">Competitor moves to watch</p>
+            <div className="text-2xl font-bold text-orange-600">
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                dashboardStats?.threat_alerts.value || "3"
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardStats?.threat_alerts.change || "Competitor moves to watch"}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -116,17 +258,17 @@ export function ContentPlanningDashboard() {
 
             {/* AI Suggestions Panel */}
             <div>
-              <AISuggestionsPanel selectedDate={selectedDate} />
+              <AISuggestionsPanel selectedDate={selectedDate} userId={userId} />
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="gaps" className="space-y-6">
-          <CompetitorGapSuggestions />
+          <CompetitorGapSuggestions userId={userId} />
         </TabsContent>
 
         <TabsContent value="strategy" className="space-y-6">
-          <ContentStrategyInsights />
+          <ContentStrategyInsights userId={userId} />
         </TabsContent>
       </Tabs>
 
@@ -137,69 +279,50 @@ export function ContentPlanningDashboard() {
           <CardDescription>Latest updates on your content and competitive moves</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {[
-              {
-                action: "Gap Identified",
-                content: "Video content opportunity vs Nike",
-                time: "1 hour ago",
-                status: "opportunity",
-              },
-              {
-                action: "Published",
-                content: "Summer Sale Campaign - Instagram Post",
-                time: "2 hours ago",
-                status: "success",
-              },
-              {
-                action: "Competitor Alert",
-                content: "Adidas launched sustainability campaign",
-                time: "3 hours ago",
-                status: "alert",
-              },
-              {
-                action: "AI Generated",
-                content: "Weekly Newsletter Content",
-                time: "6 hours ago",
-                status: "draft",
-              },
-            ].map((activity, index) => (
-              <div key={index} className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      activity.status === "success"
-                        ? "bg-green-500"
-                        : activity.status === "opportunity"
-                          ? "bg-blue-500"
-                          : activity.status === "alert"
-                            ? "bg-orange-500"
-                            : "bg-gray-500"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-sm font-medium">
-                      {activity.action} <span className="text-muted-foreground">{activity.content}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">{activity.time}</p>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentActivities.map((activity, index) => (
+                <div key={index} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        activity.status === "success"
+                          ? "bg-green-500"
+                          : activity.status === "opportunity"
+                            ? "bg-blue-500"
+                            : activity.status === "alert"
+                              ? "bg-orange-500"
+                              : "bg-gray-500"
+                      }`}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {activity.action} <span className="text-muted-foreground">{activity.content}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                    </div>
                   </div>
+                  <Badge
+                    variant={
+                      activity.status === "success"
+                        ? "default"
+                        : activity.status === "opportunity"
+                          ? "secondary"
+                          : activity.status === "alert"
+                            ? "destructive"
+                            : "outline"
+                    }
+                  >
+                    {activity.status}
+                  </Badge>
                 </div>
-                <Badge
-                  variant={
-                    activity.status === "success"
-                      ? "default"
-                      : activity.status === "opportunity"
-                        ? "secondary"
-                        : activity.status === "alert"
-                          ? "destructive"
-                          : "outline"
-                  }
-                >
-                  {activity.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

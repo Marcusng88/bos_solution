@@ -1,80 +1,78 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Lightbulb, Target, TrendingUp, Calendar, Sparkles, ThumbsUp, Edit3, X } from "lucide-react"
+import { Lightbulb, Target, TrendingUp, Calendar, Sparkles, ThumbsUp, Edit3, X, Loader2 } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
 
-export function CompetitorGapSuggestions() {
+interface CompetitorGapSuggestionsProps {
+  userId: string
+}
+
+interface CompetitorGap {
+  id: number
+  gap_type: string
+  competitor: string
+  opportunity: string
+  title: string
+  content: string
+  platform: string
+  impact: string
+  difficulty: string
+  estimated_reach: string
+  confidence: number
+  competitor_example: string
+}
+
+export function CompetitorGapSuggestions({ userId }: CompetitorGapSuggestionsProps) {
+  const [gapSuggestions, setGapSuggestions] = useState<CompetitorGap[]>([])
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editedContent, setEditedContent] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
 
-  const gapSuggestions = [
-    {
-      id: 1,
-      gapType: "Video Content",
-      competitor: "Nike",
-      opportunity: "Behind by 40%",
-      title: "Workout Tutorial Series",
-      content:
-        "Create a 5-part workout tutorial series featuring your products. Nike's fitness videos get 2x engagement. Focus on beginner-friendly exercises with product integration.",
-      platform: "Instagram Reels",
-      impact: "High",
-      difficulty: "Medium",
-      estimatedReach: "45K",
-      confidence: 92,
-      competitorExample: "Nike's daily workout videos average 50K views",
-    },
-    {
-      id: 2,
-      gapType: "Sustainability",
-      competitor: "Adidas",
-      opportunity: "Behind by 60%",
-      title: "Eco-Friendly Manufacturing Story",
-      content:
-        "Share behind-the-scenes content about your sustainable practices. Adidas' eco-content performs 3x better. Highlight recycled materials and carbon reduction efforts.",
-      platform: "LinkedIn + Instagram",
-      impact: "High",
-      difficulty: "Low",
-      estimatedReach: "32K",
-      confidence: 88,
-      competitorExample: "Adidas' #MyAdidas sustainability posts get 40K+ engagements",
-    },
-    {
-      id: 3,
-      gapType: "User Generated Content",
-      competitor: "Under Armour",
-      opportunity: "Behind by 25%",
-      title: "Customer Transformation Stories",
-      content:
-        "Launch a campaign featuring customer fitness journeys. Under Armour's UGC campaigns drive 4x engagement. Create a branded hashtag and incentivize sharing.",
-      platform: "TikTok + Instagram",
-      impact: "Medium",
-      difficulty: "Low",
-      estimatedReach: "28K",
-      confidence: 85,
-      competitorExample: "Under Armour's #WillFindAWay campaign generated 100K posts",
-    },
-    {
-      id: 4,
-      gapType: "Educational Content",
-      competitor: "All Competitors",
-      opportunity: "Behind by 30%",
-      title: "Nutrition & Training Guide Series",
-      content:
-        "Create educational content about fitness nutrition and training tips. All competitors are positioning as fitness experts. Partner with trainers and nutritionists.",
-      platform: "YouTube + Blog",
-      impact: "Medium",
-      difficulty: "High",
-      estimatedReach: "22K",
-      confidence: 90,
-      competitorExample: "Industry average: 15 educational posts/month vs your 5",
-    },
-  ]
+  useEffect(() => {
+    loadGapSuggestions()
+  }, [userId])
+
+  const loadGapSuggestions = async () => {
+    try {
+      setIsLoading(true)
+      const gaps = await apiClient.getCompetitorGaps(userId) as CompetitorGap[]
+      setGapSuggestions(gaps)
+    } catch (error) {
+      console.error('Error loading competitor gaps:', error)
+      toast({
+        title: "Error loading gaps",
+        description: "Failed to load competitor gaps. Please try again.",
+        variant: "destructive"
+      })
+      
+      // Fallback data
+      setGapSuggestions([
+        {
+          id: 1,
+          gap_type: "Video Content",
+          competitor: "Nike",
+          opportunity: "Behind by 40%",
+          title: "Workout Tutorial Series",
+          content: "Create a 5-part workout tutorial series featuring your products. Nike's fitness videos get 2x engagement. Focus on beginner-friendly exercises with product integration.",
+          platform: "Instagram Reels",
+          impact: "High",
+          difficulty: "Medium",
+          estimated_reach: "45K",
+          confidence: 92,
+          competitor_example: "Nike's daily workout videos average 50K views"
+        }
+      ])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleEdit = (suggestion: (typeof gapSuggestions)[0]) => {
     setEditingId(suggestion.id)
@@ -113,7 +111,9 @@ export function CompetitorGapSuggestions() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">4</div>
+            <div className="text-2xl font-bold">
+              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : gapSuggestions.length}
+            </div>
             <p className="text-xs text-muted-foreground">Ready to capitalize on</p>
           </CardContent>
         </Card>
@@ -149,7 +149,12 @@ export function CompetitorGapSuggestions() {
           <CardDescription>AI-generated content ideas based on competitor analysis</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {gapSuggestions.map((suggestion) => (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            gapSuggestions.map((suggestion) => (
             <Card key={suggestion.id} className="p-6 border-l-4 border-l-blue-500">
               <div className="space-y-4">
                 {/* Header */}
@@ -164,7 +169,7 @@ export function CompetitorGapSuggestions() {
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                       <span>
-                        Gap Type: <strong>{suggestion.gapType}</strong>
+                        Gap Type: <strong>{suggestion.gap_type}</strong>
                       </span>
                       <span>
                         vs <strong>{suggestion.competitor}</strong>
@@ -202,7 +207,7 @@ export function CompetitorGapSuggestions() {
                     <p className="text-sm leading-relaxed">{suggestion.content}</p>
                     <div className="p-3 bg-muted/50 rounded-lg">
                       <div className="text-sm">
-                        <strong className="text-blue-600">Competitor Insight:</strong> {suggestion.competitorExample}
+                        <strong className="text-blue-600">Competitor Insight:</strong> {suggestion.competitor_example}
                       </div>
                     </div>
                   </div>
@@ -212,7 +217,7 @@ export function CompetitorGapSuggestions() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-muted/30 rounded-lg">
                   <div>
                     <div className="text-sm text-muted-foreground">Estimated Reach</div>
-                    <div className="font-medium">{suggestion.estimatedReach}</div>
+                    <div className="font-medium">{suggestion.estimated_reach}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Implementation</div>
@@ -242,7 +247,8 @@ export function CompetitorGapSuggestions() {
                 </div>
               </div>
             </Card>
-          ))}
+          ))
+          )}
         </CardContent>
       </Card>
     </div>

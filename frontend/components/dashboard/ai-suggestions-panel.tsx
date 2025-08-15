@@ -1,63 +1,74 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Sparkles, ThumbsUp, Edit3, X, RefreshCw, ImageIcon, Target } from "lucide-react"
+import { Sparkles, ThumbsUp, Edit3, X, RefreshCw, ImageIcon, Target, Loader2 } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
 
 interface AISuggestionsPanelProps {
   selectedDate: Date
+  userId: string
 }
 
-const aiSuggestions = [
-  {
-    id: 1,
-    type: "gap-based",
-    platform: "Instagram",
-    title: "Workout Tutorial - Fill Video Gap",
-    content:
-      "🏋️‍♀️ Quick 5-minute morning workout to start your day strong! Our gear is designed to move with you. What's your favorite morning exercise? #MorningWorkout #FitnessMotivation #ActiveLifestyle",
-    imageUrl: "/summer-fashion-collection.png",
-    engagement: "High",
-    confidence: 94,
-    gapType: "Video Content",
-    competitorInsight: "Nike's workout videos get 2x engagement - capitalize on this gap",
-  },
-  {
-    id: 2,
-    type: "competitor-response",
-    platform: "LinkedIn",
-    title: "Sustainability Response to Adidas",
-    content:
-      "Our commitment to the planet goes beyond products. Here's how we're reducing our carbon footprint by 40% this year through innovative manufacturing processes and renewable energy. #Sustainability #Innovation #ResponsibleBusiness",
-    imageUrl: "/design-studio-bts.png",
-    engagement: "High",
-    confidence: 91,
-    gapType: "Sustainability",
-    competitorInsight: "Adidas launched major sustainability campaign - respond with your initiatives",
-  },
-  {
-    id: 3,
-    type: "trending-topic",
-    platform: "TikTok",
-    title: "Mental Health Awareness Trend",
-    content:
-      "Your mental health matters as much as your physical health. Here are 3 simple mindfulness exercises you can do anywhere. Remember: progress over perfection. 🧠💪 #MentalHealthMatters #Mindfulness #WellnessJourney",
-    imageUrl: "/fashion-trends-2024.png",
-    engagement: "Very High",
-    confidence: 96,
-    gapType: "Wellness Content",
-    competitorInsight: "Mental health content trending across all competitors - join the conversation",
-  },
-]
+interface AISuggestion {
+  id: number
+  type: string
+  platform: string
+  title: string
+  content: string
+  engagement: string
+  confidence: number
+  gap_type: string
+  competitor_insight: string
+}
 
-export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
+export function AISuggestionsPanel({ selectedDate, userId }: AISuggestionsPanelProps) {
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([])
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editedContent, setEditedContent] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRegenerating, setIsRegenerating] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    loadAISuggestions()
+  }, [userId])
+
+  const loadAISuggestions = async () => {
+    try {
+      setIsLoading(true)
+      const suggestions = await apiClient.getAISuggestions(userId) as AISuggestion[]
+      setAiSuggestions(suggestions)
+    } catch (error) {
+      console.error('Error loading AI suggestions:', error)
+      toast({
+        title: "Error loading suggestions",
+        description: "Failed to load AI suggestions. Please try again.",
+        variant: "destructive"
+      })
+      
+      // Fallback suggestions
+      setAiSuggestions([
+        {
+          id: 1,
+          type: "gap-based",
+          platform: "Instagram",
+          title: "Fitness Content - Fill Video Gap",
+          content: "💪 Transform your morning routine with these 5-minute energizing exercises! Perfect for busy schedules. What's your go-to morning motivation? #MorningWorkout #FitnessMotivation #ActiveLifestyle",
+          engagement: "High",
+          confidence: 94,
+          gap_type: "Fitness",
+          competitor_insight: "Competitors are 46% ahead in fitness content"
+        }
+      ])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleEdit = (suggestion: (typeof aiSuggestions)[0]) => {
     setEditingId(suggestion.id)
@@ -79,11 +90,26 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     })
   }
 
-  const handleRegenerate = (id: number) => {
-    toast({
-      title: "Regenerating content",
-      description: "AI is creating a new version based on latest competitor insights...",
-    })
+  const handleRegenerate = async (id: number) => {
+    try {
+      setIsRegenerating(true)
+      toast({
+        title: "Regenerating content",
+        description: "AI is creating a new version based on latest competitor insights...",
+      })
+      
+      // Trigger AI analysis and reload suggestions
+      await apiClient.getAIAnalysis(userId, "content_generation")
+      await loadAISuggestions()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to regenerate content. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsRegenerating(false)
+    }
   }
 
   const handleReject = (id: number) => {
@@ -137,7 +163,12 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
         <CardDescription>Competitor-driven content ideas tailored for your audience</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {aiSuggestions.map((suggestion) => (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : (
+          aiSuggestions.map((suggestion) => (
           <Card key={suggestion.id} className="p-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -169,27 +200,25 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
                 <div className="flex items-center gap-1 mb-1">
                   {getSuggestionTypeIcon(suggestion.type)}
                   <span className="text-xs font-medium text-blue-900 dark:text-blue-100">
-                    {suggestion.gapType} Opportunity
+                    {suggestion.gap_type} Opportunity
                   </span>
                 </div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">{suggestion.competitorInsight}</p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">{suggestion.competitor_insight}</p>
               </div>
 
-              {suggestion.imageUrl && (
-                <div className="relative">
-                  <img
-                    src={suggestion.imageUrl || "/placeholder.svg"}
-                    alt={suggestion.title}
-                    className="w-full h-32 object-cover rounded-lg"
-                  />
-                  <div className="absolute top-2 right-2">
-                    <Badge variant="secondary" className="text-xs">
-                      <ImageIcon className="h-3 w-3 mr-1" />
-                      AI Generated
-                    </Badge>
-                  </div>
+              <div className="relative">
+                <img
+                  src="/placeholder.svg"
+                  alt={suggestion.title}
+                  className="w-full h-32 object-cover rounded-lg"
+                />
+                <div className="absolute top-2 right-2">
+                  <Badge variant="secondary" className="text-xs">
+                    <ImageIcon className="h-3 w-3 mr-1" />
+                    AI Generated
+                  </Badge>
                 </div>
-              )}
+              </div>
 
               {editingId === suggestion.id ? (
                 <div className="space-y-2">
@@ -228,10 +257,20 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
               </div>
             </div>
           </Card>
-        ))}
+        ))
+        )}
 
-        <Button variant="outline" className="w-full bg-transparent">
-          <RefreshCw className="mr-2 h-4 w-4" />
+        <Button 
+          variant="outline" 
+          className="w-full bg-transparent" 
+          onClick={() => handleRegenerate(0)}
+          disabled={isRegenerating}
+        >
+          {isRegenerating ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 h-4 w-4" />
+          )}
           Generate More Gap-Based Suggestions
         </Button>
       </CardContent>

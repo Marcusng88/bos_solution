@@ -1,0 +1,16 @@
+trend_name,category,growth_rate,current_volume,competitor_adoption,sentiment,urgency_score,platforms,target_audience
+Mental Health Awareness,Wellness,156.3,48000,High,Very Positive,9.2,"TikTok,Instagram,LinkedIn",Gen Z & Millennials
+Sustainable Fashion,Sustainability,189.7,62000,Very High,Positive,9.8,"Instagram,LinkedIn,YouTube",All Demographics
+AI in Fitness,Technology,234.5,31000,Medium,Positive,8.7,"YouTube,TikTok,Twitter",Tech-Savvy Fitness Enthusiasts
+Home Workouts,Fitness,98.4,89000,High,Positive,7.9,"Instagram,TikTok,YouTube",Working Professionals
+Micro-Influencer Collabs,Marketing,167.2,44000,Medium,Positive,8.3,"Instagram,TikTok",Gen Z
+Wellness at Work,Corporate Wellness,145.8,28000,Low,Very Positive,8.9,"LinkedIn,Twitter",Corporate Professionals
+Gender Equality in Sports,Social Impact,178.1,39000,Medium,Very Positive,9.1,"Instagram,LinkedIn,Twitter",All Demographics
+Eco-Friendly Materials,Sustainability,201.3,55000,High,Positive,9.4,"Instagram,YouTube,LinkedIn",Environmentally Conscious
+Virtual Fitness Events,Technology,156.7,33000,Low,Positive,8.1,"YouTube,Facebook,Instagram",Remote Communities
+Nutrition Education,Education,134.2,41000,Medium,Positive,8.4,"YouTube,Instagram,TikTok",Health Enthusiasts
+Youth Sports Development,Community,112.6,26000,Low,Very Positive,8.8,"Instagram,Facebook,YouTube",Parents & Youth
+Recovery and Rest,Wellness,143.9,35000,Medium,Positive,8.2,"Instagram,YouTube,TikTok",Athletes & Fitness Enthusiasts
+Size Inclusivity,Social Impact,167.8,47000,Medium,Very Positive,9.0,"Instagram,TikTok,Twitter",All Demographics
+Local Community Events,Community,89.3,22000,Very Low,Positive,7.6,"Facebook,Instagram",Local Communities
+Wearable Tech Integration,Technology,198.4,38000,Medium,Positive,8.6,"YouTube,Twitter,LinkedIn",Tech Enthusiasts
