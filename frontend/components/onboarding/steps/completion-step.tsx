@@ -23,6 +23,8 @@ export function CompletionStep({ data }: CompletionStepProps) {
     } finally {
       try {
         if (typeof window !== "undefined") {
+          // Clear onboarding step from localStorage since onboarding is complete
+          localStorage.removeItem("onboarding_current_step")
           sessionStorage.setItem("skipOnboardingGuard", "true")
         }
       } catch {}

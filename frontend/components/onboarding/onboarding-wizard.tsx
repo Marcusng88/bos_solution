@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Brain } from "lucide-react"
 import { WelcomeStep } from "./steps/welcome-step"
@@ -33,6 +33,8 @@ const steps = [
   { id: 6, title: "Complete", description: "AI analysis starting!" },
 ]
 
+const ONBOARDING_STEP_KEY = 'onboarding_current_step'
+
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1)
   const [data, setData] = useState<OnboardingData>({
@@ -43,6 +45,22 @@ export function OnboardingWizard() {
     connectedAccounts: [],
     budget: "",
   })
+
+  // Restore current step from localStorage on component mount
+  useEffect(() => {
+    const savedStep = localStorage.getItem(ONBOARDING_STEP_KEY)
+    if (savedStep) {
+      const step = parseInt(savedStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        setCurrentStep(step)
+      }
+    }
+  }, [])
+
+  // Save current step to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(ONBOARDING_STEP_KEY, currentStep.toString())
+  }, [currentStep])
 
   const updateData = (updates: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...updates }))

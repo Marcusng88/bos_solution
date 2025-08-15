@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { YouTubeConnection } from "../youtube-connection"
 import type { OnboardingData } from "../onboarding-wizard"
 
 interface ConnectionsStepProps {
@@ -19,7 +20,6 @@ const platforms = [
   { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600" },
   { id: "twitter", name: "Twitter/X", icon: Twitter, color: "bg-black" },
   { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
-  { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600" },
   { id: "google-ads", name: "Google Ads", icon: Mail, color: "bg-green-600" },
 ]
 
@@ -45,6 +45,15 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
     }
   }
 
+  const handleYouTubeConnectionChange = (connected: boolean) => {
+    const currentConnections = data.connectedAccounts || []
+    if (connected && !currentConnections.includes("youtube")) {
+      updateData({ connectedAccounts: [...currentConnections, "youtube"] })
+    } else if (!connected && currentConnections.includes("youtube")) {
+      updateData({ connectedAccounts: currentConnections.filter((id) => id !== "youtube") })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -55,37 +64,51 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {platforms.map((platform) => {
-            const Icon = platform.icon
-            const isConnected = data.connectedAccounts.includes(platform.id)
-            return (
-              <div
-                key={platform.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${platform.color}`}>
-                    <Icon className="h-5 w-5 text-white" />
+        {/* YouTube Connection - Featured */}
+        <div>
+          <h3 className="font-medium mb-3 flex items-center gap-2">
+            <Youtube className="h-5 w-5 text-red-600" />
+            YouTube Integration
+          </h3>
+          <YouTubeConnection onConnectionChange={handleYouTubeConnectionChange} />
+        </div>
+
+        {/* Other Platforms */}
+        <div>
+          <h3 className="font-medium mb-3">Other Platforms</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {platforms.map((platform) => {
+              const Icon = platform.icon
+              const isConnected = data.connectedAccounts.includes(platform.id)
+              return (
+                <div
+                  key={platform.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${platform.color}`}>
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{platform.name}</h3>
+                      <p className="text-sm text-muted-foreground">{isConnected ? "Connected" : "Coming soon"}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium">{platform.name}</h3>
-                    <p className="text-sm text-muted-foreground">{isConnected ? "Connected" : "Not connected"}</p>
+                  <div className="flex items-center gap-2">
+                    {isConnected && <Badge variant="secondary">Connected</Badge>}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="opacity-50"
+                    >
+                      Coming Soon
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isConnected && <Badge variant="secondary">Connected</Badge>}
-                  <Button
-                    variant={isConnected ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => connectPlatform(platform.id)}
-                  >
-                    {isConnected ? "Disconnect" : "Connect"}
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
 
         {data.connectedAccounts.length > 0 && (
@@ -94,9 +117,10 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
             <div className="flex flex-wrap gap-2">
               {data.connectedAccounts.map((accountId) => {
                 const platform = platforms.find((p) => p.id === accountId)
+                const platformName = platform?.name || (accountId === "youtube" ? "YouTube" : accountId)
                 return (
                   <Badge key={accountId} variant="secondary">
-                    {platform?.name}
+                    {platformName}
                   </Badge>
                 )
               })}

@@ -16,7 +16,8 @@ from app.core.database import init_db
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    await init_db()
+    # Temporarily disabled for YouTube testing
+    # await init_db()
     yield
     # Shutdown
     # Add cleanup code here if needed
