@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail } from "lucide-react"
+import { ArrowLeft, ArrowRight, Facebook, Instagram, Youtube, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { YouTubeConnection } from "../youtube-connection"
 import type { OnboardingData } from "../onboarding-wizard"
@@ -13,17 +13,17 @@ interface ConnectionsStepProps {
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
+  onSave?: () => void
+  currentStep?: number
 }
 
 const platforms = [
   { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600" },
   { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600" },
-  { id: "twitter", name: "Twitter/X", icon: Twitter, color: "bg-black" },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
-  { id: "google-ads", name: "Google Ads", icon: Mail, color: "bg-green-600" },
 ]
 
-export function ConnectionsStep({ data, updateData, onNext, onPrev }: ConnectionsStepProps) {
+export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettings = false, onSave, currentStep }: ConnectionsStepProps) {
   const { toast } = useToast()
 
   const connectPlatform = (platformId: string) => {
@@ -59,8 +59,10 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
       <CardHeader>
         <CardTitle>Connect your accounts</CardTitle>
         <CardDescription>
-          Connect your social media and advertising accounts to enable AI-powered content creation and campaign
-          management. You can skip this step and connect accounts later.
+          {isFromSettings 
+            ? "Update your connected social media and advertising accounts. Changes will be saved when you click 'Save Changes'."
+            : "Connect your social media and advertising accounts to enable AI-powered content creation and campaign management. You can skip this step and connect accounts later."
+          }
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -70,7 +72,11 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
             <Youtube className="h-5 w-5 text-red-600" />
             YouTube Integration
           </h3>
-          <YouTubeConnection onConnectionChange={handleYouTubeConnectionChange} />
+          <YouTubeConnection 
+            onConnectionChange={handleYouTubeConnectionChange} 
+            returnContext={isFromSettings ? 'settings' : 'onboarding'}
+            currentStep={currentStep}
+          />
         </div>
 
         {/* Other Platforms */}
@@ -133,10 +139,17 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <Button onClick={onNext}>
-            {data.connectedAccounts.length > 0 ? "Continue" : "Skip for now"}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+          {isFromSettings && onSave ? (
+            <Button onClick={onSave}>
+              <Save className="mr-2 h-4 w-4" />
+              Save Changes
+            </Button>
+          ) : (
+            <Button onClick={onNext}>
+              {data.connectedAccounts.length > 0 ? "Continue" : "Skip for now"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

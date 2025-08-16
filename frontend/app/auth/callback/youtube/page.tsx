@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Loader2, CheckCircle, AlertCircle, Youtube } from "lucide-react"
 import { useYouTubeStore } from "@/hooks/use-youtube"
 import { useToast } from "@/hooks/use-toast"
 
-export default function YouTubeCallbackPage() {
+function YouTubeCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -51,9 +51,21 @@ export default function YouTubeCallbackPage() {
         description: "Your YouTube account has been successfully connected.",
       })
 
-      // Redirect back to onboarding after a short delay
+      // Get the return context from session storage
+      const returnContext = sessionStorage.getItem('youtube_return_context') || 'onboarding'
+      const returnStep = sessionStorage.getItem('youtube_return_step')
+      
+      // Clear the context from storage (but keep the step for now)
+      sessionStorage.removeItem('youtube_return_context')
+
+      // Redirect based on context after a short delay
       setTimeout(() => {
-        router.push('/onboarding')
+        if (returnContext === 'settings') {
+          router.push('/dashboard/settings')
+        } else {
+          // Add step as URL parameter as backup
+          router.push(`/onboarding${returnStep ? `?step=${returnStep}` : ''}`)
+        }
       }, 2000)
       
     } catch (error: any) {
@@ -70,7 +82,14 @@ export default function YouTubeCallbackPage() {
   }
 
   const handleReturnToOnboarding = () => {
-    router.push('/onboarding')
+    const returnContext = sessionStorage.getItem('youtube_return_context') || 'onboarding'
+    sessionStorage.removeItem('youtube_return_context')
+    
+    if (returnContext === 'settings') {
+      router.push('/dashboard/settings')
+    } else {
+      router.push('/onboarding')
+    }
   }
 
   const getStatusIcon = () => {
@@ -126,13 +145,13 @@ export default function YouTubeCallbackPage() {
             {status === 'success' && (
               <div className="text-center space-y-2">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  You'll be redirected to onboarding shortly...
+                  You'll be redirected shortly...
                 </p>
                 <Button 
                   onClick={handleReturnToOnboarding}
                   className="w-full"
                 >
-                  Continue to Onboarding
+                  Continue
                 </Button>
               </div>
             )}
@@ -144,10 +163,10 @@ export default function YouTubeCallbackPage() {
                   variant="outline"
                   className="w-full"
                 >
-                  Return to Onboarding
+                  Return
                 </Button>
                 <p className="text-xs text-center text-muted-foreground">
-                  You can try connecting again from the onboarding page
+                  You can try connecting again
                 </p>
               </div>
             )}
@@ -163,5 +182,20 @@ export default function YouTubeCallbackPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function YouTubeCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <YouTubeCallbackContent />
+    </Suspense>
   )
 }

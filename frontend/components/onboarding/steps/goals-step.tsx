@@ -13,6 +13,7 @@ interface GoalsStepProps {
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
 }
 
 const marketingGoals = [
@@ -24,7 +25,7 @@ const marketingGoals = [
   { id: "website-traffic", label: "Drive more website traffic", icon: TrendingUp },
 ]
 
-export function GoalsStep({ data, updateData, onNext, onPrev }: GoalsStepProps) {
+export function GoalsStep({ data, updateData, onNext, onPrev, isFromSettings = false }: GoalsStepProps) {
   const toggleGoal = (goalId: string) => {
     const currentGoals = data.goals || []
     const updatedGoals = currentGoals.includes(goalId)
@@ -92,7 +93,7 @@ export function GoalsStep({ data, updateData, onNext, onPrev }: GoalsStepProps) 
             Back
           </Button>
           <Button onClick={onNext} disabled={!canProceed}>
-            Next
+            {isFromSettings ? "Next: Competitors" : "Next"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

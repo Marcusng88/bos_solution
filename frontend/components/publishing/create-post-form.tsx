@@ -13,13 +13,11 @@ import { useToast } from "@/hooks/use-toast"
 import { useYouTubeStore } from "@/hooks/use-youtube"
 import { MediaUpload } from "./media-upload"
 import { PostPreview } from "./post-preview"
-import { Facebook, Instagram, Twitter, Linkedin, Youtube, Calendar, Send, Save, Sparkles } from "lucide-react"
+import { Facebook, Instagram, Youtube, Calendar, Send, Save, Sparkles } from "lucide-react"
 
 const platforms = [
   { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600", connected: true },
   { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600", connected: true },
-  { id: "twitter", name: "Twitter/X", icon: Twitter, color: "bg-black", connected: true },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700", connected: true },
   { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600", connected: false }, // This will be dynamically updated
 ]
 

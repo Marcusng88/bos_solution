@@ -11,9 +11,11 @@ import { useYouTubeStore } from "@/hooks/use-youtube"
 
 interface YouTubeConnectionProps {
   onConnectionChange?: (connected: boolean) => void
+  returnContext?: 'onboarding' | 'settings'
+  currentStep?: number
 }
 
-export function YouTubeConnection({ onConnectionChange }: YouTubeConnectionProps) {
+export function YouTubeConnection({ onConnectionChange, returnContext = 'onboarding', currentStep }: YouTubeConnectionProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const { toast } = useToast()
   const { 
@@ -40,6 +42,19 @@ export function YouTubeConnection({ onConnectionChange }: YouTubeConnectionProps
   const handleConnect = async () => {
     setIsConnecting(true)
     try {
+      // Store the return context before connecting
+      sessionStorage.setItem('youtube_return_context', returnContext)
+      
+      // Store the current step to return to
+      if (returnContext === 'onboarding') {
+        // Use the passed currentStep prop or fall back to localStorage
+        const stepToStore = currentStep?.toString() || localStorage.getItem('onboarding_current_step') || '5'
+        sessionStorage.setItem('youtube_return_step', stepToStore)
+      } else if (returnContext === 'settings') {
+        // For settings, we'll always return to step 4 (connections)
+        sessionStorage.setItem('youtube_return_step', '4')
+      }
+      
       await connect()
       toast({
         title: "Redirecting to YouTube",

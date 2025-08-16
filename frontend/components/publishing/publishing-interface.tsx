@@ -64,7 +64,7 @@ export function PublishingInterface() {
             <Plus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">3</div>
             <p className="text-xs text-muted-foreground">Connected accounts</p>
           </CardContent>
         </Card>

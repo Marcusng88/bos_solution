@@ -9,6 +9,43 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE TYPE monitoring_status AS ENUM ('active', 'paused', 'error');
 CREATE TYPE alert_priority AS ENUM ('low', 'medium', 'high', 'critical');
 CREATE TYPE social_media_platform AS ENUM ('instagram', 'facebook', 'twitter', 'linkedin', 'tiktok', 'youtube', 'other');
+CREATE TYPE clerk_user_status AS ENUM ('active', 'inactive', 'banned', 'locked');
+
+-- Clerk Users table - stores user information from Clerk authentication
+CREATE TABLE clerk_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    clerk_user_id VARCHAR(255) NOT NULL UNIQUE, -- Clerk's user ID
+    email_address VARCHAR(320) NOT NULL, -- Primary email
+    email_addresses JSONB, -- Array of all email addresses
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    username VARCHAR(100),
+    profile_image_url VARCHAR(500),
+    phone_number VARCHAR(50),
+    phone_numbers JSONB, -- Array of all phone numbers
+    status clerk_user_status DEFAULT 'active',
+    created_at_clerk TIMESTAMP WITH TIME ZONE, -- When user was created in Clerk
+    updated_at_clerk TIMESTAMP WITH TIME ZONE, -- Last updated in Clerk
+    last_sign_in_at TIMESTAMP WITH TIME ZONE,
+    last_active_at TIMESTAMP WITH TIME ZONE,
+    banned BOOLEAN DEFAULT false,
+    locked BOOLEAN DEFAULT false,
+    two_factor_enabled BOOLEAN DEFAULT false,
+    has_image BOOLEAN DEFAULT false,
+    backup_code_enabled BOOLEAN DEFAULT false,
+    totp_enabled BOOLEAN DEFAULT false,
+    external_accounts JSONB, -- OAuth connections (Google, GitHub, etc.)
+    public_metadata JSONB DEFAULT '{}', -- Public user metadata
+    private_metadata JSONB DEFAULT '{}', -- Private user metadata
+    unsafe_metadata JSONB DEFAULT '{}', -- Unsafe user metadata
+    web3_wallets JSONB, -- Crypto wallet addresses
+    password_enabled BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_email_format CHECK (email_address ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+);
 
 -- Competitors table - stores competitor information
 CREATE TABLE competitors (
@@ -113,6 +150,10 @@ CREATE TABLE competitor_monitoring_status (
 );
 
 -- Create indexes for better performance
+CREATE INDEX idx_clerk_users_clerk_user_id ON clerk_users(clerk_user_id);
+CREATE INDEX idx_clerk_users_email_address ON clerk_users(email_address);
+CREATE INDEX idx_clerk_users_status ON clerk_users(status);
+CREATE INDEX idx_clerk_users_created_at ON clerk_users(created_at);
 CREATE INDEX idx_competitors_user_id ON competitors(user_id);
 CREATE INDEX idx_competitors_status ON competitors(status);
 CREATE INDEX idx_monitoring_data_competitor_id ON monitoring_data(competitor_id);
@@ -140,6 +181,9 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers for updated_at
+CREATE TRIGGER update_clerk_users_updated_at BEFORE UPDATE ON clerk_users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_competitors_updated_at BEFORE UPDATE ON competitors
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -165,9 +209,27 @@ CREATE TRIGGER create_user_settings_trigger AFTER INSERT ON competitors
     FOR EACH ROW EXECUTE FUNCTION create_user_monitoring_settings();
 
 -- Insert sample data for testing (optional)
--- INSERT INTO user_monitoring_settings (user_id) VALUES ('user_test_123');
--- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_test_123', 'Nike', 'Athletic footwear and apparel', 'Sports');
--- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_test_123', 'Adidas', 'Sportswear manufacturer', 'Sports');
+-- Sample Clerk user
+-- INSERT INTO clerk_users (
+--     clerk_user_id, 
+--     email_address, 
+--     first_name, 
+--     last_name, 
+--     username,
+--     status
+-- ) VALUES (
+--     'user_2abc123def456ghi', 
+--     'test@example.com', 
+--     'John', 
+--     'Doe', 
+--     'johndoe',
+--     'active'
+-- );
+
+-- Sample user settings and competitors (using existing table structure)
+-- INSERT INTO user_monitoring_settings (user_id) VALUES ('user_2abc123def456ghi');
+-- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_2abc123def456ghi', 'Nike', 'Athletic footwear and apparel', 'Sports');
+-- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_2abc123def456ghi', 'Adidas', 'Sportswear manufacturer', 'Sports');
 
 -- Grant necessary permissions (adjust as needed for your setup)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_user;
