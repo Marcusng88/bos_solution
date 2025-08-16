@@ -20,7 +20,14 @@ export interface OnboardingData {
     website: string
     platforms: string[]
   }>
-  connectedAccounts: string[]
+  connectedAccounts: Array<{
+    platform: string
+    username: string
+    displayName?: string
+    isConnected: boolean
+    permissions: string[]
+    connectedAt?: Date
+  }>
   budget: string
 }
 

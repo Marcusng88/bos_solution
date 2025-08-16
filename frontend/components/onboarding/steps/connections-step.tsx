@@ -3,9 +3,24 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail } from "lucide-react"
+import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Loader2, Check, Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { initiateOAuth, getAvailablePlatforms, getPlatformConfig } from "@/lib/oauth"
+import { formatPlatformName, getPlatformIcon, getPlatformColor } from "@/lib/utils"
 import type { OnboardingData } from "../onboarding-wizard"
+import { useState, useEffect } from "react"
+
+// Facebook SDK TypeScript declarations
+declare global {
+  interface Window {
+    FB: {
+      getLoginStatus: (callback: (response: any) => void) => void
+      init: (params: any) => void
+      login: (callback: (response: any) => void, params?: any) => void
+      logout: (callback: (response: any) => void) => void
+    }
+  }
+}
 
 interface ConnectionsStepProps {
   data: OnboardingData
@@ -14,35 +29,104 @@ interface ConnectionsStepProps {
   onPrev: () => void
 }
 
-const platforms = [
-  { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600" },
-  { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600" },
-  { id: "twitter", name: "Twitter/X", icon: Twitter, color: "bg-black" },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
-  { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600" },
-  { id: "google-ads", name: "Google Ads", icon: Mail, color: "bg-green-600" },
-]
-
 export function ConnectionsStep({ data, updateData, onNext, onPrev }: ConnectionsStepProps) {
   const { toast } = useToast()
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
+  const [facebookLoginStatus, setFacebookLoginStatus] = useState<string>('unknown')
+  
+  // Get available platforms from OAuth config
+  const platforms = getAvailablePlatforms()
 
-  const connectPlatform = (platformId: string) => {
-    const currentConnections = data.connectedAccounts || []
-    if (currentConnections.includes(platformId)) {
-      // Disconnect
-      updateData({ connectedAccounts: currentConnections.filter((id) => id !== platformId) })
-      toast({
-        title: "Disconnected",
-        description: `${platforms.find((p) => p.id === platformId)?.name} has been disconnected.`,
-      })
-    } else {
-      // Connect
-      updateData({ connectedAccounts: [...currentConnections, platformId] })
-      toast({
-        title: "Connected!",
-        description: `${platforms.find((p) => p.id === platformId)?.name} has been connected successfully.`,
+  // Facebook login status checking
+  useEffect(() => {
+    // Check if Facebook SDK is loaded
+    if (typeof window !== 'undefined' && window.FB) {
+      checkFacebookLoginStatus()
+    }
+  }, [])
+
+  const checkFacebookLoginStatus = () => {
+    if (typeof window !== 'undefined' && window.FB) {
+      window.FB.getLoginStatus(function(response: any) {
+        statusChangeCallback(response)
       })
     }
+  }
+
+  const statusChangeCallback = (response: any) => {
+    console.log('Facebook login status:', response.status)
+    setFacebookLoginStatus(response.status)
+    
+    if (response.status === 'connected') {
+      // User is logged in and connected to your app
+      console.log('User is logged in:', response.authResponse.userID)
+      toast({
+        title: "Facebook Connected",
+        description: "You're already logged into Facebook!",
+      })
+    } else if (response.status === 'not_authorized') {
+      // User is logged into Facebook but not your app
+      console.log('User needs to authorize your app')
+    } else {
+      // User is not logged into Facebook
+      console.log('User is not logged into Facebook')
+    }
+  }
+
+  const checkLoginState = () => {
+    if (typeof window !== 'undefined' && window.FB) {
+      window.FB.getLoginStatus(function(response: any) {
+        statusChangeCallback(response)
+      })
+    }
+  }
+
+  const connectPlatform = async (platformId: string) => {
+    try {
+      setConnectingPlatform(platformId)
+      
+      // Check if platform is already connected
+      const currentConnections = data.connectedAccounts || []
+      const isConnected = currentConnections.some(conn => conn.platform === platformId)
+      
+      if (isConnected) {
+        // Disconnect platform
+        const updatedConnections = currentConnections.filter(conn => conn.platform !== platformId)
+        updateData({ connectedAccounts: updatedConnections })
+        
+        toast({
+          title: "Disconnected",
+          description: `${formatPlatformName(platformId)} has been disconnected.`,
+        })
+        return
+      }
+
+      // Initiate OAuth flow
+      initiateOAuth(platformId)
+      
+    } catch (error) {
+      console.error(`Failed to connect ${platformId}:`, error)
+      toast({
+        title: "Connection Failed",
+        description: `Failed to connect ${formatPlatformName(platformId)}. Please try again.`,
+        variant: "destructive",
+      })
+    } finally {
+      setConnectingPlatform(null)
+    }
+  }
+
+  const getConnectionStatus = (platformId: string) => {
+    const currentConnections = data.connectedAccounts || []
+    return currentConnections.find(conn => conn.platform === platformId)
+  }
+
+  const isConnected = (platformId: string) => {
+    return !!getConnectionStatus(platformId)
+  }
+
+  const getConnectedCount = () => {
+    return (data.connectedAccounts || []).length
   }
 
   return (
@@ -57,46 +141,95 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {platforms.map((platform) => {
-            const Icon = platform.icon
-            const isConnected = data.connectedAccounts.includes(platform.id)
+            // Skip Instagram since it's handled by Facebook
+            if (platform.id === 'instagram') return null
+            
+            const Icon = platform.icon === '📷' ? Instagram : 
+                        platform.icon === '📘' ? Facebook :
+                        platform.icon === '🐦' ? Twitter :
+                        platform.icon === '💼' ? Linkedin :
+                        platform.icon === '📺' ? Youtube : Mail
+            
+            const connection = getConnectionStatus(platform.id)
+            const connected = isConnected(platform.id)
+            const isConnecting = connectingPlatform === platform.id
+            
             return (
               <div
                 key={platform.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                className={`flex items-center justify-between p-4 border rounded-lg transition-all duration-200 ${
+                  connected 
+                    ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/20' 
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${platform.color}`}>
-                    <Icon className="h-5 w-5 text-white" />
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${platform.color}`}>
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{platform.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {connected ? "Connected" : "Not Connected"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium">{platform.name}</h3>
-                    <p className="text-sm text-muted-foreground">{isConnected ? "Connected" : "Not connected"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isConnected && <Badge variant="secondary">Connected</Badge>}
-                  <Button
-                    variant={isConnected ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => connectPlatform(platform.id)}
-                  >
-                    {isConnected ? "Disconnect" : "Connect"}
-                  </Button>
+                  
+                  {platform.id === 'facebook' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (typeof window !== 'undefined' && window.FB) {
+                          window.FB.login(function(response: any) {
+                            checkLoginState()
+                          }, {
+                            scope: 'pages_read_engagement,pages_show_list,pages_manage_metadata,pages_read_user_content,instagram_basic,instagram_content_publish'
+                          })
+                        }
+                      }}
+                      className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 ml-auto"
+                    >
+                      Connect
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => connectPlatform(platform.id)}
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : connected ? (
+                        "Disconnect"
+                      ) : (
+                        "Connect"
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             )
           })}
         </div>
 
-        {data.connectedAccounts.length > 0 && (
+        {getConnectedCount() > 0 && (
           <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
-            <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Great! You've connected:</h4>
+            <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">
+              Great! You've connected {getConnectedCount()} account{getConnectedCount() !== 1 ? 's' : ''}:
+            </h4>
             <div className="flex flex-wrap gap-2">
-              {data.connectedAccounts.map((accountId) => {
-                const platform = platforms.find((p) => p.id === accountId)
+              {(data.connectedAccounts || []).map((connection) => {
+                const platform = platforms.find((p) => p.id === connection.platform)
                 return (
-                  <Badge key={accountId} variant="secondary">
-                    {platform?.name}
+                  <Badge key={connection.platform} variant="secondary">
+                    {platform?.icon} {formatPlatformName(connection.platform)}
+                    {connection.username && ` (@${connection.username})`}
                   </Badge>
                 )
               })}
@@ -104,13 +237,25 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev }: Connection
           </div>
         )}
 
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+          <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+            What happens when you connect?
+          </h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <li>• We'll securely authenticate with each platform</li>
+            <li>• You'll grant permission to access your data</li>
+            <li>• We'll start monitoring your performance metrics</li>
+            <li>• You can revoke access at any time</li>
+          </ul>
+        </div>
+
         <div className="flex justify-between pt-4">
           <Button variant="outline" onClick={onPrev}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
           <Button onClick={onNext}>
-            {data.connectedAccounts.length > 0 ? "Continue" : "Skip for now"}
+            {getConnectedCount() > 0 ? "Continue" : "Skip for now"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
