@@ -47,15 +47,15 @@ def validate_user_id_format(user_id: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    # Basic validation - adjust based on your Clerk user ID format
+    # Basic validation - accept any non-empty string
     if not user_id:
         return False
     
-    # Clerk user IDs typically start with 'user_' and contain alphanumeric characters
-    if not user_id.startswith('user_'):
+    # Accept any user ID that's not empty and has reasonable length
+    if len(user_id.strip()) < 1:
         return False
     
-    if len(user_id) < 10:  # Minimum reasonable length
+    if len(user_id) > 100:  # Maximum reasonable length
         return False
     
     return True

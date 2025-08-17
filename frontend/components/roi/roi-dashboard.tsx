@@ -26,9 +26,12 @@ export function ROIDashboard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="14d">Last 14 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
-              <SelectItem value="1y">Last year</SelectItem>
+              <SelectItem value="1m">1 month</SelectItem>
+              <SelectItem value="3m">3 months</SelectItem>
+              <SelectItem value="6m">6 months</SelectItem>
+              <SelectItem value="ytd">Year to date</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm">
