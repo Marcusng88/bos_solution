@@ -63,6 +63,18 @@ export class ApiClient {
   }
 
   // User endpoints
+  async syncUserFromClerk(userId: string, clerkUserData: any) {
+    return this.request('/users/sync', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(clerkUserData),
+    });
+  }
+
+  async getUserProfile(userId: string) {
+    return this.request('/users/profile', { userId });
+  }
+
   async getUserSettings(userId: string) {
     return this.request('/users/settings', { userId });
   }
