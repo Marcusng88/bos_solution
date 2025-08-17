@@ -4,7 +4,7 @@ Self-optimization endpoints for campaign analysis and recommendations
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, text
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -84,6 +84,139 @@ async def get_campaigns(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch campaigns: {str(e)}"
+        )
+
+
+@router.get("/overspending-predictions")
+async def get_overspending_predictions(
+    user_id: str = Depends(get_user_id_from_header),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get enhanced overspending predictions with risk analysis"""
+    try:
+        optimization_service = OptimizationService(db)
+        campaigns = await optimization_service.get_campaigns(user_id)
+        
+        # Filter for ongoing campaigns and calculate enhanced risk scores
+        predictions = []
+        for campaign in campaigns:
+            if campaign.get('ongoing') == 'Yes':
+                risk_analysis = optimization_service.calculate_enhanced_risk_score(campaign)
+                
+                # Include ALL ongoing campaigns with their risk scores
+                predictions.append({
+                    'campaign_name': risk_analysis['campaign_name'],
+                    'current_spend': risk_analysis['current_spend'],
+                    'current_budget': risk_analysis['current_budget'],
+                    'net_profit': risk_analysis['net_profit'],
+                    'overspend_risk': risk_analysis['overspend_risk'],
+                    'days_until_overspend': risk_analysis['days_until_overspend'],
+                    'risk_factors': risk_analysis['risk_factors'],
+                    'budget_utilization': risk_analysis['budget_utilization'],
+                    'profit_margin': risk_analysis['profit_margin'],
+                    'risk_score': risk_analysis['risk_score'],
+                    'performance_score': risk_analysis['performance_score'],
+                    'performance_category': risk_analysis['performance_category']
+                })
+        
+        # Sort by risk score (highest first)
+        predictions.sort(key=lambda x: x['risk_score'], reverse=True)
+        
+        return predictions
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch overspending predictions: {str(e)}"
+        )
+
+
+@router.put("/campaigns/status")
+async def update_campaign_status(
+    campaign_update: dict,
+    user_id: str = Depends(get_user_id_from_header),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update campaign ongoing status"""
+    try:
+        campaign_name = campaign_update.get('campaign_name')
+        ongoing_status = campaign_update.get('ongoing')
+        
+        if not campaign_name or ongoing_status not in ['Yes', 'No']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid campaign name or status"
+            )
+        
+        # Update the ongoing field in campaign_data table
+        result = await db.execute(text("""
+            UPDATE campaign_data 
+            SET ongoing = :ongoing_status 
+            WHERE name = :campaign_name
+        """), {
+            "ongoing_status": ongoing_status,
+            "campaign_name": campaign_name
+        })
+        
+        await db.commit()
+        
+        if result.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Campaign not found"
+            )
+        
+        return {"message": f"Campaign {campaign_name} status updated to {ongoing_status}"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update campaign status: {str(e)}"
+        )
+
+
+@router.put("/campaigns/budget")
+async def update_campaign_budget(
+    budget_update: dict,
+    user_id: str = Depends(get_user_id_from_header),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update campaign budget"""
+    try:
+        campaign_name = budget_update.get('campaign_name')
+        new_budget = budget_update.get('budget')
+        
+        if not campaign_name or not new_budget or new_budget <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid campaign name or budget amount"
+            )
+        
+        # Update the budget field in campaign_data table
+        result = await db.execute(text("""
+            UPDATE campaign_data 
+            SET budget = :new_budget 
+            WHERE name = :campaign_name
+        """), {
+            "new_budget": float(new_budget),
+            "campaign_name": campaign_name
+        })
+        
+        await db.commit()
+        
+        if result.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Campaign not found"
+            )
+        
+        return {"message": f"Campaign {campaign_name} budget updated to ${new_budget}"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update campaign budget: {str(e)}"
         )
 
 

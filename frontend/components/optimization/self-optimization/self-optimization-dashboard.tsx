@@ -37,9 +37,16 @@ interface DetailedMetrics {
   }
 }
 
+interface OverspendingPrediction {
+  campaign_name: string
+  overspend_risk: 'low' | 'medium' | 'high' | 'critical'
+  risk_score: number
+}
+
 export function SelfOptimizationDashboard() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [detailedMetrics, setDetailedMetrics] = useState<DetailedMetrics | null>(null)
+  const [overspendingPredictions, setOverspendingPredictions] = useState<OverspendingPrediction[]>([])
   const [loading, setLoading] = useState(true)
   const { apiClient, userId } = useApiClient()
 
@@ -53,17 +60,20 @@ export function SelfOptimizationDashboard() {
       
       console.log('Fetching dashboard metrics for user:', userId)
       
-      // Fetch both basic and detailed metrics
-      const [basicMetrics, detailedMetricsData] = await Promise.all([
+      // Fetch basic metrics, detailed metrics, and overspending predictions
+      const [basicMetrics, detailedMetricsData, predictionsData] = await Promise.all([
         apiClient.getDashboardMetrics(userId),
-        apiClient.getDetailedDashboardMetrics(userId)
+        apiClient.getDetailedDashboardMetrics(userId),
+        apiClient.getOverspendingPredictions(userId)
       ])
       
       console.log('Basic metrics received:', basicMetrics)
       console.log('Detailed metrics received:', detailedMetricsData)
+      console.log('Overspending predictions received:', predictionsData)
       
       setMetrics(basicMetrics)
       setDetailedMetrics(detailedMetricsData)
+      setOverspendingPredictions(predictionsData)
     } catch (error) {
       console.error('Failed to fetch dashboard metrics:', handleApiError(error))
       // Fall back to mock data if API fails
@@ -81,6 +91,7 @@ export function SelfOptimizationDashboard() {
         risk_breakdown: { critical: 0, high: 0, medium: 0, low: 0 },
         alert_breakdown: { critical: 0, high: 0, medium: 0, low: 0 }
       })
+      setOverspendingPredictions([])
     } finally {
       setLoading(false)
     }
@@ -103,7 +114,7 @@ export function SelfOptimizationDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="transition-all duration-200 hover:shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Spend</CardTitle>
@@ -137,9 +148,9 @@ export function SelfOptimizationDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {metrics?.alerts_count || 0}
+              {overspendingPredictions.length || 0}
             </div>
-            <p className="text-xs text-muted-foreground">See Predictions tab for details</p>
+            <p className="text-xs text-muted-foreground">Risky campaigns detected</p>
           </CardContent>
         </Card>
 
@@ -150,9 +161,13 @@ export function SelfOptimizationDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {metrics?.risk_patterns_count || 0}
+              {overspendingPredictions.filter(p => p.overspend_risk === 'critical').length || 0}
             </div>
-            <p className="text-xs text-muted-foreground">Check Predictions tab for active risks</p>
+            <p className="text-xs text-muted-foreground">
+              {overspendingPredictions.filter(p => p.overspend_risk === 'critical').length || 0} Critical, {' '}
+              {overspendingPredictions.filter(p => p.overspend_risk === 'high').length || 0} High, {' '}
+              {overspendingPredictions.filter(p => p.overspend_risk === 'medium').length || 0} Medium
+            </p>
           </CardContent>
         </Card>
 
@@ -169,16 +184,7 @@ export function SelfOptimizationDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="transition-all duration-200 hover:shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Performance Score</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">85</div>
-            <p className="text-xs text-green-600">+5 from yesterday</p>
-          </CardContent>
-        </Card>
+
       </div>
 
       {/* Quick Actions */}

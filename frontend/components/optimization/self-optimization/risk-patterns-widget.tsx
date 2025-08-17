@@ -8,53 +8,37 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useApiClient, handleApiError } from "@/lib/api-client"
 import { Activity, TrendingUp, AlertTriangle, Shield, Eye } from "lucide-react"
 
-interface RiskPattern {
-  id: string
+interface OverspendingPrediction {
   campaign_name: string
-  pattern_type: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  detected_at: string
-  pattern_data: any
-  resolved: boolean
+  overspend_risk: 'low' | 'medium' | 'high' | 'critical'
+  risk_score: number
+  current_spend: number
+  current_budget: number
+  net_profit: number
+  budget_utilization: number
 }
 
 export function RiskPatternsWidget() {
-  const [riskPatterns, setRiskPatterns] = useState<RiskPattern[]>([])
+  const [predictions, setPredictions] = useState<OverspendingPrediction[]>([])
   const [loading, setLoading] = useState(true)
   const { apiClient, userId } = useApiClient()
 
   useEffect(() => {
-    fetchRiskPatterns()
+    fetchPredictions()
   }, [])
 
-  const fetchRiskPatterns = async () => {
+  const fetchPredictions = async () => {
     try {
-      const patternsData = await apiClient.getRiskPatterns(userId, false, 50)
-      
-      // Transform backend data to match frontend interface
-      const transformedPatterns = patternsData.map((pattern: any) => ({
-        ...pattern,
-        pattern_data: pattern.pattern_data ? JSON.parse(pattern.pattern_data) : {}
-      }))
-      
-      setRiskPatterns(transformedPatterns)
+      const predictionsData = await apiClient.getOverspendingPredictions(userId)
+      setPredictions(predictionsData)
     } catch (error) {
-      console.error('Failed to fetch risk patterns:', handleApiError(error))
+      console.error('Failed to fetch predictions:', handleApiError(error))
     } finally {
       setLoading(false)
     }
   }
 
-  const handleResolvePattern = async (patternId: string) => {
-    try {
-      // For now, just update UI - you might want to add a resolve API endpoint
-      setRiskPatterns(prev => prev.map(pattern => 
-        pattern.id === patternId ? { ...pattern, resolved: true } : pattern
-      ))
-    } catch (error) {
-      console.error('Failed to resolve risk pattern:', handleApiError(error))
-    }
-  }
+
 
   const getSeverityColor = (severity: string, resolved: boolean) => {
     if (resolved) return 'text-gray-600 bg-gray-50 border-gray-200'
@@ -84,22 +68,12 @@ export function RiskPatternsWidget() {
     }
   }
 
-  const getPatternDescription = (pattern: RiskPattern) => {
-    switch (pattern.pattern_type) {
-      case 'overspend':
-        return `Budget exceeded by $${pattern.pattern_data.overspend_amount} (${pattern.pattern_data.overspend_percentage}%)`
-      case 'spending_spike':
-        return `Spending increased by ${pattern.pattern_data.increase_percentage}% from $${pattern.pattern_data.previous_spend} to $${pattern.pattern_data.current_spend}`
-      case 'performance_decline':
-        return `CTR declined ${pattern.pattern_data.ctr_decline_percentage}% from ${pattern.pattern_data.previous_ctr}% to ${pattern.pattern_data.current_ctr}%`
-      case 'low_efficiency':
-        return `CPC increased ${pattern.pattern_data.cpc_increase}%, efficiency score: ${pattern.pattern_data.efficiency_score}`
-      default:
-        return 'Risk pattern detected'
-    }
-  }
 
-  const unresolvedCount = riskPatterns.filter(pattern => !pattern.resolved).length
+
+  const criticalCount = predictions.filter(p => p.overspend_risk === 'critical').length
+  const highCount = predictions.filter(p => p.overspend_risk === 'high').length
+  const mediumCount = predictions.filter(p => p.overspend_risk === 'medium').length
+  const totalRisks = predictions.length
 
   if (loading) {
     return (
@@ -124,101 +98,77 @@ export function RiskPatternsWidget() {
             <Activity className="h-5 w-5" />
             Risk Patterns
           </CardTitle>
-          {unresolvedCount > 0 && (
+          {totalRisks > 0 && (
             <Badge variant="destructive" className="rounded-full">
-              {unresolvedCount}
+              {totalRisks}
             </Badge>
           )}
         </div>
       </CardHeader>
       <CardContent>
-        {riskPatterns.length === 0 ? (
+        {predictions.length === 0 ? (
           <div className="text-center py-8">
             <Shield className="h-12 w-12 text-green-500 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">No risk patterns detected</p>
             <p className="text-xs text-muted-foreground">Your campaigns are performing optimally!</p>
           </div>
         ) : (
-          <ScrollArea className="h-80">
-            <div className="space-y-3">
-              {riskPatterns
-                .sort((a, b) => {
-                  // Sort by resolved status (unresolved first), then by severity
-                  if (a.resolved !== b.resolved) {
-                    return a.resolved ? 1 : -1
-                  }
-                  const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 }
-                  return severityOrder[b.severity] - severityOrder[a.severity]
-                })
-                .map((pattern) => (
-                <div
-                  key={pattern.id}
-                  className={`p-3 rounded-lg border transition-all duration-200 ${
-                    pattern.resolved ? 'opacity-60' : ''
-                  } ${getSeverityColor(pattern.severity, pattern.resolved)}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2 flex-1">
-                      {getPatternIcon(pattern.pattern_type)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-sm truncate">{pattern.campaign_name}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {pattern.severity}
-                          </Badge>
-                          {pattern.resolved && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Resolved
+          <div className="space-y-4">
+            {/* Risk Summary */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="text-center p-3 rounded-lg bg-red-50 border border-red-200">
+                <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
+                <div className="text-xs text-red-700">Critical</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-orange-50 border border-orange-200">
+                <div className="text-2xl font-bold text-orange-600">{highCount}</div>
+                <div className="text-xs text-orange-700">High</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                <div className="text-2xl font-bold text-yellow-600">{mediumCount}</div>
+                <div className="text-xs text-yellow-700">Medium</div>
+              </div>
+            </div>
+            
+            {/* Campaign List */}
+            <ScrollArea className="h-60">
+              <div className="space-y-3">
+                {predictions
+                  .sort((a, b) => {
+                    const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 }
+                    return severityOrder[b.overspend_risk] - severityOrder[a.overspend_risk]
+                  })
+                  .map((prediction, index) => (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg border transition-all duration-200 ${getSeverityColor(prediction.overspend_risk, false)}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 flex-1">
+                        {getPatternIcon('overspend')}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-sm truncate">{prediction.campaign_name}</h4>
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {prediction.overspend_risk} Risk
                             </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs mb-2 font-medium capitalize">
-                          {pattern.pattern_type.replace('_', ' ')} Pattern
-                        </p>
-                        <p className="text-xs mb-2 leading-relaxed">
-                          {getPatternDescription(pattern)}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs opacity-70">
-                            {new Date(pattern.detected_at).toLocaleString()}
-                          </span>
-                          {!pattern.resolved && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleResolvePattern(pattern.id)}
-                              className="h-6 px-2 text-xs"
-                            >
-                              Mark Resolved
-                            </Button>
-                          )}
+                          </div>
+                          <div className="text-xs mb-2 space-y-1">
+                            <div>Budget: ${prediction.current_budget.toLocaleString()} | Spend: ${prediction.current_spend.toLocaleString()}</div>
+                            <div>Utilization: {prediction.budget_utilization.toFixed(1)}% | Risk Score: {(prediction.risk_score * 100).toFixed(0)}%</div>
+                            <div className={`font-medium ${prediction.net_profit >= 0 ? 'text-green-600' : 'text-xs text-red-600'}`}>
+                              Net Profit: ${prediction.net_profit.toLocaleString()}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
-
-        {/* Risk Summary */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="grid grid-cols-2 gap-4 text-center">
-            <div>
-              <div className="text-lg font-bold text-red-600">
-                {riskPatterns.filter(p => !p.resolved && (p.severity === 'critical' || p.severity === 'high')).length}
+                ))}
               </div>
-              <div className="text-xs text-muted-foreground">High Risk</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-orange-600">
-                {riskPatterns.filter(p => !p.resolved && p.severity === 'medium').length}
-              </div>
-              <div className="text-xs text-muted-foreground">Medium Risk</div>
-            </div>
+            </ScrollArea>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   )

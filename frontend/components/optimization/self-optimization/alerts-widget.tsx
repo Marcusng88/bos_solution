@@ -20,45 +20,37 @@ interface OptimizationAlert {
   is_read: boolean
 }
 
+interface OverspendingPrediction {
+  campaign_name: string
+  overspend_risk: 'low' | 'medium' | 'high' | 'critical'
+  risk_score: number
+  current_spend: number
+  current_budget: number
+  net_profit: number
+  budget_utilization: number
+}
+
 export function AlertsWidget() {
-  const [alerts, setAlerts] = useState<OptimizationAlert[]>([])
+  const [predictions, setPredictions] = useState<OverspendingPrediction[]>([])
   const [loading, setLoading] = useState(true)
   const { apiClient, userId } = useApiClient()
 
   useEffect(() => {
-    fetchAlerts()
+    fetchPredictions()
   }, [])
 
-  const fetchAlerts = async () => {
+  const fetchPredictions = async () => {
     try {
-      const alertsData = await apiClient.getOptimizationAlerts(userId, false, 50)
-      setAlerts(alertsData)
+      const predictionsData = await apiClient.getOverspendingPredictions(userId)
+      setPredictions(predictionsData)
     } catch (error) {
-      console.error('Failed to fetch alerts:', handleApiError(error))
+      console.error('Failed to fetch predictions:', handleApiError(error))
     } finally {
       setLoading(false)
     }
   }
 
-  const handleMarkAsRead = async (alertId: string) => {
-    try {
-      await apiClient.markOptimizationAlertAsRead(userId, alertId)
-      setAlerts(prev => prev.map(alert => 
-        alert.id === alertId ? { ...alert, is_read: true } : alert
-      ))
-    } catch (error) {
-      console.error('Failed to mark alert as read:', handleApiError(error))
-    }
-  }
 
-  const handleDismissAlert = async (alertId: string) => {
-    try {
-      // For now, just remove from UI - you might want to add a dismiss API endpoint
-      setAlerts(prev => prev.filter(alert => alert.id !== alertId))
-    } catch (error) {
-      console.error('Failed to dismiss alert:', handleApiError(error))
-    }
-  }
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -85,7 +77,7 @@ export function AlertsWidget() {
     }
   }
 
-  const unreadCount = alerts.filter(alert => !alert.is_read).length
+
 
   if (loading) {
     return (
@@ -110,15 +102,15 @@ export function AlertsWidget() {
             <AlertTriangle className="h-5 w-5" />
             Optimization Alerts
           </CardTitle>
-          {unreadCount > 0 && (
+          {predictions.length > 0 && (
             <Badge variant="destructive" className="rounded-full">
-              {unreadCount}
+              {predictions.length}
             </Badge>
           )}
         </div>
       </CardHeader>
       <CardContent>
-        {alerts.length === 0 ? (
+        {predictions.length === 0 ? (
           <div className="text-center py-8">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">No active alerts</p>
@@ -127,53 +119,26 @@ export function AlertsWidget() {
         ) : (
           <ScrollArea className="h-80">
             <div className="space-y-3">
-              {alerts.map((alert) => (
+              {predictions.map((prediction, index) => (
                 <div
-                  key={alert.id}
-                  className={`p-3 rounded-lg border transition-all duration-200 ${
-                    alert.is_read ? 'opacity-60' : ''
-                  } ${getPriorityColor(alert.priority)}`}
+                  key={index}
+                  className={`p-3 rounded-lg border transition-all duration-200 ${getPriorityColor(prediction.overspend_risk)}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2 flex-1">
-                      {getPriorityIcon(alert.priority)}
+                      {getPriorityIcon(prediction.overspend_risk)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-sm truncate">{alert.title}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {alert.priority}
+                          <h4 className="font-medium text-sm truncate">{prediction.campaign_name}</h4>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {prediction.overspend_risk} Risk
                           </Badge>
                         </div>
-                        <p className="text-xs mb-2 leading-relaxed">{alert.message}</p>
-                        {alert.recommendation && (
-                          <div className="text-xs p-2 rounded bg-white/50 border border-current/20">
-                            <span className="font-medium">Recommendation: </span>
-                            {alert.recommendation}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs opacity-70">
-                            {new Date(alert.created_at).toLocaleString()}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {!alert.is_read && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleMarkAsRead(alert.id)}
-                                className="h-6 px-2 text-xs"
-                              >
-                                Mark Read
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDismissAlert(alert.id)}
-                              className="h-6 w-6 p-0"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
+                        <div className="text-xs mb-2 space-y-1">
+                          <div>Budget: ${prediction.current_budget.toLocaleString()} | Spend: ${prediction.current_spend.toLocaleString()}</div>
+                          <div>Utilization: {prediction.budget_utilization.toFixed(1)}% | Risk Score: {(prediction.risk_score * 100).toFixed(0)}%</div>
+                          <div className={`font-medium ${prediction.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            Net Profit: ${prediction.net_profit.toLocaleString()}
                           </div>
                         </div>
                       </div>

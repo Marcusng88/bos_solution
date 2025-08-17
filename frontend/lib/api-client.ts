@@ -155,6 +155,26 @@ export class ApiClient {
     return this.request(`/self-optimization/campaigns${queryString}`, { userId });
   }
 
+  async getOverspendingPredictions(userId: string) {
+    return this.request('/self-optimization/overspending-predictions', { userId });
+  }
+
+  async updateCampaignStatus(userId: string, campaignName: string, status: string) {
+    return this.request('/self-optimization/campaigns/status', {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify({ campaign_name: campaignName, ongoing: status }),
+    });
+  }
+
+  async updateCampaignBudget(userId: string, campaignName: string, newBudget: number) {
+    return this.request('/self-optimization/campaigns/budget', {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify({ campaign_name: campaignName, budget: newBudget }),
+    });
+  }
+
   async createCampaign(userId: string, campaignData: any) {
     return this.request('/self-optimization/campaigns', {
       userId,

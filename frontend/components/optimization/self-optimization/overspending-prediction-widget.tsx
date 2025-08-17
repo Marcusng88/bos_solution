@@ -4,23 +4,35 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { useApiClient, handleApiError } from "@/lib/api-client"
-import { TrendingUp, AlertTriangle, Clock, Target, DollarSign } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useApiClient, handleApiClient } from "@/lib/api-client"
+import { TrendingUp, AlertTriangle, Clock, Target, DollarSign, TrendingDown, Pause, DollarSign as DollarSignIcon } from "lucide-react"
 
 interface OverspendingPrediction {
   campaign_name: string
   current_spend: number
   current_budget: number
-  predicted_spend: number
+  net_profit: number
   overspend_risk: 'low' | 'medium' | 'high' | 'critical'
   days_until_overspend: number
-  confidence_score: number
   risk_factors: string[]
+  budget_utilization: number
+  profit_margin: number
+  ctr?: number
+  cpc?: number
+  conversions?: number
+  impressions?: number
+  risk_score: number
+  performance_score?: number
+  performance_category?: string
 }
 
 export function OverspendingPredictionWidget() {
   const [predictions, setPredictions] = useState<OverspendingPrediction[]>([])
   const [loading, setLoading] = useState(true)
+  const [reallocatingCampaign, setReallocatingCampaign] = useState<string | null>(null)
+  const [newBudget, setNewBudget] = useState<string>('')
   const { apiClient, userId } = useApiClient()
 
   useEffect(() => {
@@ -29,77 +41,39 @@ export function OverspendingPredictionWidget() {
 
   const fetchPredictions = async () => {
     try {
-      // For now, we'll simulate predictions based on campaign data
-      // In a real implementation, this would call a prediction API
-      const campaigns = await apiClient.getCampaigns(userId)
-      
-      // Generate predictions based on current spend vs budget
-      const predictionsData: OverspendingPrediction[] = campaigns
-        .filter((campaign: any) => campaign.ongoing === 'Yes')
-        .map((campaign: any) => {
-          const currentSpend = campaign.spend || 0
-          const currentBudget = campaign.budget || 0
-          const utilization = currentBudget > 0 ? (currentSpend / currentBudget) * 100 : 0
-          
-          // Calculate risk based on utilization and spending patterns
-          let overspendRisk: 'low' | 'medium' | 'high' | 'critical' = 'low'
-          let daysUntilOverspend = 30
-          let confidenceScore = 0.5
-          let riskFactors: string[] = []
-          
-          if (utilization > 90) {
-            overspendRisk = 'critical'
-            daysUntilOverspend = Math.max(1, Math.floor((100 - utilization) / 3))
-            confidenceScore = 0.95
-            riskFactors.push('High budget utilization')
-          } else if (utilization > 75) {
-            overspendRisk = 'high'
-            daysUntilOverspend = Math.max(3, Math.floor((100 - utilization) / 2))
-            confidenceScore = 0.8
-            riskFactors.push('Above 75% budget utilization')
-          } else if (utilization > 50) {
-            overspendRisk = 'medium'
-            daysUntilOverspend = Math.max(7, Math.floor((100 - utilization) / 1.5))
-            confidenceScore = 0.6
-            riskFactors.push('Moderate budget utilization')
-          }
-          
-          // Add additional risk factors
-          if (currentSpend > 0 && currentBudget > 0) {
-            const dailySpend = currentSpend / 30 // Assume 30-day month
-            const remainingBudget = currentBudget - currentSpend
-            const daysLeft = remainingBudget / dailySpend
-            
-            if (daysLeft < 10) {
-              riskFactors.push('Rapid spending rate')
-              overspendRisk = overspendRisk === 'low' ? 'medium' : overspendRisk
-              confidenceScore = Math.min(0.9, confidenceScore + 0.2)
-            }
-          }
-          
-          return {
-            campaign_name: campaign.name,
-            current_spend: currentSpend,
-            current_budget: currentBudget,
-            predicted_spend: currentBudget * 1.1, // Simple prediction
-            overspend_risk: overspendRisk,
-            days_until_overspend: daysUntilOverspend,
-            confidence_score: confidenceScore,
-            risk_factors: riskFactors
-          }
-        })
-        .filter(prediction => prediction.overspend_risk !== 'low')
-        .sort((a, b) => {
-          const riskOrder = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 }
-          return riskOrder[b.overspend_risk] - riskOrder[a.overspend_risk]
-        })
-      
+      const predictionsData = await apiClient.getOverspendingPredictions(userId)
       setPredictions(predictionsData)
     } catch (error) {
-      console.error('Failed to fetch predictions:', handleApiError(error))
+      console.error('Failed to fetch predictions:', handleApiClient(error))
       setPredictions([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePauseCampaign = async (campaignName: string) => {
+    try {
+      // Update the ongoing field from 'Yes' to 'No' in the database
+      await apiClient.updateCampaignStatus(userId, campaignName, 'No')
+      // Refresh predictions
+      await fetchPredictions()
+    } catch (error) {
+      console.error('Failed to pause campaign:', error)
+    }
+  }
+
+  const handleReallocateBudget = async (campaignName: string) => {
+    if (!newBudget || parseFloat(newBudget) <= 0) return
+    
+    try {
+      // Update the budget field in the database
+      await apiClient.updateCampaignBudget(userId, campaignName, parseFloat(newBudget))
+      // Reset form and refresh predictions
+      setReallocatingCampaign(null)
+      setNewBudget('')
+      await fetchPredictions()
+    } catch (error) {
+      console.error('Failed to reallocate budget:', error)
     }
   }
 
@@ -129,6 +103,39 @@ export function OverspendingPredictionWidget() {
     }
   }
 
+  const getGlowClass = (risk: string) => {
+    switch (risk) {
+      case 'critical':
+        return 'shadow-lg shadow-red-500/50 border-red-500/30'
+      case 'high':
+        return 'shadow-lg shadow-orange-500/50 border-orange-500/30'
+      case 'medium':
+        return 'shadow-lg shadow-yellow-500/50 border-yellow-500/30'
+      default:
+        return 'shadow-md border-gray-200'
+    }
+  }
+
+  const getCriticalGlowClass = (risk: string) => {
+    if (risk === 'critical') {
+      return 'animate-pulse animate-duration-1000'
+    }
+    return ''
+  }
+
+  const getProfitColor = (profitMargin: number) => {
+    if (profitMargin > 20) return 'text-green-600'
+    if (profitMargin > 10) return 'text-green-500'
+    if (profitMargin > 0) return 'text-yellow-600'
+    if (profitMargin > -10) return 'text-orange-500'
+    return 'text-red-600'
+  }
+
+  const getProfitIcon = (profitMargin: number) => {
+    if (profitMargin > 0) return <TrendingUp className="h-4 w-4" />
+    return <TrendingDown className="h-4 w-4" />
+  }
+
   if (loading) {
     return (
       <Card>
@@ -154,7 +161,7 @@ export function OverspendingPredictionWidget() {
           <div className="text-center py-8">
             <Target className="h-12 w-12 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Overspending Risks Detected</h3>
-            <p className="text-gray-500">All campaigns are currently within budget limits.</p>
+            <p className="text-gray-500">All campaigns are currently within budget limits and performing well.</p>
           </div>
         </CardContent>
       </Card>
@@ -167,14 +174,17 @@ export function OverspendingPredictionWidget() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
-            Overspending Predictions
+            Enhanced Overspending Predictions
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {predictions.map((prediction, index) => (
-              <div key={index} className="p-4 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-                <div className="flex items-start justify-between mb-3">
+                                            <div 
+                 key={index} 
+                 className={`p-4 rounded-lg border transition-all duration-300 hover:scale-[1.02] ${getGlowClass(prediction.overspend_risk)}`}
+               >
+                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h4 className="font-medium text-gray-900">{prediction.campaign_name}</h4>
                     <div className="flex items-center gap-2 mt-1">
@@ -188,9 +198,9 @@ export function OverspendingPredictionWidget() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-gray-500">Confidence</div>
-                    <div className="text-lg font-semibold text-blue-600">
-                      {(prediction.confidence_score * 100).toFixed(0)}%
+                    <div className="text-sm text-gray-500">Risk Score</div>
+                    <div className="text-lg font-semibold text-red-600">
+                      {(prediction.risk_score * 100).toFixed(0)}%
                     </div>
                   </div>
                 </div>
@@ -209,16 +219,49 @@ export function OverspendingPredictionWidget() {
                     </div>
                   </div>
                 </div>
+
+                {/* Net Profit Section */}
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <div className="text-sm text-gray-500">Net Profit</div>
+                    <div className={`text-lg font-semibold flex items-center gap-1 ${getProfitColor(prediction.profit_margin)}`}>
+                      {getProfitIcon(prediction.profit_margin)}
+                      ${prediction.net_profit.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Profit Margin</div>
+                    <div className={`text-lg font-semibold ${getProfitColor(prediction.profit_margin)}`}>
+                      {prediction.profit_margin.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
                 
                 <div className="mb-3">
                   <div className="flex justify-between text-sm text-gray-500 mb-1">
                     <span>Budget Utilization</span>
-                    <span>{((prediction.current_spend / prediction.current_budget) * 100).toFixed(1)}%</span>
+                    <span>{prediction.budget_utilization.toFixed(1)}%</span>
                   </div>
                   <Progress 
-                    value={(prediction.current_spend / prediction.current_budget) * 100} 
+                    value={prediction.budget_utilization} 
                     className="h-2"
                   />
+                </div>
+
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-3 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">CTR</div>
+                    <div className="text-sm font-semibold">{prediction.ctr?.toFixed(2) || 'N/A'}%</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">CPC</div>
+                    <div className="text-sm font-semibold">${prediction.cpc?.toFixed(2) || 'N/A'}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">Conv. Rate</div>
+                    <div className="text-sm font-semibold">{prediction.conversions && prediction.impressions ? ((prediction.conversions / prediction.impressions) * 100).toFixed(2) : 'N/A'}%</div>
+                  </div>
                 </div>
                 
                 {prediction.risk_factors.length > 0 && (
@@ -233,9 +276,62 @@ export function OverspendingPredictionWidget() {
                     </div>
                   </div>
                 )}
-              </div>
-            ))}
-          </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 mt-4 pt-4 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePauseCampaign(prediction.campaign_name)}
+                    className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <Pause className="h-4 w-4" />
+                    Pause Campaign
+                  </Button>
+                  
+                  {reallocatingCampaign === prediction.campaign_name ? (
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder="New budget amount"
+                        value={newBudget}
+                        onChange={(e) => setNewBudget(e.target.value)}
+                        className="w-32"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleReallocateBudget(prediction.campaign_name)}
+                        className="flex items-center gap-2"
+                      >
+                        <DollarSignIcon className="h-4 w-4" />
+                        Update
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setReallocatingCampaign(null)
+                          setNewBudget('')
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setReallocatingCampaign(prediction.campaign_name)}
+                      className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    >
+                      <DollarSignIcon className="h-4 w-4" />
+                      Reallocate Budget
+                    </Button>
+                                       )}
+                 </div>
+               </div>
+             ))}
+           </div>
         </CardContent>
       </Card>
     </div>

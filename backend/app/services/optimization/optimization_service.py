@@ -131,7 +131,7 @@ class OptimizationService:
             )
     
     async def get_campaigns(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get list of campaigns with their data"""
+        """Get list of campaigns with their data including net_profit and other metrics"""
         result = await self.db.execute(text("""
             SELECT 
                 name, 
@@ -141,7 +141,9 @@ class OptimizationService:
                 cpc, 
                 conversions, 
                 ongoing,
-                date
+                date,
+                net_profit,
+                impressions
             FROM campaign_data c1
             WHERE date = (
                 SELECT MAX(date) 
@@ -160,9 +162,230 @@ class OptimizationService:
                 'cpc': float(row[4]) if row[4] is not None else 0.0,
                 'conversions': row[5] if row[5] is not None else 0,
                 'ongoing': row[6],
-                'date': row[7].isoformat() if row[7] else None
+                'date': row[7].isoformat() if row[7] else None,
+                'net_profit': float(row[8]) if row[8] is not None else 0.0,
+                'impressions': row[9] if row[9] is not None else 0
             })
         return campaigns
+
+    def calculate_enhanced_risk_score(self, campaign: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        EXACT risk calculation logic that matches my manual calculations
+        """
+        current_spend = campaign.get('spend', 0)
+        current_budget = campaign.get('budget', 0)
+        net_profit = campaign.get('net_profit', 0)
+        ctr = campaign.get('ctr', 0)
+        cpc = campaign.get('cpc', 0)
+        conversions = campaign.get('conversions', 0)
+        impressions = campaign.get('impressions', 0)
+        
+        # Calculate budget utilization
+        budget_utilization = (current_spend / current_budget * 100) if current_budget > 0 else 0
+        
+        # Calculate profit margin
+        profit_margin = (net_profit / current_spend * 100) if current_spend > 0 else 0
+        
+        # Calculate conversion rate
+        conversion_rate = (conversions / impressions * 100) if impressions > 0 else 0
+        
+        # Risk factors and their weights
+        risk_factors = []
+        risk_score = 0.0
+        
+        # 1. Budget Utilization Risk (40% weight)
+        budget_risk = 0.0
+        if budget_utilization > 95:
+            budget_risk = 1.0
+            risk_factors.append('Critical budget utilization')
+        elif budget_utilization > 85:
+            budget_risk = 0.8
+            risk_factors.append('High budget utilization')
+        elif budget_utilization > 75:
+            budget_risk = 0.6
+            risk_factors.append('Above 75% budget utilization')
+        elif budget_utilization > 50:
+            budget_risk = 0.3
+            risk_factors.append('Moderate budget utilization')
+        
+        risk_score += budget_risk * 0.4
+        
+        # 2. Profit Performance Risk (30% weight)
+        profit_risk = 0.0
+        if profit_margin < -20:
+            profit_risk = 1.0
+            risk_factors.append('Severe negative profit margin')
+        elif profit_margin < -10:
+            profit_risk = 0.8
+            risk_factors.append('Negative profit margin')
+        elif profit_margin < 0:
+            profit_risk = 0.6
+            risk_factors.append('Low profit margin')
+        elif profit_margin < 10:
+            profit_risk = 0.3
+            risk_factors.append('Below average profit margin')
+        
+        risk_score += profit_risk * 0.3
+        
+        # 3. Performance Metrics Risk (20% weight)
+        performance_risk = 0.0
+        
+        # CTR risk (industry average is around 2-3%)
+        if ctr < 1.0:
+            performance_risk += 0.5
+            risk_factors.append('Low CTR')
+        elif ctr < 2.0:
+            performance_risk += 0.3
+            risk_factors.append('Below average CTR')
+        
+        # CPC risk (high CPC indicates poor efficiency)
+        if cpc > 5.0:
+            performance_risk += 0.5
+            risk_factors.append('High CPC')
+        elif cpc > 3.0:
+            performance_risk += 0.3
+            risk_factors.append('Above average CPC')
+        
+        # Conversion rate risk
+        if conversion_rate < 1.0:
+            performance_risk += 0.5
+            risk_factors.append('Low conversion rate')
+        elif conversion_rate < 2.0:
+            performance_risk += 0.3
+            risk_factors.append('Below average conversion rate')
+        
+        performance_risk = min(performance_risk, 1.0)  # Cap at 1.0
+        risk_score += performance_risk * 0.2
+        
+        # 4. Spending Velocity Risk (10% weight)
+        velocity_risk = 0.0
+        if current_spend > 0 and current_budget > 0:
+            remaining_budget = current_budget - current_spend
+            if remaining_budget > 0:
+                # Estimate daily spend based on current utilization
+                estimated_daily_spend = current_spend / 30  # Assume 30-day month
+                days_until_overspend = remaining_budget / estimated_daily_spend
+                
+                if days_until_overspend < 5:
+                    velocity_risk = 1.0
+                    risk_factors.append('Extremely rapid spending rate')
+                elif days_until_overspend < 10:
+                    velocity_risk = 0.8
+                    risk_factors.append('Rapid spending rate')
+                elif days_until_overspend < 15:
+                    velocity_risk = 0.5
+                    risk_factors.append('Above average spending rate')
+        
+        risk_score += velocity_risk * 0.1
+        
+        # Determine risk level
+        if risk_score >= 0.8:
+            risk_level = 'critical'
+        elif risk_score >= 0.6:
+            risk_level = 'high'
+        elif risk_score >= 0.4:
+            risk_level = 'medium'
+        else:
+            risk_level = 'low'
+        
+        # Calculate performance score (100 - risk score * 100)
+        performance_score = 100 - (risk_score * 100)
+        
+        # Determine performance category
+        if performance_score >= 90:
+            performance_category = "Excellent"
+        elif performance_score >= 80:
+            performance_category = "Good"
+        elif performance_score >= 70:
+            performance_category = "Fair"
+        elif performance_score >= 60:
+            performance_category = "Underperform"
+        else:
+            performance_category = "Poor"
+        
+        # Calculate days until overspend
+        days_until_overspend = self.calculate_days_until_overspend(campaign, budget_utilization)
+        
+        return {
+            'campaign_name': campaign['name'],
+            'current_spend': campaign['spend'],
+            'current_budget': campaign['budget'],
+            'net_profit': campaign['net_profit'],
+            'overspend_risk': risk_level,
+            'risk_score': round(risk_score, 3),  # Keep 3 decimal places for accuracy
+            'days_until_overspend': int(days_until_overspend) if days_until_overspend is not None else -1,
+            'risk_factors': list(set(risk_factors)),  # Remove duplicates
+            'budget_utilization': round(budget_utilization, 1),
+            'profit_margin': round(profit_margin, 1),
+            'performance_score': round(performance_score, 1),
+            'performance_category': performance_category
+        }
+    
+    def calculate_confidence_score(self, campaign: Dict[str, Any], risk_factors: List[str], risk_score: float) -> float:
+        """
+        Calculate confidence score based on:
+        - Data completeness
+        - Risk factor consistency
+        - Historical data availability
+        - Risk score magnitude
+        """
+        confidence = 0.5  # Base confidence
+        
+        # Data completeness bonus
+        data_fields = ['spend', 'budget', 'net_profit', 'ctr', 'cpc', 'conversions', 'impressions']
+        complete_fields = sum(1 for field in data_fields if campaign.get(field) is not None and campaign.get(field) != 0)
+        data_completeness = complete_fields / len(data_fields)
+        confidence += data_completeness * 0.2
+        
+        # Risk factor consistency bonus
+        if len(risk_factors) >= 3:
+            confidence += 0.15  # Multiple risk factors increase confidence
+        elif len(risk_factors) >= 2:
+            confidence += 0.1
+        
+        # Risk score magnitude bonus
+        if risk_score >= 0.8:
+            confidence += 0.15  # High risk scores are more confident
+        elif risk_score >= 0.6:
+            confidence += 0.1
+        
+        # Performance data quality bonus
+        if campaign.get('impressions', 0) > 1000:
+            confidence += 0.1  # More impressions = more reliable data
+        
+        return min(confidence, 0.95)  # Cap at 95%
+    
+    def calculate_days_until_overspend(self, campaign: Dict[str, Any], budget_utilization: float) -> int:
+        """Calculate days until overspend based on current spending patterns"""
+        current_spend = campaign.get('spend', 0)
+        current_budget = campaign.get('budget', 0)
+        
+        if current_spend <= 0 or current_budget <= 0:
+            return 30  # Default if no data
+        
+        remaining_budget = current_budget - current_spend
+        
+        if remaining_budget <= 0:
+            return 0  # Already overspent
+        
+        # Estimate daily spend based on current utilization and time period
+        # Assume campaign has been running for some time
+        estimated_daily_spend = current_spend / 30  # Assume 30-day month
+        
+        if estimated_daily_spend <= 0:
+            return 30  # Default if no daily spend
+        
+        days_until_overspend = remaining_budget / estimated_daily_spend
+        
+        # Apply some realistic constraints
+        if budget_utilization > 95:
+            return max(1, int(days_until_overspend))
+        elif budget_utilization > 85:
+            return max(3, int(days_until_overspend))
+        elif budget_utilization > 75:
+            return max(7, int(days_until_overspend))
+        else:
+            return max(10, int(days_until_overspend))
     
     async def get_campaign_stats(self, user_id: str, days: int) -> CampaignStatsResponse:
         """Get campaign statistics for specified period"""
