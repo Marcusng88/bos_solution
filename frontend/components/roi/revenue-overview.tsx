@@ -14,11 +14,8 @@ const revenueData = [
 ]
 
 const revenueBySource = [
-  { source: "Google Ads", revenue: 45200, percentage: 35.5 },
-  { source: "Facebook Ads", revenue: 38900, percentage: 30.5 },
-  { source: "Instagram", revenue: 22100, percentage: 17.3 },
-  { source: "LinkedIn", revenue: 12800, percentage: 10.0 },
-  { source: "Twitter", revenue: 8450, percentage: 6.7 },
+  { source: "Facebook Ads", revenue: 58100, percentage: 55.2 },
+  { source: "Instagram", revenue: 47100, percentage: 44.8 },
 ]
 
 export function RevenueOverview() {

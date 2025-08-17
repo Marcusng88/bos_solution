@@ -6,11 +6,8 @@ import { Progress } from "@/components/ui/progress"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
 const channelData = [
-  { channel: "Google Ads", roi: 420, spend: 18500, revenue: 77700, efficiency: 92 },
-  { channel: "Facebook Ads", roi: 380, spend: 12800, revenue: 48640, efficiency: 88 },
-  { channel: "Instagram", roi: 310, spend: 6200, revenue: 19220, efficiency: 75 },
-  { channel: "LinkedIn", roi: 290, spend: 4100, revenue: 11890, efficiency: 71 },
-  { channel: "Twitter", roi: 350, spend: 2400, revenue: 8400, efficiency: 82 },
+  { channel: "Facebook Ads", roi: 410, spend: 21300, revenue: 87300, efficiency: 91 },
+  { channel: "Instagram", roi: 340, spend: 11200, revenue: 38080, efficiency: 80 },
 ]
 
 export function ChannelPerformance() {

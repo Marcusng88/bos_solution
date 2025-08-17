@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Progress } from "@/components/ui/progress"
 import { Brain } from "lucide-react"
 import { WelcomeStep } from "./steps/welcome-step"
@@ -16,6 +17,7 @@ export interface OnboardingData {
   companySize: string
   goals: string[]
   competitors: Array<{
+    id?: string // Optional ID for saved competitors
     name: string
     website: string
     platforms: string[]
@@ -40,7 +42,10 @@ const steps = [
   { id: 6, title: "Complete", description: "AI analysis starting!" },
 ]
 
+const ONBOARDING_STEP_KEY = 'onboarding_current_step'
+
 export function OnboardingWizard() {
+  const searchParams = useSearchParams()
   const [currentStep, setCurrentStep] = useState(1)
   const [data, setData] = useState<OnboardingData>({
     industry: "",
@@ -50,6 +55,48 @@ export function OnboardingWizard() {
     connectedAccounts: [],
     budget: "",
   })
+
+  // Restore current step from localStorage on component mount
+  useEffect(() => {
+    // Check URL parameters first (from YouTube callback)
+    const urlStep = searchParams.get('step')
+    const savedStep = localStorage.getItem(ONBOARDING_STEP_KEY)
+    const returnStep = sessionStorage.getItem('youtube_return_step')
+    
+    // Priority: URL step > Session storage > Local storage
+    if (urlStep) {
+      const step = parseInt(urlStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        setCurrentStep(step)
+        // Clean up session storage since we got it from URL
+        sessionStorage.removeItem('youtube_return_step')
+        return
+      }
+    }
+    
+    if (returnStep) {
+      const step = parseInt(returnStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        setCurrentStep(step)
+      }
+      // Clear the return step from session storage
+      sessionStorage.removeItem('youtube_return_step')
+      return
+    }
+    
+    // Otherwise use saved step
+    if (savedStep) {
+      const step = parseInt(savedStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        setCurrentStep(step)
+      }
+    }
+  }, [searchParams])
+
+  // Save current step to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(ONBOARDING_STEP_KEY, currentStep.toString())
+  }, [currentStep])
 
   const updateData = (updates: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -80,7 +127,7 @@ export function OnboardingWizard() {
       case 4:
         return <CompetitorStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />
       case 5:
-        return <ConnectionsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />
+        return <ConnectionsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} currentStep={currentStep} />
       case 6:
         return <CompletionStep data={data} />
       default:

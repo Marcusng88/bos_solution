@@ -63,6 +63,18 @@ export class ApiClient {
   }
 
   // User endpoints
+  async syncUserFromClerk(userId: string, clerkUserData: any) {
+    return this.request('/users/sync', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(clerkUserData),
+    });
+  }
+
+  async getUserProfile(userId: string) {
+    return this.request('/users/profile', { userId });
+  }
+
   async getUserSettings(userId: string) {
     return this.request('/users/settings', { userId });
   }
@@ -75,7 +87,92 @@ export class ApiClient {
     });
   }
 
-  // Competitor endpoints
+  // User Preferences endpoints
+  async saveUserPreferences(userId: string, preferences: {
+    industry: string
+    companySize: string
+    goals: string[]
+    budget: string
+  }) {
+    return this.request('/user-preferences', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({
+        industry: preferences.industry,
+        company_size: preferences.companySize,
+        marketing_goals: preferences.goals,
+        monthly_budget: preferences.budget
+      }),
+    });
+  }
+
+  async getUserPreferences(userId: string) {
+    return this.request('/user-preferences', { userId });
+  }
+
+  async updateUserPreferences(userId: string, preferences: {
+    industry: string
+    companySize: string
+    goals: string[]
+    budget: string
+  }) {
+    return this.request('/user-preferences', {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify({
+        industry: preferences.industry,
+        company_size: preferences.companySize,
+        marketing_goals: preferences.goals,
+        monthly_budget: preferences.budget
+      }),
+    });
+  }
+
+  // My Competitors endpoints
+  async saveCompetitor(userId: string, competitor: {
+    name: string
+    website: string
+    platforms: string[]
+  }) {
+    return this.request('/my-competitors', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({
+        competitor_name: competitor.name,
+        website_url: competitor.website,
+        active_platforms: competitor.platforms
+      }),
+    });
+  }
+
+  async getUserCompetitors(userId: string) {
+    return this.request('/my-competitors', { userId });
+  }
+
+  async updateCompetitor(userId: string, competitorId: string, competitor: {
+    name: string
+    website: string
+    platforms: string[]
+  }) {
+    return this.request(`/my-competitors/${competitorId}`, {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify({
+        competitor_name: competitor.name,
+        website_url: competitor.website,
+        active_platforms: competitor.platforms
+      }),
+    });
+  }
+
+  async deleteCompetitor(userId: string, competitorId: string) {
+    return this.request(`/my-competitors/${competitorId}`, {
+      userId,
+      method: 'DELETE',
+    });
+  }
+
+  // Competitor endpoints (legacy - keeping for compatibility)
   async getCompetitors(userId: string) {
     return this.request('/competitors/', { userId });
   }
@@ -92,20 +189,7 @@ export class ApiClient {
     return this.request(`/competitors/${competitorId}`, { userId });
   }
 
-  async updateCompetitor(userId: string, competitorId: string, competitorData: any) {
-    return this.request(`/competitors/${competitorId}`, {
-      userId,
-      method: 'PUT',
-      body: JSON.stringify(competitorData),
-    });
-  }
-
-  async deleteCompetitor(userId: string, competitorId: string) {
-    return this.request(`/competitors/${competitorId}`, {
-      userId,
-      method: 'DELETE',
-    });
-  }
+  // Note: updateCompetitor and deleteCompetitor are handled by the my-competitors endpoints above
 
   // Monitoring endpoints
   async getMonitoringSessions(userId: string) {

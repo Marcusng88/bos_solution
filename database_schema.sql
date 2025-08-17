@@ -10,6 +10,21 @@ CREATE TYPE monitoring_status AS ENUM ('active', 'paused', 'error');
 CREATE TYPE alert_priority AS ENUM ('low', 'medium', 'high', 'critical');
 CREATE TYPE social_media_platform AS ENUM ('instagram', 'facebook', 'twitter', 'linkedin', 'tiktok', 'youtube', 'other');
 
+-- Users table - stores user information from Clerk authentication
+CREATE TABLE public.users (
+    id UUID NOT NULL DEFAULT uuid_generate_v4(),
+    clerk_id VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NULL,
+    first_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NULL,
+    profile_image_url VARCHAR(500) NULL,
+    is_active BOOLEAN NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NULL DEFAULT NOW(),
+    CONSTRAINT users_pkey PRIMARY KEY (id),
+    CONSTRAINT users_clerk_id_key UNIQUE (clerk_id)
+) TABLESPACE pg_default;
+
 -- Competitors table - stores competitor information
 CREATE TABLE competitors (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -113,6 +128,8 @@ CREATE TABLE competitor_monitoring_status (
 );
 
 -- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON public.users USING btree (clerk_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users USING btree (email) TABLESPACE pg_default;
 CREATE INDEX idx_competitors_user_id ON competitors(user_id);
 CREATE INDEX idx_competitors_status ON competitors(status);
 CREATE INDEX idx_monitoring_data_competitor_id ON monitoring_data(competitor_id);
@@ -140,6 +157,9 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers for updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_competitors_updated_at BEFORE UPDATE ON competitors
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -149,26 +169,98 @@ CREATE TRIGGER update_user_monitoring_settings_updated_at BEFORE UPDATE ON user_
 CREATE TRIGGER update_competitor_monitoring_status_updated_at BEFORE UPDATE ON competitor_monitoring_status
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Create function to automatically create user settings when competitor is added
+-- Create function to automatically create user settings when user is created
 CREATE OR REPLACE FUNCTION create_user_monitoring_settings()
 RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO user_monitoring_settings (user_id)
-    VALUES (NEW.user_id)
+    VALUES (NEW.clerk_id)
     ON CONFLICT (user_id) DO NOTHING;
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 -- Create trigger for automatic user settings creation
-CREATE TRIGGER create_user_settings_trigger AFTER INSERT ON competitors
+CREATE TRIGGER create_user_settings_trigger AFTER INSERT ON users
     FOR EACH ROW EXECUTE FUNCTION create_user_monitoring_settings();
 
 -- Insert sample data for testing (optional)
--- INSERT INTO user_monitoring_settings (user_id) VALUES ('user_test_123');
--- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_test_123', 'Nike', 'Athletic footwear and apparel', 'Sports');
--- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_test_123', 'Adidas', 'Sportswear manufacturer', 'Sports');
+-- Sample user
+-- INSERT INTO users (
+--     clerk_id, 
+--     email, 
+--     first_name, 
+--     last_name
+-- ) VALUES (
+--     'user_2abc123def456ghi', 
+--     'test@example.com', 
+--     'John', 
+--     'Doe'
+-- );
+
+-- Sample user settings and competitors (using existing table structure)
+-- INSERT INTO user_monitoring_settings (user_id) VALUES ('user_2abc123def456ghi');
+-- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_2abc123def456ghi', 'Nike', 'Athletic footwear and apparel', 'Sports');
+-- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_2abc123def456ghi', 'Adidas', 'Sportswear manufacturer', 'Sports');
 
 -- Grant necessary permissions (adjust as needed for your setup)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_user;
 -- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_app_user;
+
+-- ============================================================================
+-- NEW TABLES FOR USER PREFERENCES AND COMPETITOR TRACKING
+-- ============================================================================
+
+-- User preferences table - stores onboarding preferences
+CREATE TABLE user_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id VARCHAR(255) NOT NULL UNIQUE, -- Clerk user ID
+    industry VARCHAR(100) NOT NULL,
+    company_size VARCHAR(50) NOT NULL,
+    marketing_goals TEXT[] NOT NULL, -- Array of marketing objectives
+    monthly_budget VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_company_size CHECK (company_size IN ('1-10', '11-50', '51-200', '201-500', '500+')),
+    CONSTRAINT valid_budget CHECK (monthly_budget IN ('$0 - $1,000', '$1,000 - $5,000', '$5,000 - $10,000', '$10,000 - $25,000', '$25,000+')),
+    
+    -- Foreign key reference to users table
+    CONSTRAINT fk_user_preferences_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE
+);
+
+-- My competitors table - stores user's competitor information
+CREATE TABLE my_competitors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    competitor_name VARCHAR(255) NOT NULL,
+    website_url VARCHAR(500),
+    active_platforms TEXT[] NOT NULL, -- Array of platforms they're active on
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_platforms CHECK (array_length(active_platforms, 1) > 0),
+    
+    -- Foreign key reference to users table
+    CONSTRAINT fk_my_competitors_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE,
+    
+    -- Unique constraint: one user can't have duplicate competitor names
+    CONSTRAINT unique_user_competitor_name UNIQUE(user_id, competitor_name)
+);
+
+-- Create indexes for new tables
+CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
+CREATE INDEX idx_user_preferences_industry ON user_preferences(industry);
+CREATE INDEX idx_user_preferences_company_size ON user_preferences(company_size);
+CREATE INDEX idx_my_competitors_user_id ON my_competitors(user_id);
+CREATE INDEX idx_my_competitors_competitor_name ON my_competitors(competitor_name);
+CREATE INDEX idx_my_competitors_platforms ON my_competitors USING gin(active_platforms);
+
+-- Create triggers for updated_at on new tables
+CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_my_competitors_updated_at BEFORE UPDATE ON my_competitors
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

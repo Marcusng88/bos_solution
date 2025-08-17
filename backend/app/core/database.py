@@ -2,7 +2,8 @@
 Database configuration and connection management
 """
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from typing import AsyncGenerator
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.pool import NullPool
@@ -13,7 +14,7 @@ import os
 logger = logging.getLogger(__name__)
 
 # Base class for models - renamed to avoid conflict with SQLAlchemy's metadata
-ModelBase = declarative_base()
+Base = declarative_base()
 
 # Initialize engine and session factory as None initially
 engine = None
@@ -24,15 +25,21 @@ def get_database_url():
     """Get database URL with fallback to environment variable"""
     try:
         from app.core.config import settings
-        return settings.DATABASE_URL
+        database_url = settings.DATABASE_URL
+        
+        # If Supabase URL fails, use SQLite for development
+        if "supabase.co" in database_url:
+            logger.warning("Using Supabase URL. If connection fails, consider using SQLite for development.")
+            
+        return database_url
     except Exception as e:
         logger.warning(f"Could not load settings: {e}")
         # Fallback to environment variable
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
-            # Default to a safe local placeholder rather than a real connection string
-            database_url = "postgresql://postgres:postgres@localhost:5432/postgres"
-            logger.warning("No DATABASE_URL found. Falling back to a local Postgres placeholder.")
+            # Default to SQLite for development
+            database_url = "sqlite+aiosqlite:///./dev.db"
+            logger.warning("No DATABASE_URL found. Using SQLite for development.")
         return database_url
 
 
@@ -43,25 +50,34 @@ def create_engine():
     try:
         database_url = get_database_url()
         
-        # Convert to async URL if it's a regular PostgreSQL URL
-        if database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
+        # Handle different database types
+        if database_url.startswith("sqlite"):
+            async_database_url = database_url
+        elif database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
             async_database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
         else:
             async_database_url = database_url
         
-        logger.info(f"Connecting to database: {async_database_url.split('@')[1] if '@' in async_database_url else 'unknown'}")
+        logger.info(f"Connecting to database: {async_database_url.split('@')[1] if '@' in async_database_url else async_database_url}")
         
-        # Create async engine
-        engine = create_async_engine(
-            async_database_url,
-            echo=os.getenv("DEBUG", "false").lower() == "true",
-            poolclass=NullPool,  # Disable connection pooling for serverless
-            future=True,
-            pool_pre_ping=True,  # Verify connections before use
-        )
+        # Create async engine with appropriate settings for database type
+        engine_kwargs = {
+            "echo": os.getenv("DEBUG", "false").lower() == "true",
+            "future": True,
+        }
+        
+        if "sqlite" in async_database_url:
+            # SQLite specific settings
+            engine_kwargs["poolclass"] = NullPool
+        else:
+            # PostgreSQL specific settings
+            engine_kwargs["poolclass"] = NullPool  # Disable connection pooling for serverless
+            engine_kwargs["pool_pre_ping"] = True  # Verify connections before use
+        
+        engine = create_async_engine(async_database_url, **engine_kwargs)
         
         # Create async session factory
-        AsyncSessionLocal = async_sessionmaker(
+        AsyncSessionLocal = sessionmaker(
             engine,
             class_=AsyncSession,
             expire_on_commit=False,

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +10,7 @@ import { ContentCalendar } from "./content-calendar"
 import { AISuggestionsPanel } from "./ai-suggestions-panel"
 import { CompetitorGapSuggestions } from "./competitor-gap-suggestions"
 import { ContentStrategyInsights } from "./content-strategy-insights"
-import { Plus, Calendar, Sparkles, Search, Target, AlertTriangle } from "lucide-react"
+import { Plus, Calendar, Sparkles, Search, Target, AlertTriangle, Settings } from "lucide-react"
 
 export function ContentPlanningDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -22,10 +23,18 @@ export function ContentPlanningDashboard() {
           <h1 className="text-3xl font-bold tracking-tight">AI Content Planning</h1>
           <p className="text-muted-foreground">Competitor-driven content strategy with AI assistance</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Content
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/settings">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Link>
+          </Button>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Content
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

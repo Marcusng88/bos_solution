@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Facebook, Instagram, Twitter, Linkedin, Clock, Edit, Trash2, Search, Filter } from "lucide-react"
+import { Facebook, Instagram, Clock, Edit, Trash2, Search, Filter } from "lucide-react"
 
 const scheduledPosts = [
   {
@@ -24,7 +24,7 @@ const scheduledPosts = [
     id: 2,
     title: "Product Feature Highlight",
     caption: "Discover the amazing features of our latest product that will transform your workflow...",
-    platforms: ["linkedin", "twitter"],
+    platforms: ["facebook"],
     scheduledDate: "2024-01-15",
     scheduledTime: "14:00",
     status: "scheduled",
@@ -44,7 +44,7 @@ const scheduledPosts = [
     id: 4,
     title: "Customer Success Story",
     caption: "We love hearing from our customers! Here's how Sarah transformed her business...",
-    platforms: ["facebook", "linkedin"],
+    platforms: ["facebook", "instagram"],
     scheduledDate: "2024-01-16",
     scheduledTime: "16:00",
     status: "scheduled",
@@ -55,8 +55,6 @@ const scheduledPosts = [
 const platformData = {
   facebook: { name: "Facebook", icon: Facebook, color: "bg-blue-600" },
   instagram: { name: "Instagram", icon: Instagram, color: "bg-pink-600" },
-  twitter: { name: "Twitter/X", icon: Twitter, color: "bg-black" },
-  linkedin: { name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
 }
 
 export function ScheduledPosts() {
