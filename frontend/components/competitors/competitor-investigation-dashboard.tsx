@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast"
 import { competitorAPI, monitoringAPI } from "@/lib/api-client"
 import { Competitor, CompetitorStats } from "@/lib/types"
 import { useUser } from "@clerk/nextjs"
+import { AnalysisResults } from "../monitoring/analysis-results"
 
 export function CompetitorInvestigationDashboard() {
   const [timeRange, setTimeRange] = useState("7d")
@@ -384,46 +385,7 @@ export function CompetitorInvestigationDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{scanResults.competitors_scanned || 0}</div>
-                <p className="text-xs text-muted-foreground">Competitors Scanned</p>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{scanResults.successful_scans || 0}</div>
-                <p className="text-xs text-muted-foreground">Successful Scans</p>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{scanResults.failed_scans || 0}</div>
-                <p className="text-xs text-muted-foreground">Failed Scans</p>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">{scanResults.total_competitors || 0}</div>
-                <p className="text-xs text-muted-foreground">Total Competitors</p>
-              </div>
-            </div>
-            
-            {/* Progress Bar */}
-            {scanResults.competitors_scanned > 0 && (
-              <div className="mt-4">
-                <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                  <span>Scan Progress</span>
-                  <span>{Math.round((scanResults.competitors_scanned / scanResults.total_competitors) * 100)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(scanResults.competitors_scanned / scanResults.total_competitors) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-            
-            {scanResults.warning && (
-              <div className="mt-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">{scanResults.warning}</p>
-              </div>
-            )}
+            <AnalysisResults results={scanResults.results || []} />
           </CardContent>
         </Card>
       )}

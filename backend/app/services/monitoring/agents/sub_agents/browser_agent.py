@@ -42,11 +42,13 @@ logger = logging.getLogger(__name__)
 
 class BrowserAgent:
     """Browser-based agent for competitor web intelligence using Tavily search"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.monitoring_service = MonitoringService(db)
-        
+        self.search_count = 0
+        self.search_limit = 10  # Max 10 searches per competitor
+
         # Initialize LLM only if langchain is available
         self.llm = None
         if LANGCHAIN_AVAILABLE:
@@ -58,7 +60,7 @@ class BrowserAgent:
                 )
             except Exception as e:
                 logger.warning(f"Failed to initialize LLM: {e}")
-        
+
         # Initialize Tavily search client
         self.tavily_client = None
         if TAVILY_AVAILABLE and hasattr(settings, 'TAVILY_API_KEY') and settings.TAVILY_API_KEY:
@@ -69,269 +71,88 @@ class BrowserAgent:
                 logger.error(f"Failed to initialize Tavily client: {e}")
         elif not TAVILY_AVAILABLE:
             logger.warning("Tavily search not available - browser analysis will be limited")
-        
+
         # Initialize agent
         self.agent = None
         self._initialized = False
-    
-    async def _initialize_agent(self):
+
+    async def _initialize_agent(self, competitor: Competitor):
         """Initialize the browser agent with Tavily search tools"""
         if self._initialized:
             return
-        
+
         try:
             logger.info("Initializing Browser agent with Tavily search tools...")
-            
+
             if not self.tavily_client:
                 raise Exception("Tavily client not available - check TAVILY_API_KEY")
-            
+
             if not LANGCHAIN_AVAILABLE:
                 raise Exception("LangChain dependencies not available - cannot create agent")
-            
+
             if not self.llm:
                 raise Exception("LLM not available - cannot create agent")
-            
+
             # Create Tavily search tools
-            tools = self._create_tavily_tools()
+            tools = self._create_tavily_tools(competitor)
             logger.info(f"Created {len(tools)} Tavily search tools")
-            
+
             # Create agent with browser/web search specific prompt
             logger.info("Creating LangGraph ReAct agent...")
             self.agent = create_react_agent(
                 model=self.llm,
                 tools=tools,
-                prompt=(
-                    "You are a web intelligence agent for competitor analysis. Your job is to search the web for competitor-related content and analyze marketing strategies.\n\n"
-                    "INSTRUCTIONS:\n"
-                    "1. Use Tavily search tools to find recent web content about competitors\n"
-                    "2. Focus ONLY on content from the last 24 hours\n"
-                    "3. Search for news articles, blog posts, social media mentions, and press releases\n"
-                    "4. Analyze content for:\n"
-                    "   - Product launches and announcements\n"
-                    "   - Marketing campaigns and messaging\n"
-                    "   - Public sentiment and brand perception\n"
-                    "   - Strategic partnerships and collaborations\n"
-                    "   - Pricing changes and competitive moves\n"
-                    "   - Industry trends and market positioning\n"
-                    "5. Determine if content is ALERT-WORTHY based on:\n"
-                    "   - Major product or service announcements\n"
-                    "   - Significant media coverage or viral content\n"
-                    "   - Strategic partnerships or acquisitions\n"
-                    "   - Negative publicity or crisis situations\n"
-                    "   - Pricing strategy changes\n"
-                    "   - Market expansion or new product categories\n"
-                    "6. Return structured analysis with clear alert recommendations\n\n"
-                    "Remember: Focus on actionable competitive intelligence that could impact business strategy."
-                ),
+                prompt=self._build_analysis_prompt(competitor),
                 name="browser_agent"
             )
-            
+
             self._initialized = True
             logger.info("Browser agent initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Error initializing Browser agent: {e}")
             logger.error(f"Error details: {type(e).__name__}: {str(e)}")
             raise
-    
-    def _create_tavily_tools(self):
+
+    def _create_tavily_tools(self, competitor: Competitor) -> List[Any]:
         """Create Tavily search tools for the agent"""
-        
+
         @tool
-        def search_competitor_news(competitor_name: str, days_back: int = 1, max_results: int = 10) -> List[Dict]:
+        def search_competitor_intel(query: str, search_depth: str = "basic", max_results: int = 5) -> List[Dict]:
             """
-            Search for recent news and articles about a competitor.
+            Search the web for competitor intelligence based on a dynamically generated query.
+            This is the primary tool for web searches. Do not use for more than 10 times.
             
             Args:
-                competitor_name: Name of the competitor to search for
-                days_back: How many days back to search (default 1)
-                max_results: Maximum number of results (default 10)
+                query: A specific, targeted search query for competitor intelligence.
+                search_depth: The depth of the search, either "basic" or "advanced".
+                max_results: The maximum number of results to return.
             
             Returns:
-                List of news articles and web content
+                A list of search results.
             """
+            if self.search_count >= self.search_limit:
+                logger.warning(f"Search limit of {self.search_limit} reached. Aborting search.")
+                return [{"error": "Search limit reached."}]
+
+            self.search_count += 1
+            logger.info(f"Performing search {self.search_count}/{self.search_limit} with query: {query}")
+
             try:
-                logger.info(f"Searching for news about: {competitor_name}")
-                
-                # Create search query
-                query = f"{competitor_name} news announcement launch"
-                
-                # Search using Tavily
                 response = self.tavily_client.search(
                     query=query,
-                    search_depth="advanced",
-                    max_results=max_results,
-                    include_domains=None,  # Search all domains
-                    exclude_domains=None,
-                    include_answer=True,
-                    include_raw_content=True
-                )
-                
-                results = []
-                for item in response.get('results', []):
-                    # Filter by date if possible (Tavily doesn't always provide dates)
-                    result_data = {
-                        'title': item.get('title', ''),
-                        'url': item.get('url', ''),
-                        'content': item.get('content', ''),
-                        'raw_content': item.get('raw_content', ''),
-                        'published_date': item.get('published_date'),
-                        'score': item.get('score', 0),
-                        'source': 'tavily_news_search'
-                    }
-                    results.append(result_data)
-                
-                logger.info(f"Found {len(results)} news results for {competitor_name}")
-                return results
-                
-            except Exception as e:
-                logger.error(f"Error searching competitor news: {e}")
-                return []
-        
-        @tool
-        def search_competitor_mentions(competitor_name: str, context: str = "", max_results: int = 8) -> List[Dict]:
-            """
-            Search for recent mentions and discussions about a competitor.
-            
-            Args:
-                competitor_name: Name of the competitor to search for
-                context: Additional context for the search (e.g., "social media", "reviews")
-                max_results: Maximum number of results (default 8)
-            
-            Returns:
-                List of web mentions and discussions
-            """
-            try:
-                logger.info(f"Searching for mentions of: {competitor_name} with context: {context}")
-                
-                # Create contextual search query
-                if context:
-                    query = f"{competitor_name} {context}"
-                else:
-                    query = f"{competitor_name} viral trending popular"
-                
-                # Search using Tavily
-                response = self.tavily_client.search(
-                    query=query,
-                    search_depth="basic",
-                    max_results=max_results,
-                    include_answer=True,
-                    include_raw_content=False  # Lighter for mentions
-                )
-                
-                results = []
-                for item in response.get('results', []):
-                    result_data = {
-                        'title': item.get('title', ''),
-                        'url': item.get('url', ''),
-                        'content': item.get('content', ''),
-                        'published_date': item.get('published_date'),
-                        'score': item.get('score', 0),
-                        'source': 'tavily_mentions_search',
-                        'search_context': context
-                    }
-                    results.append(result_data)
-                
-                logger.info(f"Found {len(results)} mentions for {competitor_name}")
-                return results
-                
-            except Exception as e:
-                logger.error(f"Error searching competitor mentions: {e}")
-                return []
-        
-        @tool
-        def search_competitor_products(competitor_name: str, product_keywords: str = "", max_results: int = 8) -> List[Dict]:
-            """
-            Search for recent product-related content about a competitor.
-            
-            Args:
-                competitor_name: Name of the competitor to search for
-                product_keywords: Specific product keywords to search for
-                max_results: Maximum number of results (default 8)
-            
-            Returns:
-                List of product-related web content
-            """
-            try:
-                logger.info(f"Searching for product content: {competitor_name} {product_keywords}")
-                
-                # Create product-focused search query
-                if product_keywords:
-                    query = f"{competitor_name} {product_keywords} launch release new product"
-                else:
-                    query = f"{competitor_name} new product launch release announcement"
-                
-                # Search using Tavily
-                response = self.tavily_client.search(
-                    query=query,
-                    search_depth="advanced",
+                    search_depth=search_depth,
                     max_results=max_results,
                     include_answer=True,
                     include_raw_content=True
                 )
-                
-                results = []
-                for item in response.get('results', []):
-                    result_data = {
-                        'title': item.get('title', ''),
-                        'url': item.get('url', ''),
-                        'content': item.get('content', ''),
-                        'raw_content': item.get('raw_content', ''),
-                        'published_date': item.get('published_date'),
-                        'score': item.get('score', 0),
-                        'source': 'tavily_products_search',
-                        'product_keywords': product_keywords
-                    }
-                    results.append(result_data)
-                
-                logger.info(f"Found {len(results)} product results for {competitor_name}")
-                return results
-                
+                return response.get('results', [])
             except Exception as e:
-                logger.error(f"Error searching competitor products: {e}")
-                return []
-        
-        @tool
-        def get_search_summary(query: str, max_results: int = 5) -> Dict:
-            """
-            Get a general search summary with answer for a competitor query.
-            
-            Args:
-                query: Search query
-                max_results: Maximum number of results (default 5)
-            
-            Returns:
-                Search summary with answer and key results
-            """
-            try:
-                logger.info(f"Getting search summary for: {query}")
-                
-                # Search using Tavily with answer generation
-                response = self.tavily_client.search(
-                    query=query,
-                    search_depth="basic",
-                    max_results=max_results,
-                    include_answer=True,
-                    include_raw_content=False
-                )
-                
-                summary = {
-                    'query': query,
-                    'answer': response.get('answer', ''),
-                    'results_count': len(response.get('results', [])),
-                    'key_results': response.get('results', [])[:3],  # Top 3 results
-                    'source': 'tavily_summary_search'
-                }
-                
-                logger.info(f"Generated search summary for: {query}")
-                return summary
-                
-            except Exception as e:
-                logger.error(f"Error getting search summary: {e}")
-                return {'query': query, 'error': str(e), 'source': 'tavily_summary_search'}
-        
-        return [search_competitor_news, search_competitor_mentions, search_competitor_products, get_search_summary]
-    
+                logger.error(f"Error during Tavily search: {e}")
+                return [{"error": str(e)}]
+
+        return [search_competitor_intel]
+
     async def analyze_competitor(self, competitor_id: str, competitor_name: str) -> Dict[str, Any]:
         """
         Analyze a competitor's web presence and recent online activity
@@ -343,30 +164,24 @@ class BrowserAgent:
         Returns:
             Dict containing analysis results and extracted content
         """
+        self.search_count = 0  # Reset search count for each analysis
+
         try:
-            await self._initialize_agent()
-            
-            logger.info(f"Starting web analysis for competitor {competitor_id}, name: {competitor_name}")
-            
             # Get competitor info for context
             competitor = await self._get_competitor(competitor_id)
             if not competitor:
                 logger.error(f"Competitor {competitor_id} not found in database")
-                return {
-                    "platform": "web",
-                    "content": [],
-                    "error": "Competitor not found"
-                }
+                return {"platform": "web", "content": [], "error": "Competitor not found"}
+
+            await self._initialize_agent(competitor)
             
-            logger.info(f"Analyzing competitor: {competitor.name} (Industry: {competitor.industry})")
+            logger.info(f"Starting web analysis for competitor {competitor.id}, name: {competitor.name}")
             
-            # Construct analysis prompt
-            analysis_prompt = self._build_analysis_prompt(competitor, competitor_name)
-            logger.info(f"Analysis prompt length: {len(analysis_prompt)} characters")
-            logger.debug(f"Analysis prompt: {analysis_prompt[:500]}...")
-            
+            # The prompt is now part of the agent initialization
+            analysis_prompt = f"Analyze competitor {competitor.name}"
+
             # Run agent analysis
-            logger.info("Invoking Browser agent with analysis prompt...")
+            logger.info("Invoking Browser agent...")
             start_time = datetime.now(timezone.utc)
             
             result = await self.agent.ainvoke({
@@ -377,19 +192,10 @@ class BrowserAgent:
             duration = (end_time - start_time).total_seconds()
             logger.info(f"Browser agent execution completed in {duration:.2f}s")
             
-            # Log agent response details
-            logger.info(f"Agent response contains {len(result.get('messages', []))} messages")
-            if result.get('messages'):
-                last_message = result["messages"][-1]
-                logger.info(f"Last message role: {getattr(last_message, 'type', 'unknown')}")
-                logger.info(f"Last message content length: {len(getattr(last_message, 'content', ''))}")
-                logger.debug(f"Last message content preview: {getattr(last_message, 'content', '')[:300] if getattr(last_message, 'content', '') else ''}...")
-            
-            # Extract and process results
             analysis_content = result["messages"][-1].content
             logger.info(f"Processing analysis results (content length: {len(analysis_content)})")
             
-            content_items = await self._process_analysis_results(competitor_id, analysis_content, competitor_name)
+            content_items = await self._process_analysis_results(competitor_id, analysis_content, competitor.name)
             
             logger.info(f"Web analysis completed for {competitor.name}: {len(content_items)} items processed")
             
@@ -410,43 +216,37 @@ class BrowserAgent:
                 "content": [],
                 "error": str(e)
             }
-    
-    def _build_analysis_prompt(self, competitor: Competitor, competitor_name: str) -> str:
-        """Build analysis prompt for the Browser agent"""
+
+    def _build_analysis_prompt(self, competitor: Competitor) -> str:
+        """Build a dynamic analysis prompt for the Browser agent"""
         
         return f"""
-Analyze the recent web presence and online activity of competitor "{competitor.name}" in the {competitor.industry} industry.
+You are a highly intelligent web analysis agent for competitor intelligence. Your goal is to autonomously discover and analyze recent, significant events related to a competitor.
 
-COMPETITOR DETAILS:
-- Name: {competitor.name}
-- Industry: {competitor.industry}
-- Description: {competitor.description or 'N/A'}
+**Competitor Profile:**
+- **Name:** {competitor.name}
+- **Industry:** {competitor.industry}
+- **Description:** {competitor.description or 'N/A'}
 
-ANALYSIS TASKS:
-1. Use search_competitor_news to find recent news and announcements about "{competitor_name}"
-2. Use search_competitor_mentions to find trending discussions and social mentions
-3. Use search_competitor_products to find any new product launches or releases
-4. Use get_search_summary for general competitive intelligence
+**Your Mission:**
+1.  **Strategize:** Based on the competitor profile, formulate a search plan. Think about what kind of information would be most valuable (e.g., product launches in the '{competitor.industry}' sector, recent news about '{competitor.name}', marketing campaigns, etc.).
+2.  **Query Dynamically:** Construct specific, targeted search queries using the `search_competitor_intel` tool. Do not use generic queries.
+    -   *Good Query Example:* "{competitor.name} new product launch 2024"
+    -   *Good Query Example:* "customer reviews {competitor.name} {competitor.industry}"
+    -   *Bad Query Example:* "search for news"
+3.  **Search Iteratively:** Use the `search_competitor_intel` tool to execute your queries. You have a hard limit of **{self.search_limit} searches**. Use them wisely.
+4.  **Analyze Findings:** Scrutinize the search results for actionable intelligence. Focus on content from the **last 24-48 hours**.
+5.  **Synthesize and Report:** Consolidate your findings into a comprehensive report. For each significant piece of content, determine if it's **ALERT-WORTHY**.
 
-FOCUS ON CONTENT FROM THE LAST 24 HOURS:
-- News articles and press releases
-- Blog posts and industry coverage
-- Social media viral content
-- Product announcements and launches
-- Strategic partnerships or collaborations
-- Market analysis and industry reports
+**Alert-Worthy Criteria (be selective):**
+-   Major product/service announcements
+-   Significant media coverage (positive or negative) or viral content
+-   Strategic partnerships, acquisitions, or funding rounds
+-   Negative publicity or crisis situations
+-   Changes in pricing strategy
+-   Executive team changes or new key hires
 
-ALERT ASSESSMENT:
-For each significant piece of content found, determine if it's ALERT-WORTHY based on:
-- Major announcements or product launches
-- Significant media coverage or viral content
-- Strategic business moves (partnerships, acquisitions)
-- Negative publicity or crisis situations
-- Pricing strategy changes
-- Market expansion or competitive threats
-
-Provide a comprehensive analysis with specific insights and clear alert recommendations.
-Be selective with alerts - only flag truly significant competitive events.
+Your final output should be a detailed analysis of your findings, highlighting any recommended alerts.
 """
     
     async def _process_analysis_results(self, competitor_id: str, analysis_content: str, competitor_name: str) -> List[Dict[str, Any]]:

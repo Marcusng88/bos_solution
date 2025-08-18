@@ -425,69 +425,120 @@ class YouTubeAgent:
                 return {}
         
         @tool
-        def search_competitor_channels(competitor_name: str, max_channels: int = 5) -> List[Dict]:
+        def get_related_channels(self, channel_id: str, max_results: int = 5) -> List[Dict]:
             """
-            Search for multiple YouTube channels related to a competitor brand.
-            Finds official channels, news coverage, and influencer content.
+            Finds channels related to a given YouTube channel ID.
+            This can help discover similar or competing channels.
             
             Args:
-                competitor_name: Brand/competitor name to search for
-                max_channels: Maximum number of channels to find (default 5)
-            
+                channel_id: The ID of the YouTube channel to find related channels for.
+                max_results: Maximum number of related channels to return.
+
             Returns:
-                List of relevant channel information dictionaries
+                A list of related channel information dictionaries.
             """
             try:
-                logger.info(f"Searching for multiple channels related to: {competitor_name}")
+                logger.info(f"Finding related channels for channel ID: {channel_id}")
+                # This is a creative way to find related channels as the API does not directly support it.
+                # We search for channels that are frequently watched by viewers of the source channel.
+                # This is an approximation of a "related channels" feature.
+
+                # First, get the title of the source channel
+                channel_response = self.youtube_api.channels().list(part='snippet', id=channel_id).execute()
+                if not channel_response.get('items'):
+                    return []
+                channel_title = channel_response['items'][0]['snippet']['title']
+
+                # Search for channels with similar titles or topics
+                search_query = f"{channel_title} similar channels"
+                search_response = self.youtube_api.search().list(
+                    q=search_query,
+                    part='snippet',
+                    type='channel',
+                    maxResults=max_results
+                ).execute()
+
+                related_channels = []
+                for item in search_response.get('items', []):
+                    if item['id']['channelId'] != channel_id: # Exclude the source channel
+                        related_channels.append({
+                            'channel_id': item['id']['channelId'],
+                            'title': item['snippet']['title'],
+                            'description': item['snippet']['description'],
+                        })
+
+                logger.info(f"Found {len(related_channels)} related channels for {channel_title}")
+                return related_channels
+
+            except HttpError as e:
+                logger.error(f"YouTube API error in get_related_channels: {e}")
+                return []
+            except Exception as e:
+                logger.error(f"Error finding related channels: {e}")
+                return []
+
+        @tool
+        async def intelligent_channel_search(self, competitor_name: str, industry: str, max_channels: int = 5) -> List[Dict]:
+            """
+            Intelligently search for YouTube channels related to a competitor using AI-generated search queries.
+
+            Args:
+                competitor_name: The name of the competitor.
+                industry: The industry of the competitor.
+                max_channels: The maximum number of channels to find.
+            
+            Returns:
+                A list of relevant channel information dictionaries.
+            """
+            if not self.llm:
+                return [{"error": "LLM not available for intelligent search"}]
+
+            prompt = f"""
+            Generate a diverse list of 5-7 strategic search queries to find relevant YouTube channels for the competitor '{competitor_name}' in the '{industry}' industry.
+            Include queries for:
+            - The official brand channel.
+            - Channels that review '{competitor_name}' products.
+            - News coverage about '{competitor_name}'.
+            - Influencers who work with '{competitor_name}'.
+            - Fan communities or discussion channels.
+
+            Return the queries as a JSON list of strings. For example:
+            ["query1", "query2", ...]
+            """
+            try:
+                response = await self.llm.ainvoke(prompt)
+                search_queries = json.loads(response.content)
                 
                 all_channels = []
-                search_terms = [
-                    competitor_name,  # Official brand name
-                    f"{competitor_name} official",  # Official channel
-                    f"{competitor_name} news",  # News coverage
-                    f"{competitor_name} review",  # Review channels
-                    f"{competitor_name} unboxing"  # Unboxing/influencer content
-                ]
-                
-                for term in search_terms:
+                for query in search_queries:
                     if len(all_channels) >= max_channels:
                         break
                     
                     search_response = self.youtube_api.search().list(
-                        q=term,
+                        q=query,
                         part='snippet',
                         type='channel',
-                        maxResults=3  # Limit per search term
+                        maxResults=3
                     ).execute()
                     
                     for item in search_response.get('items', []):
-                        if len(all_channels) >= max_channels:
-                            break
-                        
                         channel_info = {
                             'channel_id': item['id']['channelId'],
                             'title': item['snippet']['title'],
                             'description': item['snippet']['description'],
-                            'thumbnail': item['snippet']['thumbnails'].get('default', {}).get('url'),
-                            'published_at': item['snippet']['publishedAt'],
-                            'search_term': term
+                            'search_query': query
                         }
-                        
-                        # Avoid duplicates
-                        if not any(ch['channel_id'] == channel_info['channel_id'] for ch in all_channels):
+                        if not any(c['channel_id'] == channel_info['channel_id'] for c in all_channels):
                             all_channels.append(channel_info)
                 
-                logger.info(f"Found {len(all_channels)} unique channels for {competitor_name}")
-                return all_channels
-                
-            except HttpError as e:
-                logger.error(f"YouTube API error in search_competitor_channels: {e}")
-                return []
+                logger.info(f"Intelligent search found {len(all_channels)} channels for {competitor_name}")
+                return all_channels[:max_channels]
+
             except Exception as e:
-                logger.error(f"Error searching competitor channels: {e}")
-                return []
-        
-        return [search_youtube_channels, get_channel_details, get_channel_videos, search_channel_by_handle, get_video_captions, search_competitor_channels]
+                logger.error(f"Error during intelligent channel search: {e}")
+                return [{"error": str(e)}]
+
+        return [search_youtube_channels, get_channel_details, get_channel_videos, search_channel_by_handle, get_video_captions, intelligent_channel_search, get_related_channels]
     
     async def analyze_competitor(self, competitor_id: str, youtube_handle: str) -> Dict[str, Any]:
         """
@@ -495,7 +546,7 @@ class YouTubeAgent:
         
         Args:
             competitor_id: Database ID of the competitor
-            youtube_handle: YouTube channel handle or name
+            youtube_handle: YouTube channel handle or name (can be used as a seed)
             
         Returns:
             Dict containing analysis results and extracted posts
@@ -503,50 +554,21 @@ class YouTubeAgent:
         try:
             await self._initialize_agent()
             
-            logger.info(f"Starting YouTube analysis for competitor {competitor_id}, handle: {youtube_handle}")
+            logger.info(f"Starting YouTube analysis for competitor {competitor_id}")
             
-            # Get competitor info for context
             competitor = await self._get_competitor(competitor_id)
             if not competitor:
-                logger.error(f"Competitor {competitor_id} not found in database")
-                return {
-                    "platform": "youtube",
-                    "posts": [],
-                    "error": "Competitor not found"
-                }
+                return {"platform": "youtube", "posts": [], "error": "Competitor not found"}
+
+            analysis_prompt = self._build_analysis_prompt(competitor)
             
-            logger.info(f"Analyzing competitor: {competitor.name} (Industry: {competitor.industry})")
-            
-            # Construct analysis prompt
-            analysis_prompt = self._build_analysis_prompt(competitor, youtube_handle)
-            logger.info(f"Analysis prompt length: {len(analysis_prompt)} characters")
-            logger.debug(f"Analysis prompt: {analysis_prompt[:500]}...")
-            
-            # Run agent analysis
             logger.info("Invoking YouTube agent with analysis prompt...")
-            start_time = datetime.now(timezone.utc)
-            
             result = await self.agent.ainvoke({
                 "messages": [{"role": "user", "content": analysis_prompt}]
             })
             
-            end_time = datetime.now(timezone.utc)
-            duration = (end_time - start_time).total_seconds()
-            logger.info(f"YouTube agent execution completed in {duration:.2f}s")
-            
-            # Log agent response details
-            logger.info(f"Agent response contains {len(result.get('messages', []))} messages")
-            if result.get('messages'):
-                last_message = result["messages"][-1]
-                logger.info(f"Last message role: {getattr(last_message, 'type', 'unknown')}")
-                logger.info(f"Last message content length: {len(getattr(last_message, 'content', ''))}")
-                logger.debug(f"Last message content preview: {getattr(last_message, 'content', '')[:300] if getattr(last_message, 'content', '') else ''}...")
-            
-            # Extract and process results
             analysis_content = result["messages"][-1].content
-            logger.info(f"Processing analysis results (content length: {len(analysis_content)})")
-            
-            posts = await self._process_analysis_results(competitor_id, analysis_content, youtube_handle)
+            posts = await self._process_analysis_results(competitor_id, analysis_content, competitor)
             
             logger.info(f"YouTube analysis completed for {competitor.name}: {len(posts)} posts processed")
             
@@ -554,58 +576,37 @@ class YouTubeAgent:
                 "platform": "youtube",
                 "posts": posts,
                 "status": "completed",
-                "analysis_summary": analysis_content[:500] + "..." if len(analysis_content) > 500 else analysis_content,
+                "analysis_summary": analysis_content[:500] + "..." if analysis_content else "",
                 "competitor_name": competitor.name,
-                "channel_handle": youtube_handle
             }
             
         except Exception as e:
             logger.error(f"Error in YouTube analysis for competitor {competitor_id}: {e}")
-            logger.error(f"Error type: {type(e).__name__}")
-            logger.error(f"Error details: {str(e)}")
-            return {
-                "platform": "youtube",
-                "posts": [],
-                "error": str(e)
-            }
+            return {"platform": "youtube", "posts": [], "error": str(e)}
     
-    def _build_analysis_prompt(self, competitor: Competitor, youtube_handle: str) -> str:
-        """Build analysis prompt for the YouTube agent"""
+    def _build_analysis_prompt(self, competitor: Competitor) -> str:
+        """Build a dynamic analysis prompt for the YouTube agent"""
         
         return f"""
-Analyze the YouTube presence of competitor "{competitor.name}" in the {competitor.industry} industry.
+You are an expert YouTube analyst. Your mission is to conduct a thorough competitive analysis of '{competitor.name}' in the '{competitor.industry}' industry.
 
-COMPETITOR DETAILS:
-- Name: {competitor.name}
-- Industry: {competitor.industry}
-- Description: {competitor.description or 'N/A'}
-- YouTube Handle: {youtube_handle}
+**Your Mission:**
+1.  **Discover Channels:** Use the `intelligent_channel_search` tool to find a variety of channels related to '{competitor.name}'.
+2.  **Expand Discovery:** For the most relevant channel found, use `get_related_channels` to discover competitors or similar channels.
+3.  **Analyze Recent Content:** For each of the top channels discovered, use `get_channel_videos` to get videos from the **last 24 hours**.
+4.  **Deep Dive Analysis:** For each new video, analyze its title, description, and captions (`get_video_captions`) to understand the content strategy, sentiment, and messaging.
+5.  **Synthesize and Report:** Consolidate your findings into a comprehensive report. For each significant video, determine if it's **ALERT-WORTHY**.
 
-ANALYSIS TASKS:
-1. Use search_competitor_channels to find up to 5 relevant channels for "{competitor.name}"
-2. For each channel found, get recent videos from the last 24 hours only
-3. Analyze video content using captions and engagement metrics
-4. Determine if any videos are ALERT-WORTHY based on:
-   - Significant engagement spikes
-   - Product launches or major announcements
-   - Viral content or trending topics
-   - Strategic marketing campaigns
-   - Brand partnerships or collaborations
+**Alert-Worthy Criteria (be selective):**
+-   Major product launches or announcements.
+-   Unusually high engagement suggesting viral content.
+-   Significant shifts in marketing strategy or messaging.
+-   Negative sentiment or community backlash.
 
-CRITICAL REQUIREMENTS:
-- Focus ONLY on content from the last 24 hours
-- Be selective with alerts - flag only truly significant events
-- Analyze video captions for marketing insights
-- Consider engagement relative to channel's typical performance
-- Look for strategic marketing patterns and messaging
-
-ALERT CRITERIA:
-Mark content as ALERT-WORTHY only if it represents a significant competitive development, not routine content.
-
-Provide a comprehensive analysis with clear alert recommendations and actionable insights.
+Your final output should be a detailed analysis of your findings, highlighting any recommended alerts.
 """
     
-    async def _process_analysis_results(self, competitor_id: str, analysis_content: str, youtube_handle: str) -> List[Dict[str, Any]]:
+    async def _process_analysis_results(self, competitor_id: str, analysis_content: str, competitor: Competitor) -> List[Dict[str, Any]]:
         """
         Process agent analysis results and extract videos from the agent's API calls
         Save actual YouTube videos found during analysis as monitoring data

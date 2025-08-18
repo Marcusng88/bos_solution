@@ -86,13 +86,15 @@ class LangGraphSupervisorAgent:
         from .sub_agents.instagram_agent import InstagramAgent
         from .sub_agents.twitter_agent import TwitterAgent
         from .sub_agents.browser_agent import BrowserAgent
+        from .sub_agents.website_agent import WebsiteAgent
         
         # Platform agent classes
         self.platform_agent_classes = {
             "youtube": YouTubeAgent,
             "instagram": InstagramAgent,
             "twitter": TwitterAgent,
-            "web": BrowserAgent,  # Web intelligence agent
+            "web": BrowserAgent,
+            "website": WebsiteAgent,
         }
         
         # Build the LangGraph workflow
@@ -111,6 +113,7 @@ class LangGraphSupervisorAgent:
         builder.add_node("instagram_agent", self._create_platform_agent_node("instagram"))
         builder.add_node("twitter_agent", self._create_platform_agent_node("twitter"))
         builder.add_node("web_agent", self._create_platform_agent_node("web"))
+        builder.add_node("website_agent", self._create_platform_agent_node("website"))
         builder.add_node("aggregator", self._aggregator_node)
         
         # Define the flow
@@ -121,6 +124,7 @@ class LangGraphSupervisorAgent:
         builder.add_edge("instagram_agent", "supervisor")
         builder.add_edge("twitter_agent", "supervisor")
         builder.add_edge("web_agent", "supervisor")
+        builder.add_edge("website_agent", "supervisor")
         
         # Supervisor routes to platform agents or aggregator using conditional logic
         def route_supervisor(state):
@@ -168,6 +172,7 @@ Available platform agents:
 - instagram_agent: Analyzes Instagram profiles and posts  
 - twitter_agent: Analyzes Twitter/X profiles and tweets
 - web_agent: Analyzes web content, news, and general online presence
+- website_agent: crawls and analyzes the competitor's official website
 
 Your job is to select the next platform agent to analyze the competitor.
 
@@ -182,7 +187,7 @@ Select the MOST IMPORTANT platform to analyze next based on:
 2. Platform relevance for business intelligence
 3. Data availability and analysis value
 
-Respond with ONLY the agent name (youtube_agent, instagram_agent, twitter_agent, or web_agent)."""
+Respond with ONLY the agent name (youtube_agent, instagram_agent, twitter_agent, web_agent, or website_agent)."""
 
             competitor_data = state["competitor_data"]
             completed_platforms = list(state["platform_results"].keys())
@@ -207,7 +212,7 @@ Respond with ONLY the agent name (youtube_agent, instagram_agent, twitter_agent,
                 next_agent = "invalid"
             
             # Validate AI response
-            valid_agents = ["youtube_agent", "instagram_agent", "twitter_agent", "web_agent"]
+            valid_agents = ["youtube_agent", "instagram_agent", "twitter_agent", "web_agent", "website_agent"]
             if next_agent not in valid_agents:
                 # AI response invalid, log error and continue with next available platform
                 logger.error(f"❌ AI response invalid: {next_agent}. Valid agents: {valid_agents}")
@@ -253,37 +258,32 @@ Respond with ONLY the agent name (youtube_agent, instagram_agent, twitter_agent,
                 competitor_data = state["competitor_data"]
                 competitor_id = state["competitor_id"]
                 
-                # Handle web agent differently (doesn't need social media handles)
-                if platform == "web":
+                if platform == "website":
+                    handle = competitor_data.get("website_url")
+                elif platform == "web":
                     handle = competitor_data.get("name")  # Use competitor name for web search
                 else:
-                    # Get platform handle for social media agents
                     social_handles = competitor_data.get("social_media_handles", {})
                     handle = social_handles.get(platform)
-                    
-                    if not handle:
-                        logger.warning(f"⚠️  No {platform} handle found for competitor")
-                        return Command(
-                            goto="supervisor",
-                            update={
-                                "platform_results": {
-                                    **state["platform_results"],
-                                    platform: {
-                                        "platform": platform,
-                                        "status": "skipped",
-                                        "posts": [],
-                                        "error": f"No {platform} handle configured"
-                                    }
-                                }
+
+                if not handle:
+                    logger.warning(f"⚠️  No handle or URL found for {platform} for competitor")
+                    return Command(
+                        goto="supervisor",
+                        update={
+                            "platform_results": {
+                                **state["platform_results"],
+                                platform: {"status": "skipped", "error": f"No handle/URL for {platform}"}
                             }
-                        )
+                        }
+                    )
                 
                 # Create platform agent instance
                 agent_class = self.platform_agent_classes[platform]
                 agent = agent_class(self.db)
                 
                 # Run analysis
-                logger.info(f"🚀 Running {platform} analysis for handle: {handle}")
+                logger.info(f"🚀 Running {platform} analysis for: {handle}")
                 result = await agent.analyze_competitor(competitor_id, handle)
                 
                 logger.info(f"✅ {platform.title()} analysis completed")
@@ -437,6 +437,7 @@ Provide a 2-3 sentence summary of key insights and recommendations."""
                     "name": competitor.name,
                     "industry": competitor.industry,
                     "description": competitor.description,
+                    "website_url": competitor.website_url,
                     "social_media_handles": competitor.social_media_handles or {}
                 },
                 platforms_to_analyze=platforms_to_analyze,
@@ -511,16 +512,20 @@ Provide a 2-3 sentence summary of key insights and recommendations."""
         """Determine which platforms need analysis"""
         platforms = []
         
-        # Always include web intelligence agent (doesn't require social handles)
+        # Always include web intelligence agent
         platforms.append("web")
         
+        # Include website agent if URL is present
+        if competitor.website_url:
+            platforms.append("website")
+
         if competitor.social_media_handles:
             for platform, handle in competitor.social_media_handles.items():
-                if handle and platform.lower() in self.platform_agent_classes and platform.lower() != "web":
+                if handle and platform.lower() in self.platform_agent_classes and platform.lower() not in ["web", "website"]:
                     platforms.append(platform.lower())
         
         logger.info(f"🎯 Determined platforms for analysis: {platforms}")
-        return platforms
+        return list(set(platforms))  # Return unique platforms
     
     async def _update_scanning_status(self, competitor_id: str, is_scanning: bool, **kwargs):
         """Update competitor monitoring status in database"""

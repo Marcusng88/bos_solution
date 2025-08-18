@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bell, Eye, TrendingUp, Clock, Play, Pause, Loader2 } from "lucide-react"
 import { MonitoringAlerts } from "./monitoring-alerts"
 import { ScanningStatus } from "./scanning-status"
+import { AnalysisResults } from "./analysis-results"
 import { useApiClient, handleApiError, monitoringAPI } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -28,14 +29,18 @@ interface MonitoringData {
   id: string
   competitor_id: string
   platform: string
-  post_id: string
-  post_url: string
+  post_id?: string
+  post_url?: string
   content_text: string
-  author_username: string
+  author_username?: string
   post_type: string
-  engagement_metrics: any
+  engagement_metrics?: any
   detected_at: string
-  posted_at: string
+  posted_at?: string
+  // New fields for website and web analysis
+  source_url?: string;
+  key_insights?: string[];
+  alert_type?: string;
 }
 
 export function ContinuousMonitoringDashboard() {
@@ -48,56 +53,42 @@ export function ContinuousMonitoringDashboard() {
   const { apiClient, userId } = useApiClient()
   const { toast } = useToast()
 
-  // Fetch monitoring data on component mount
-  useEffect(() => {
-    let mounted = true
-    
-    const fetchMonitoringData = async () => {
-      if (!mounted) return
-      
-      try {
-        setIsLoading(true)
-        console.log('Fetching monitoring data for user:', userId)
-        
-        // Fetch monitoring status, stats, and data in parallel
-        const [statusResponse, statsResponse, dataResponse] = await Promise.all([
-          apiClient.getMonitoringStatus(userId),
-          apiClient.getMonitoringStats(userId),
-          monitoringAPI.getMonitoringData(userId, { limit: 20 })
-        ])
+  const fetchAllData = useCallback(async () => {
+    if (!userId) return;
+    setIsLoading(true);
+    try {
+      const [statusRes, statsRes, dataRes] = await Promise.all([
+        apiClient.getMonitoringStatus(userId),
+        apiClient.getMonitoringStats(userId),
+        monitoringAPI.getMonitoringData(userId, { limit: 50 }),
+      ]);
 
-        if (mounted) {
-          if ((statusResponse as any).success) {
-            setMonitoringStatus((statusResponse as any).status)
-            setIsMonitoring((statusResponse as any).status.running)
-          }
-
-          if ((statsResponse as any).success) {
-            setMonitoringStats((statsResponse as any).stats)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching monitoring data:', error)
-        if (mounted) {
-          toast({
-            title: "Error",
-            description: handleApiError(error),
-            variant: "destructive",
-          })
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false)
-        }
+      if ((statusRes as any).success) {
+        setMonitoringStatus((statusRes as any).status);
+        setIsMonitoring((statusRes as any).status.running);
       }
+      if ((statsRes as any).success) {
+        setMonitoringStats((statsRes as any).stats);
+      }
+      if (dataRes.data) {
+        setMonitoringData(dataRes.data);
+      }
+    } catch (error) {
+      console.error('Error fetching monitoring data:', error);
+      toast({
+        title: "Error",
+        description: handleApiError(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    fetchMonitoringData()
-    
-    return () => {
-      mounted = false
-    }
-  }, [userId]) // Only depend on userId
+  }, [userId, apiClient, toast]);
+
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
 
   // Handle monitoring toggle
   const handleMonitoringToggle = async (enabled: boolean) => {
@@ -253,11 +244,16 @@ export function ContinuousMonitoringDashboard() {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="alerts" className="space-y-4">
+      <Tabs defaultValue="analysis-results" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="analysis-results">Analysis Results</TabsTrigger>
           <TabsTrigger value="alerts">Recent Alerts</TabsTrigger>
           <TabsTrigger value="scanning">Scanning Status</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="analysis-results">
+          <AnalysisResults results={monitoringData} />
+        </TabsContent>
 
         <TabsContent value="alerts">
           <MonitoringAlerts userId={userId} />
