@@ -1,5 +1,5 @@
 """
-Database configuration and connection management
+Database configuration and connection management for Supabase
 """
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -9,10 +9,12 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Base class for models - renamed to avoid conflict with SQLAlchemy's metadata
+# Base class for models
 ModelBase = declarative_base()
 
 # Initialize engine and session factory as None initially
@@ -21,37 +23,47 @@ AsyncSessionLocal = None
 
 
 def get_database_url():
-    """Get database URL with fallback to environment variable"""
+    """Get Supabase database URL from environment"""
     try:
         from app.core.config import settings
         return settings.DATABASE_URL
     except Exception as e:
         logger.warning(f"Could not load settings: {e}")
-        # Fallback to environment variable
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            # Default to a safe local placeholder rather than a real connection string
-            database_url = "postgresql://postgres:postgres@localhost:5432/postgres"
-            logger.warning("No DATABASE_URL found. Falling back to a local Postgres placeholder.")
-        return database_url
+        
+    # Get from environment variables
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        # Get Supabase credentials
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        
+        if supabase_url and supabase_key:
+            # Extract project reference from Supabase URL
+            project_ref = supabase_url.split('//')[1].split('.')[0]
+            database_url = f"postgresql+asyncpg://postgres.{supabase_key}:{supabase_key}@aws-0-{project_ref}.pooler.supabase.com:6543/postgres"
+            logger.info(f"Generated Supabase connection string for project: {project_ref}")
+        else:
+            raise ValueError("DATABASE_URL or SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY must be set")
+    
+    return database_url
 
 
 def create_engine():
-    """Create the database engine"""
+    """Create the Supabase database engine"""
     global engine, AsyncSessionLocal
     
     try:
         database_url = get_database_url()
         
-        # Convert to async URL if it's a regular PostgreSQL URL
+        # Ensure we're using asyncpg for Supabase
         if database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
             async_database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
         else:
             async_database_url = database_url
         
-        logger.info(f"Connecting to database: {async_database_url.split('@')[1] if '@' in async_database_url else 'unknown'}")
+        logger.info(f"Connecting to Supabase database")
         
-        # Create async engine
+        # Create async engine for Supabase
         engine = create_async_engine(
             async_database_url,
             echo=os.getenv("DEBUG", "false").lower() == "true",
@@ -69,15 +81,15 @@ def create_engine():
             autoflush=False,
         )
         
-        logger.info("Database engine created successfully")
+        logger.info("Supabase database engine created successfully")
         
     except Exception as e:
-        logger.error(f"Failed to create database engine: {e}")
+        logger.error(f"Failed to create Supabase database engine: {e}")
         raise
 
 
 async def init_db():
-    """Initialize database connection"""
+    """Initialize database connection to Supabase"""
     global engine
     
     if engine is None:
@@ -87,43 +99,41 @@ async def init_db():
         # Test database connection
         async with engine.begin() as conn:
             await conn.run_sync(lambda _: None)
-        logger.info("Database connection established successfully")
+        logger.info("Supabase database connection established successfully")
     except Exception as e:
-        logger.error(f"Failed to connect to database: {e}")
+        logger.error(f"Failed to connect to Supabase database: {e}")
         raise
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session"""
+    """Get database session for Supabase"""
     global AsyncSessionLocal
     
     if AsyncSessionLocal is None:
         create_engine()
     
-    session = AsyncSessionLocal()
-    try:
-        yield session
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {e}")
-        await session.rollback()
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        await session.rollback()
-        raise
-    finally:
-        await session.close()
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except SQLAlchemyError as e:
+            logger.error(f"Database error: {e}")
+            await session.rollback()
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            await session.rollback()
+            raise
 
 
 async def close_db():
-    """Close database connection"""
+    """Close Supabase database connection"""
     global engine
     if engine:
         await engine.dispose()
-        logger.info("Database connection closed")
+        logger.info("Supabase database connection closed")
 
 
-# Create engine when module is imported (but don't fail if env vars are missing)
+# Create engine when module is imported
 try:
     create_engine()
 except Exception as e:

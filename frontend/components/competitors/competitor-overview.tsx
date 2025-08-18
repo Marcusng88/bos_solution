@@ -8,9 +8,10 @@ import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Target } f
 
 interface CompetitorOverviewProps {
   timeRange: string
+  monitoringData?: any[]
 }
 
-export function CompetitorOverview({ timeRange }: CompetitorOverviewProps) {
+export function CompetitorOverview({ timeRange, monitoringData = [] }: CompetitorOverviewProps) {
   const insights = [
     {
       type: "opportunity",

@@ -5,6 +5,23 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
+-- Users table - stores basic user information from Clerk
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    clerk_id VARCHAR(255) NOT NULL UNIQUE, -- Clerk user ID
+    email VARCHAR(255),
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    profile_image_url VARCHAR(500),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for users table
+CREATE INDEX idx_users_clerk_id ON users(clerk_id);
+CREATE INDEX idx_users_email ON users(email);
+
 -- Create custom types
 CREATE TYPE monitoring_status AS ENUM ('active', 'paused', 'error');
 CREATE TYPE alert_priority AS ENUM ('low', 'medium', 'high', 'critical');
@@ -13,7 +30,7 @@ CREATE TYPE social_media_platform AS ENUM ('instagram', 'facebook', 'twitter', '
 -- Competitors table - stores competitor information
 CREATE TABLE competitors (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Reference to users table
     name VARCHAR(255) NOT NULL,
     description TEXT,
     website_url VARCHAR(500),
@@ -60,7 +77,7 @@ CREATE TABLE monitoring_data (
 -- User monitoring settings table - stores user preferences and configurations
 CREATE TABLE user_monitoring_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id VARCHAR(255) NOT NULL UNIQUE, -- Clerk user ID
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE, -- Reference to users table
     global_monitoring_enabled BOOLEAN DEFAULT true,
     default_scan_frequency_minutes INTEGER DEFAULT 60,
     alert_preferences JSONB DEFAULT '{
@@ -83,7 +100,7 @@ CREATE TABLE user_monitoring_settings (
 -- Monitoring alerts table - stores generated alerts for users
 CREATE TABLE monitoring_alerts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Reference to users table
     competitor_id UUID REFERENCES competitors(id) ON DELETE CASCADE,
     monitoring_data_id UUID REFERENCES monitoring_data(id) ON DELETE CASCADE,
     alert_type VARCHAR(50) NOT NULL, -- new_post, content_change, engagement_spike, etc.
@@ -140,6 +157,9 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers for updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_competitors_updated_at BEFORE UPDATE ON competitors
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -149,25 +169,24 @@ CREATE TRIGGER update_user_monitoring_settings_updated_at BEFORE UPDATE ON user_
 CREATE TRIGGER update_competitor_monitoring_status_updated_at BEFORE UPDATE ON competitor_monitoring_status
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Create function to automatically create user settings when competitor is added
+-- Create function to automatically create user settings when user is added
 CREATE OR REPLACE FUNCTION create_user_monitoring_settings()
 RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO user_monitoring_settings (user_id)
-    VALUES (NEW.user_id)
+    VALUES (NEW.id)
     ON CONFLICT (user_id) DO NOTHING;
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 -- Create trigger for automatic user settings creation
-CREATE TRIGGER create_user_settings_trigger AFTER INSERT ON competitors
+CREATE TRIGGER create_user_settings_trigger AFTER INSERT ON users
     FOR EACH ROW EXECUTE FUNCTION create_user_monitoring_settings();
 
 -- Insert sample data for testing (optional)
--- INSERT INTO user_monitoring_settings (user_id) VALUES ('user_test_123');
--- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_test_123', 'Nike', 'Athletic footwear and apparel', 'Sports');
--- INSERT INTO competitors (user_id, name, description, industry) VALUES ('user_test_123', 'Adidas', 'Sportswear manufacturer', 'Sports');
+-- INSERT INTO users (clerk_id, email, first_name, last_name) VALUES ('user_test_123', 'test@example.com', 'Test', 'User');
+-- INSERT INTO competitors (user_id, name, description, industry) VALUES ((SELECT id FROM users WHERE clerk_id = 'user_test_123'), 'Nike', 'Athletic footwear and apparel', 'Sports');
 
 -- Grant necessary permissions (adjust as needed for your setup)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_user;

@@ -4,6 +4,7 @@
  */
 
 import { useUser } from '@clerk/nextjs';
+import { Competitor, CompetitorCreate, CompetitorUpdate, CompetitorStats } from './types';
 
 // API base URL - adjust based on your backend configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -17,6 +18,44 @@ export function createApiHeaders(userId: string, additionalHeaders: Record<strin
     'X-User-ID': userId,
     ...additionalHeaders,
   };
+}
+
+/**
+ * Get authentication headers for API requests
+ */
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  // Get the current user from Clerk
+  const { useUser } = await import('@clerk/nextjs');
+  
+  // Since this is a utility function, we need to get the user ID differently
+  // For now, we'll use a more realistic approach
+  try {
+    // Try to get user ID from localStorage or session storage if available
+    const storedUserId = typeof window !== 'undefined' ? 
+      localStorage.getItem('clerk_user_id') || 
+      sessionStorage.getItem('clerk_user_id') : null;
+    
+    if (storedUserId) {
+      return {
+        'Content-Type': 'application/json',
+        'X-User-ID': storedUserId,
+      };
+    }
+    
+    // Fallback to mock ID for development/testing
+    console.warn('No user ID found, using mock ID for development');
+    return {
+      'Content-Type': 'application/json',
+      'X-User-ID': 'user_test123456789', // Mock Clerk user ID format for testing
+    };
+  } catch (error) {
+    console.error('Error getting auth headers:', error);
+    // Fallback to mock ID
+    return {
+      'Content-Type': 'application/json',
+      'X-User-ID': 'user_test123456789', // Mock Clerk user ID format for testing
+    };
+  }
 }
 
 /**
@@ -62,16 +101,44 @@ export class ApiClient {
     return response.json();
   }
 
-  // User endpoints
-  async getUserSettings(userId: string) {
-    return this.request('/users/settings', { userId });
+  // User synchronization
+  async syncUserWithClerk(userData: {
+    userId: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    profileImageUrl?: string;
+  }): Promise<any> {
+    const headers: Record<string, string> = {};
+    if (userData.email) headers['X-User-Email'] = userData.email;
+    if (userData.firstName) headers['X-User-First-Name'] = userData.firstName;
+    if (userData.lastName) headers['X-User-Last-Name'] = userData.lastName;
+    if (userData.profileImageUrl) headers['X-User-Profile-Image'] = userData.profileImageUrl;
+
+    return this.request('/auth/sync', {
+      userId: userData.userId,
+      method: 'POST',
+      headers,
+    });
   }
 
-  async updateUserSettings(userId: string, settings: any) {
-    return this.request('/users/settings', {
+  async getCurrentUser(userId: string): Promise<any> {
+    return this.request(`/auth/me`, { userId });
+  }
+
+  async updateUserProfile(
+    userId: string,
+    profileData: {
+      email?: string;
+      firstName?: string;
+      lastName?: string;
+      profileImageUrl?: string;
+    }
+  ): Promise<any> {
+    return this.request(`/auth/profile`, {
       userId,
       method: 'PUT',
-      body: JSON.stringify(settings),
+      body: JSON.stringify(profileData),
     });
   }
 
@@ -108,15 +175,15 @@ export class ApiClient {
   }
 
   // Monitoring endpoints
-  async getMonitoringSessions(userId: string) {
-    return this.request('/monitoring/sessions', { userId });
+  async getMonitoringSettings(userId: string) {
+    return this.request('/monitoring/settings', { userId });
   }
 
-  async createMonitoringSession(userId: string, sessionData: any) {
-    return this.request('/monitoring/sessions', {
+  async updateMonitoringSettings(userId: string, settings: any) {
+    return this.request('/monitoring/settings', {
       userId,
-      method: 'POST',
-      body: JSON.stringify(sessionData),
+      method: 'PUT',
+      body: JSON.stringify(settings),
     });
   }
 
@@ -128,6 +195,72 @@ export class ApiClient {
     return this.request(`/monitoring/alerts/${alertId}/read`, {
       userId,
       method: 'PUT',
+    });
+  }
+
+  async startContinuousMonitoring(userId: string) {
+    return this.request('/monitoring/start-continuous-monitoring', {
+      userId,
+      method: 'POST',
+    });
+  }
+
+  async stopContinuousMonitoring(userId: string) {
+    return this.request('/monitoring/stop-continuous-monitoring', {
+      userId,
+      method: 'POST',
+    });
+  }
+
+  async getMonitoringStatus(userId: string) {
+    return this.request('/monitoring/monitoring-status', { userId });
+  }
+
+  async getMonitoringStats(userId: string) {
+    return this.request('/monitoring/monitoring-stats', { userId });
+  }
+
+  async runMonitoringForCompetitor(userId: string, competitorId: string) {
+    return this.request(`/monitoring/run-monitoring/${competitorId}`, {
+      userId,
+      method: 'POST',
+    });
+  }
+
+  async runMonitoringForAllCompetitors(userId: string) {
+    return this.request('/monitoring/run-monitoring-all', {
+      userId,
+      method: 'POST',
+    });
+  }
+
+  // Monitoring data
+  async getMonitoringData(userId: string, competitorId?: string): Promise<any> {
+    const endpoint = competitorId 
+      ? `/monitoring/competitors/${competitorId}/data`
+      : '/monitoring/data';
+    
+    return this.request(endpoint, { userId });
+  }
+
+  // User settings
+  async getUserSettings(userId: string) {
+    return this.request(`/users/settings`, { userId });
+  }
+
+  async updateUserSettings(
+    userId: string,
+    settings: {
+      globalMonitoringEnabled?: boolean;
+      defaultScanFrequencyMinutes?: number;
+      alertPreferences?: Record<string, boolean>;
+      notificationSchedule?: Record<string, string>;
+    }
+  ) {
+    return this.request(`/users/settings`, {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify(settings),
     });
   }
 }
@@ -168,3 +301,216 @@ export function handleApiError(error: any): string {
 
 // Export default instance
 export const apiClient = new ApiClient();
+
+// Competitor API methods
+export const competitorAPI = {
+  // Get all competitors
+  getCompetitors: async (userId: string): Promise<Competitor[]> => {
+    const response = await fetch(`${API_BASE_URL}/competitors/`, {
+      headers: createApiHeaders(userId),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch competitors');
+    }
+    
+    return response.json();
+  },
+
+  // Create a new competitor
+  createCompetitor: async (competitorData: CompetitorCreate, userId: string): Promise<Competitor> => {
+    try {
+      console.log('Creating competitor with data:', competitorData);
+      console.log('User ID:', userId);
+      console.log('API URL:', `${API_BASE_URL}/competitors/`);
+      console.log('Headers:', createApiHeaders(userId));
+      
+      if (!userId || userId.trim() === '') {
+        throw new Error('User ID is required');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/competitors/`, {
+        method: 'POST',
+        headers: createApiHeaders(userId),
+        body: JSON.stringify(competitorData),
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        
+        let errorMessage = 'Failed to create competitor';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = `${errorMessage}: ${response.status} ${response.statusText}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const result = await response.json();
+      console.log('Success response:', result);
+      return result;
+    } catch (error) {
+      console.error('Error in createCompetitor:', error);
+      
+      // Provide more specific error messages
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+      }
+      
+      throw error;
+    }
+  },
+
+  // Update a competitor
+  updateCompetitor: async (id: string, competitorData: Partial<CompetitorCreate>, userId: string): Promise<Competitor> => {
+    const response = await fetch(`${API_BASE_URL}/competitors/${id}`, {
+      method: 'PUT',
+      headers: createApiHeaders(userId),
+      body: JSON.stringify(competitorData),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update competitor');
+    }
+    
+    return response.json();
+  },
+
+  // Delete a competitor
+  deleteCompetitor: async (id: string, userId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/competitors/${id}`, {
+      method: 'DELETE',
+      headers: createApiHeaders(userId),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to delete competitor');
+    }
+  },
+
+  // Get competitor statistics
+  getCompetitorStats: async (userId: string): Promise<CompetitorStats> => {
+    const response = await fetch(`${API_BASE_URL}/competitors/stats/summary`, {
+      headers: createApiHeaders(userId),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch competitor statistics');
+    }
+    
+    return response.json();
+  },
+
+  // Toggle competitor status
+  toggleCompetitorStatus: async (id: string, userId: string): Promise<Competitor> => {
+    const response = await fetch(`${API_BASE_URL}/competitors/${id}/toggle-status`, {
+      method: 'POST',
+      headers: createApiHeaders(userId),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to toggle competitor status');
+    }
+    
+    return response.json();
+  },
+
+  // Update scan frequency
+  updateScanFrequency: async (id: string, frequencyMinutes: number, userId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/competitors/${id}/scan-frequency`, {
+      method: 'PUT',
+      headers: createApiHeaders(userId),
+      body: JSON.stringify({ frequency_minutes: frequencyMinutes }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update scan frequency');
+    }
+  },
+
+  // Scan all competitors
+  scanAllCompetitors: async (userId: string): Promise<any> => {
+    console.log('🔍 scanAllCompetitors called with userId:', userId);
+    console.log('🔍 API_BASE_URL:', API_BASE_URL);
+    console.log('🔍 Full URL:', `${API_BASE_URL}/competitors/scan-all`);
+    
+    const headers = createApiHeaders(userId);
+    console.log('🔍 Request headers:', headers);
+    
+    try {
+      console.log('🔍 Making POST request to:', `${API_BASE_URL}/competitors/scan-all`);
+      
+      const response = await fetch(`${API_BASE_URL}/competitors/scan-all`, {
+        method: 'POST',
+        headers: headers,
+      });
+      
+      console.log('🔍 Response status:', response.status);
+      console.log('🔍 Response headers:', response.headers);
+      console.log('🔍 Response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🔍 Error response text:', errorText);
+        throw new Error(`Failed to scan all competitors: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('🔍 Success response:', result);
+      return result;
+    } catch (error) {
+      console.error('🔍 Error in scanAllCompetitors:', error);
+      throw error;
+    }
+  },
+};
+
+// Monitoring API
+export const monitoringAPI = {
+  // Get monitoring data
+  getMonitoringData: async (
+    userId: string, 
+    filters?: {
+      competitorId?: string;
+      platform?: string;
+      limit?: number;
+    }
+  ): Promise<any> => {
+    const searchParams = new URLSearchParams();
+    if (filters?.competitorId) searchParams.append('competitor_id', filters.competitorId);
+    if (filters?.platform) searchParams.append('platform', filters.platform);
+    if (filters?.limit) searchParams.append('limit', filters.limit.toString());
+    
+    const url = `${API_BASE_URL}/monitoring/monitoring-data${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    
+    const response = await fetch(url, {
+      headers: createApiHeaders(userId),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch monitoring data');
+    }
+    
+    return response.json();
+  },
+
+  // Get monitoring stats
+  getMonitoringStats: async (userId: string): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/monitoring/monitoring-stats`, {
+      headers: createApiHeaders(userId),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch monitoring stats');
+    }
+    
+    return response.json();
+  },
+};

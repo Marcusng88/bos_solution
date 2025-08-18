@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Lightbulb, TrendingUp, Users, Calendar, Sparkles } from "lucide-react"
 
-export function ContentGapAnalysis() {
+interface ContentGapAnalysisProps {
+  monitoringData?: any[]
+}
+
+export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisProps) {
   const contentGaps = [
     {
       category: "Video Content",

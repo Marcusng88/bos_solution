@@ -30,7 +30,7 @@ class UserMonitoringSettingsBase(BaseModel):
 
 class UserMonitoringSettingsCreate(UserMonitoringSettingsBase):
     """Schema for creating user monitoring settings"""
-    user_id: str
+    user_id: UUID
 
 
 class UserMonitoringSettingsUpdate(BaseModel):
@@ -44,7 +44,7 @@ class UserMonitoringSettingsUpdate(BaseModel):
 class UserMonitoringSettingsResponse(UserMonitoringSettingsBase):
     """Schema for user monitoring settings response"""
     id: UUID
-    user_id: str
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
     
@@ -108,7 +108,7 @@ class MonitoringAlertBase(BaseModel):
 
 class MonitoringAlertCreate(MonitoringAlertBase):
     """Schema for creating monitoring alert"""
-    user_id: str
+    user_id: UUID
     competitor_id: Optional[UUID] = None
     monitoring_data_id: Optional[UUID] = None
 
@@ -116,7 +116,7 @@ class MonitoringAlertCreate(MonitoringAlertBase):
 class MonitoringAlertResponse(MonitoringAlertBase):
     """Schema for monitoring alert response"""
     id: UUID
-    user_id: str
+    user_id: UUID
     competitor_id: Optional[UUID] = None
     monitoring_data_id: Optional[UUID] = None
     is_read: bool

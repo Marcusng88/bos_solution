@@ -7,9 +7,10 @@ import { TrendingUp, TrendingDown, Target, Users, Heart, MessageCircle } from "l
 
 interface CompetitorPerformanceProps {
   timeRange: string
+  monitoringData?: any[]
 }
 
-export function CompetitorPerformance({ timeRange }: CompetitorPerformanceProps) {
+export function CompetitorPerformance({ timeRange, monitoringData = [] }: CompetitorPerformanceProps) {
   const performanceData = [
     {
       competitor: "Nike",

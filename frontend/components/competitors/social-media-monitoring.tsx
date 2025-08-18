@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Heart, MessageCircle, Share, ExternalLink, Clock } from "lucide-react"
 
-export function SocialMediaMonitoring() {
+interface SocialMediaMonitoringProps {
+  monitoringData?: any[]
+}
+
+export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonitoringProps) {
   const recentPosts = [
     {
       competitor: "Nike",

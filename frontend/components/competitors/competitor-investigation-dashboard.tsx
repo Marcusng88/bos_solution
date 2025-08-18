@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,22 +11,243 @@ import { CompetitorOverview } from "./competitor-overview"
 import { ContentGapAnalysis } from "./content-gap-analysis"
 import { SocialMediaMonitoring } from "./social-media-monitoring"
 import { CompetitorPerformance } from "./competitor-performance"
-import { Search, TrendingUp, AlertTriangle, Eye, RefreshCw, Plus } from "lucide-react"
+import { AddCompetitorModal } from "./add-competitor-modal"
+import { CompetitorDetailsDialog } from "./competitor-details-dialog"
+import { Search, TrendingUp, AlertTriangle, Eye, RefreshCw, Plus, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { competitorAPI, monitoringAPI } from "@/lib/api-client"
+import { Competitor, CompetitorStats } from "@/lib/types"
+import { useUser } from "@clerk/nextjs"
 
 export function CompetitorInvestigationDashboard() {
-  const [timeRange, setTimeRange] = useState("30d")
+  const [timeRange, setTimeRange] = useState("7d")
   const [selectedCompetitor, setSelectedCompetitor] = useState("all")
   const [isScanning, setIsScanning] = useState(false)
+  const [scanningCompetitors, setScanningCompetitors] = useState<Set<string>>(new Set())
+  const [scanResults, setScanResults] = useState<any>(null)
+  const [scanProgress, setScanProgress] = useState<{current: number, total: number}>({current: 0, total: 0})
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
+  const [stats, setStats] = useState<CompetitorStats | null>(null)
+  const [monitoringData, setMonitoringData] = useState<any[]>([])
+  const [monitoringStats, setMonitoringStats] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const { toast } = useToast()
+  const { user } = useUser()
 
-  const competitors = [
-    { name: "Nike", status: "active", lastScan: "2 hours ago", threats: 3 },
-    { name: "Adidas", status: "active", lastScan: "4 hours ago", threats: 1 },
-    { name: "Under Armour", status: "active", lastScan: "6 hours ago", threats: 2 },
-  ]
+  // Fetch competitors and stats
+  const fetchCompetitors = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      setIsLoading(true)
+      const [competitorsData, statsData] = await Promise.all([
+        competitorAPI.getCompetitors(user.id),
+        competitorAPI.getCompetitorStats(user.id)
+      ])
+      setCompetitors(competitorsData)
+      setStats(statsData)
+    } catch (error) {
+      console.error("Error fetching competitors:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch competitors data",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [toast, user])
 
-  const startScan = () => {
+  // Fetch monitoring data
+  const fetchMonitoringData = useCallback(async () => {
+    if (!user?.id) return
+    
+    try {
+      const [data, stats] = await Promise.all([
+        monitoringAPI.getMonitoringData(user.id, { limit: 100 }),
+        monitoringAPI.getMonitoringStats(user.id)
+      ])
+      setMonitoringData(data.data || [])
+      setMonitoringStats(stats.stats || {})
+    } catch (error) {
+      console.error("Error fetching monitoring data:", error)
+    }
+  }, [user])
+
+  // Fetch stats only
+  const fetchStats = async () => {
+    if (!user?.id) return
+    
+    try {
+      const statsData = await competitorAPI.getCompetitorStats(user.id)
+      setStats(statsData)
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    }
+  }
+
+  // Refresh data
+  const refreshData = async () => {
+    setIsRefreshing(true)
+    try {
+      await Promise.all([
+        fetchCompetitors(),
+        fetchStats(),
+        fetchMonitoringData()
+      ])
+      // Clear scan results when refreshing
+      setScanResults(null)
+    } catch (error) {
+      console.error("Error refreshing data:", error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  // Clear scan results
+  const clearScanResults = () => {
+    setScanResults(null)
+  }
+
+  // Handle competitor added
+  const handleCompetitorAdded = useCallback(() => {
+    fetchCompetitors()
+  }, [fetchCompetitors])
+
+  // Start scan
+  const startScan = async () => {
+    console.log('🚀 startScan called');
+    
+    if (competitors.length === 0) {
+      console.log('❌ No competitors found');
+      toast({
+        title: "No Competitors",
+        description: "Please add competitors first before starting a scan",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (!user?.id) {
+      console.log('❌ No user ID found');
+      toast({
+        title: "Authentication Error",
+        description: "Please log in again to continue",
+        variant: "destructive"
+      })
+      return
+    }
+
+    console.log('✅ Starting scan process...');
     setIsScanning(true)
-    setTimeout(() => setIsScanning(false), 3000)
+    // Set all active competitors as scanning
+    const activeCompetitors = competitors.filter(c => c.status === 'active')
+    console.log('📊 Active competitors:', activeCompetitors);
+    setScanningCompetitors(new Set(activeCompetitors.map(c => c.id)))
+    setScanProgress({current: 0, total: activeCompetitors.length})
+    
+    try {
+      console.log(`🚀 Starting scan for user: ${user.id}`)
+      console.log(`📊 Found ${activeCompetitors.length} active competitors to scan`)
+      
+      // Call the backend scan endpoint
+      console.log('📡 Calling competitorAPI.scanAllCompetitors...');
+      const scanResult = await competitorAPI.scanAllCompetitors(user.id)
+      console.log('✅ Scan result received:', scanResult)
+      
+      setScanResults(scanResult)
+      setScanProgress({current: scanResult.competitors_scanned || 0, total: scanResult.total_competitors || 0})
+      
+      toast({
+        title: "Scan Complete",
+        description: `Successfully scanned ${scanResult.competitors_scanned || 0} competitors. ${scanResult.successful_scans || 0} successful, ${scanResult.failed_scans || 0} failed.`
+      })
+      
+      // Refresh data after scan
+      console.log('🔄 Refreshing competitor data...');
+      await Promise.all([
+        fetchCompetitors(),
+        fetchMonitoringData()
+      ])
+      console.log('✅ Competitor data refreshed');
+    } catch (error) {
+      console.error("❌ Error during scan:", error)
+      toast({
+        title: "Scan Error",
+        description: error instanceof Error ? error.message : "Failed to complete competitor scan",
+        variant: "destructive"
+      })
+    } finally {
+      console.log('🏁 Scan process completed, cleaning up...');
+      setIsScanning(false)
+      setScanningCompetitors(new Set())
+      setScanProgress({current: 0, total: 0})
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    if (user) {
+      fetchCompetitors()
+      fetchMonitoringData()
+    }
+  }, [fetchCompetitors, fetchMonitoringData, user])
+
+  // Format last scan time
+  const formatLastScan = (lastScanAt?: string) => {
+    if (!lastScanAt) return "Never scanned"
+    
+    const lastScan = new Date(lastScanAt)
+    const now = new Date()
+    const diffMs = now.getTime() - lastScan.getTime()
+    const diffMins = Math.floor(diffMs / (1000 * 60))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    
+    if (diffMins < 60) return `${diffMins} minutes ago`
+    if (diffHours < 24) return `${diffHours} hours ago`
+    return `${diffDays} days ago`
+  }
+
+  // Get status badge variant
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'active': return 'default'
+      case 'paused': return 'secondary'
+      case 'error': return 'destructive'
+      default: return 'outline'
+    }
+  }
+
+  // Calculate real metrics from monitoring data
+  const calculateMetrics = () => {
+    const totalPosts = monitoringData.length
+    const alertWorthyPosts = monitoringData.filter(post => post.is_alert_worthy).length
+    const recentPosts = monitoringData.filter(post => {
+      const postDate = new Date(post.detected_at)
+      const now = new Date()
+      const diffDays = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60 * 24)
+      return diffDays <= 7
+    }).length
+
+    return {
+      totalPosts,
+      alertWorthyPosts,
+      recentPosts,
+      contentGaps: Math.max(0, totalPosts - recentPosts) // Simple gap calculation
+    }
+  }
+
+  const metrics = calculateMetrics()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading competitor data...</span>
+      </div>
+    )
   }
 
   return (
@@ -48,31 +269,45 @@ export function CompetitorInvestigationDashboard() {
               <SelectItem value="90d">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={startScan} disabled={isScanning}>
+          <Button onClick={startScan} disabled={isScanning || competitors.length === 0}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isScanning ? "animate-spin" : ""}`} />
             {isScanning ? "Scanning..." : "Scan Now"}
           </Button>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Competitor
+          <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
           </Button>
+          <AddCompetitorModal onCompetitorAdded={handleCompetitorAdded} />
         </div>
       </div>
 
-      {/* Scanning Progress */}
-      {isScanning && (
+
+      {/* Scan Progress Indicator */}
+      {isScanning && scanProgress.total > 0 && (
         <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
-          <CardContent className="pt-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  AI Competitor Analysis in Progress
-                </span>
-                <span className="text-sm text-blue-700 dark:text-blue-300">67%</span>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />
+              Scanning Competitors...
+            </CardTitle>
+            <CardDescription>
+              Scanning {scanProgress.current} of {scanProgress.total} competitors
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Progress</span>
+                <span>{Math.round((scanProgress.current / scanProgress.total) * 100)}%</span>
               </div>
-              <Progress value={67} className="h-2" />
-              <div className="text-xs text-blue-600 dark:text-blue-400">
-                Analyzing social media activity, content strategies, and engagement patterns...
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                <div 
+                  className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <div className="text-center text-sm text-muted-foreground">
+                {scanProgress.current} of {scanProgress.total} competitors processed
               </div>
             </div>
           </CardContent>
@@ -87,8 +322,10 @@ export function CompetitorInvestigationDashboard() {
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{competitors.length}</div>
-            <p className="text-xs text-muted-foreground">All actively monitored</p>
+            <div className="text-2xl font-bold">{stats?.total_competitors || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats?.active_competitors || 0} actively monitored
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -97,8 +334,10 @@ export function CompetitorInvestigationDashboard() {
             <Search className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">+3 new opportunities</p>
+            <div className="text-2xl font-bold">{metrics.contentGaps}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.recentPosts} recent posts analyzed
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -107,57 +346,168 @@ export function CompetitorInvestigationDashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">6</div>
-            <p className="text-xs text-muted-foreground">Requires attention</p>
+            <div className="text-2xl font-bold text-orange-600">{metrics.alertWorthyPosts}</div>
+            <p className="text-xs text-muted-foreground">
+              AI-detected significant events
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Share of Voice</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Posts Analyzed</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">23.4%</div>
-            <p className="text-xs text-muted-foreground">+2.1% vs competitors</p>
+            <div className="text-2xl font-bold">{metrics.totalPosts}</div>
+            <p className="text-xs text-muted-foreground">
+              Across all platforms
+            </p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Scan Results Summary */}
+      {scanResults && (
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 text-blue-600" />
+                Last Scan Results
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={clearScanResults}>
+                Clear Results
+              </Button>
+            </div>
+            <CardDescription>
+              Scan completed at {new Date(scanResults.scan_started_at).toLocaleString()}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{scanResults.competitors_scanned || 0}</div>
+                <p className="text-xs text-muted-foreground">Competitors Scanned</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{scanResults.successful_scans || 0}</div>
+                <p className="text-xs text-muted-foreground">Successful Scans</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{scanResults.failed_scans || 0}</div>
+                <p className="text-xs text-muted-foreground">Failed Scans</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{scanResults.total_competitors || 0}</div>
+                <p className="text-xs text-muted-foreground">Total Competitors</p>
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            {scanResults.competitors_scanned > 0 && (
+              <div className="mt-4">
+                <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                  <span>Scan Progress</span>
+                  <span>{Math.round((scanResults.competitors_scanned / scanResults.total_competitors) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(scanResults.competitors_scanned / scanResults.total_competitors) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+            
+            {scanResults.warning && (
+              <div className="mt-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">{scanResults.warning}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Competitor Status Overview */}
       <Card>
         <CardHeader>
-          <CardTitle>Competitor Status</CardTitle>
-          <CardDescription>Real-time monitoring status and recent activity</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Competitor Status</CardTitle>
+              <CardDescription>Real-time monitoring status and recent activity</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshData}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {competitors.map((competitor, index) => (
-              <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                    <span className="font-semibold text-sm">{competitor.name.slice(0, 2)}</span>
+          {competitors.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Eye className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No competitors added yet</p>
+              <p className="text-sm">Add your first competitor to start monitoring their activities</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {competitors.map((competitor) => (
+                <div key={competitor.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                      <span className="font-semibold text-sm">{competitor.name.slice(0, 2).toUpperCase()}</span>
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{competitor.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Last scan: {formatLastScan(competitor.last_scan_at)}
+                      </p>
+                      {competitor.industry && (
+                        <p className="text-xs text-muted-foreground">{competitor.industry}</p>
+                      )}
+                      {competitor.platforms && competitor.platforms.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1">
+                          {competitor.platforms.slice(0, 3).map((platform) => (
+                            <Badge key={platform} variant="outline" className="text-xs">
+                              {platform}
+                            </Badge>
+                          ))}
+                          {competitor.platforms.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{competitor.platforms.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium">{competitor.name}</h3>
-                    <p className="text-sm text-muted-foreground">Last scan: {competitor.lastScan}</p>
+                  <div className="flex items-center gap-3">
+                    {scanningCompetitors.has(competitor.id) && (
+                      <div className="flex items-center gap-2 text-blue-600">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span className="text-xs">Scanning...</span>
+                      </div>
+                    )}
+                    <Badge variant={getStatusBadgeVariant(competitor.status)}>
+                      {competitor.status}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {competitor.scan_frequency_minutes}min
+                    </Badge>
+                    <CompetitorDetailsDialog 
+                      competitor={competitor} 
+                      onCompetitorUpdated={handleCompetitorAdded}
+                    />
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Badge
-                    variant={competitor.threats > 2 ? "destructive" : competitor.threats > 0 ? "secondary" : "default"}
-                  >
-                    {competitor.threats} threats
-                  </Badge>
-                  <Badge variant="outline" className="text-green-600 border-green-600">
-                    {competitor.status}
-                  </Badge>
-                  <Button variant="ghost" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -171,19 +521,19 @@ export function CompetitorInvestigationDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <CompetitorOverview timeRange={timeRange} />
+          <CompetitorOverview timeRange={timeRange} monitoringData={monitoringData} />
         </TabsContent>
 
         <TabsContent value="content-gaps" className="space-y-6">
-          <ContentGapAnalysis />
+          <ContentGapAnalysis monitoringData={monitoringData} />
         </TabsContent>
 
         <TabsContent value="social-monitoring" className="space-y-6">
-          <SocialMediaMonitoring />
+          <SocialMediaMonitoring monitoringData={monitoringData} />
         </TabsContent>
 
         <TabsContent value="performance" className="space-y-6">
-          <CompetitorPerformance timeRange={timeRange} />
+          <CompetitorPerformance timeRange={timeRange} monitoringData={monitoringData} />
         </TabsContent>
       </Tabs>
     </div>

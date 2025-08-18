@@ -53,7 +53,7 @@ class MonitoringAlert(ModelBase):
     __tablename__ = "monitoring_alerts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(String(255), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     competitor_id = Column(UUID(as_uuid=True), ForeignKey("competitors.id"), index=True)
     monitoring_data_id = Column(UUID(as_uuid=True), ForeignKey("monitoring_data.id"), index=True)
     alert_type = Column(String(50), nullable=False)
@@ -68,6 +68,7 @@ class MonitoringAlert(ModelBase):
     dismissed_at = Column(DateTime(timezone=True))
     
     # Relationships
+    user = relationship("User", back_populates="monitoring_alerts")
     competitor = relationship("Competitor", back_populates="alerts")
     monitoring_data = relationship("MonitoringData", back_populates="alerts")
     
