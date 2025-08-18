@@ -12,6 +12,7 @@ import { CompetitorBasedOptimizations } from "./competitor-based-optimizations"
 import { CompetitorMoveAlerts } from "./competitor-move-alerts"
 import { SelfOptimizationDashboard } from "./self-optimization/self-optimization-dashboard"
 import { AIAssistant } from "./self-optimization/ai-assistant"
+import { AIInsightsPanel } from "./ai-insights-panel"
 import { Lightbulb, Target, DollarSign, RefreshCw, AlertTriangle, Search, BarChart3, Brain } from "lucide-react"
 
 export function OptimizationDashboard() {
@@ -131,6 +132,7 @@ export function OptimizationDashboard() {
                 <TabsTrigger value="suggestions">All Suggestions</TabsTrigger>
                 <TabsTrigger value="impact">Performance Impact</TabsTrigger>
                 <TabsTrigger value="history">Optimization History</TabsTrigger>
+                <TabsTrigger value="ai-insights">AI Insights</TabsTrigger>
               </TabsList>
 
               <TabsContent value="competitor-based" className="space-y-6">
@@ -176,6 +178,10 @@ export function OptimizationDashboard() {
 
               <TabsContent value="history" className="space-y-6">
                 <OptimizationHistory />
+              </TabsContent>
+
+              <TabsContent value="ai-insights" className="space-y-6">
+                <AIInsightsPanel />
               </TabsContent>
             </Tabs>
           </>

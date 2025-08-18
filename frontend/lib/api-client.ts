@@ -235,6 +235,41 @@ export class ApiClient {
       body: JSON.stringify({ message }),
     });
   }
+
+  // AI Insights endpoints
+  async analyzeCampaigns(userId: string, options?: {
+    include_competitors?: boolean;
+    include_monitoring?: boolean;
+    analysis_type?: string;
+  }) {
+    return this.request('/ai-insights/analyze', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  }
+
+  async chatWithAI(userId: string, message: string) {
+    console.log("🔍 API Client: Making chat request to /ai-insights/chat")
+    console.log("🔍 API Client: User ID:", userId)
+    console.log("🔍 API Client: Message:", message)
+    
+    const response = await this.request('/ai-insights/chat', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+    
+    console.log("🔍 API Client: Raw response received:", response)
+    console.log("🔍 API Client: Response type:", typeof response)
+    console.log("🔍 API Client: Response.response:", response.response)
+    
+    return response;
+  }
+
+  async getAIInsights(userId: string) {
+    return this.request('/ai-insights/insights', { userId });
+  }
 }
 
 /**

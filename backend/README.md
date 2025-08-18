@@ -4,14 +4,32 @@ Business Operations System - Continuous Monitoring and Competitor Intelligence B
 
 ## Overview
 
-This backend provides a RESTful API for the BOS Solution platform, handling competitor intelligence, continuous monitoring, and user management. The backend is designed to work with a Clerk-authenticated frontend and stores all data in Supabase.
+This backend provides a RESTful API for the BOS Solution platform, handling competitor intelligence, continuous monitoring, user management, and AI-powered insights. The backend is designed to work with a Clerk-authenticated frontend and stores all data in Supabase.
 
 ## Architecture
 
 - **FastAPI**: Modern, fast web framework for building APIs
 - **SQLAlchemy**: SQL toolkit and ORM for database operations
 - **Supabase**: PostgreSQL database with real-time capabilities
+- **LangChain**: AI framework for intelligent analysis and recommendations
+- **Gemini API**: Google's AI model for natural language processing
 - **Authentication**: Header-based user identification (frontend handles Clerk auth)
+
+## AI Features
+
+The backend includes advanced AI capabilities powered by LangChain and Google's Gemini API:
+
+### AI Insights
+- **Campaign Analysis**: Intelligent analysis of campaign performance data
+- **Recommendations**: Actionable optimization suggestions
+- **Risk Assessment**: Automated risk detection and mitigation strategies
+- **Competitive Intelligence**: AI-powered competitor analysis
+
+### AI Chat Assistant
+- **Natural Language Queries**: Ask questions about campaigns in plain English
+- **Context Awareness**: AI has access to campaign data, competitor info, and business documentation
+- **Real-time Responses**: Instant answers to business questions
+- **Global Availability**: Available across all application pages
 
 ## Authentication
 
@@ -47,6 +65,9 @@ DATABASE_URL=postgresql://username:password@localhost:5432/bos_solution
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# AI Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
 
 # Social Media API Keys
 INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token_here
@@ -115,6 +136,21 @@ python -m uvicorn app.main:app --reload
 - `POST /api/v1/monitoring/alerts` - Create monitoring alert
 - `PUT /api/v1/monitoring/alerts/{id}/read` - Mark alert as read
 
+### AI Insights
+- `POST /api/v1/ai-insights/analyze` - Analyze campaigns and generate AI insights
+- `POST /api/v1/ai-insights/chat` - Chat with AI about campaigns and business questions
+- `GET /api/v1/ai-insights/insights` - Get AI insights for campaigns
+
+### Self-Optimization
+- `GET /api/v1/self-optimization/dashboard/metrics` - Get dashboard metrics
+- `GET /api/v1/self-optimization/campaigns` - Get campaign data
+- `GET /api/v1/self-optimization/overspending-predictions` - Get overspending predictions
+- `PUT /api/v1/self-optimization/campaigns/status` - Update campaign status
+- `PUT /api/v1/self-optimization/campaigns/budget` - Update campaign budget
+- `GET /api/v1/self-optimization/alerts` - Get optimization alerts
+- `GET /api/v1/self-optimization/risk-patterns` - Get risk patterns
+- `GET /api/v1/self-optimization/recommendations` - Get optimization recommendations
+
 ## Frontend Integration
 
 ### Setting User ID Header
@@ -159,6 +195,23 @@ try {
 }
 ```
 
+## AI Setup
+
+For detailed AI setup instructions, see [AI_SETUP_INSTRUCTIONS.md](../AI_SETUP_INSTRUCTIONS.md).
+
+### Quick AI Setup
+
+1. Get a Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Add the key to your `.env` file:
+   ```bash
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Restart the backend server
+
 ## Development
 
 ### Running Tests
@@ -186,6 +239,7 @@ The application uses SQLAlchemy models with automatic table creation. Key tables
 - `competitor_analyses` - Analysis results for competitors
 - `monitoring_sessions` - Active monitoring sessions
 - `monitoring_alerts` - Generated alerts and notifications
+- `campaign_data` - Campaign performance data for AI analysis
 
 ## Contributing
 

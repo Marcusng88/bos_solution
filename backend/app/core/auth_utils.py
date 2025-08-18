@@ -37,6 +37,22 @@ def get_user_id_from_header(user_id: Optional[str] = Header(None, alias="X-User-
     return user_id.strip()
 
 
+def get_current_user_id(user_id: Optional[str] = Header(None, alias="X-User-ID")) -> str:
+    """
+    Alias for get_user_id_from_header for consistency with other frameworks.
+    
+    Args:
+        user_id: User ID from X-User-ID header
+        
+    Returns:
+        The validated user ID
+        
+    Raises:
+        HTTPException: If user ID header is missing or invalid
+    """
+    return get_user_id_from_header(user_id)
+
+
 def validate_user_id_format(user_id: str) -> bool:
     """
     Validate user ID format (basic validation).

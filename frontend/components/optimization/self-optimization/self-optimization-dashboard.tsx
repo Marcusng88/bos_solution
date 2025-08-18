@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CampaignPerformanceDashboard } from "./campaign-performance-dashboard"
 import { BudgetMonitoringWidget } from "./budget-monitoring-widget"
+import { BudgetDashboard } from "./budget-dashboard"
 import { RiskPatternsWidget } from "./risk-patterns-widget"
 import { RecommendationsWidget } from "./recommendations-widget"
 import { AlertsWidget } from "./alerts-widget"
 import { OverspendingPredictionWidget } from "./overspending-prediction-widget"
+import { AIInsightsPanel } from "../ai-insights-panel"
 import { useApiClient, handleApiError } from "@/lib/api-client"
 import { DollarSign, TrendingUp, AlertTriangle, Target, Activity, BarChart3 } from "lucide-react"
 
@@ -207,7 +209,7 @@ export function SelfOptimizationDashboard() {
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <CampaignPerformanceDashboard />
-            <BudgetMonitoringWidget />
+            <BudgetDashboard />
           </div>
         </TabsContent>
 
@@ -216,39 +218,11 @@ export function SelfOptimizationDashboard() {
         </TabsContent>
 
         <TabsContent value="budget" className="space-y-6">
-          <BudgetMonitoringWidget detailed={true} />
+          <BudgetDashboard />
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-6">
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>AI-Powered Insights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                    <h4 className="font-medium text-blue-900">Spending Pattern Analysis</h4>
-                    <p className="text-sm text-blue-700 mt-1">
-                      Your weekend campaigns show 35% better performance. Consider increasing weekend budgets.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-lg bg-green-50 border border-green-200">
-                    <h4 className="font-medium text-green-900">Optimization Opportunity</h4>
-                    <p className="text-sm text-green-700 mt-1">
-                      "Summer Sale" campaign has the highest ROI. Scaling budget by 40% could increase conversions by 60%.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-lg bg-orange-50 border border-orange-200">
-                    <h4 className="font-medium text-orange-900">Risk Assessment</h4>
-                    <p className="text-sm text-orange-700 mt-1">
-                      "Brand Awareness" campaign spending increased 80% yesterday. Monitor closely to prevent overspend.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <AIInsightsPanel />
         </TabsContent>
         
         <TabsContent value="predictions" className="space-y-6">

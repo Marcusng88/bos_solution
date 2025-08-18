@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str = Field(env="SUPABASE_ANON_KEY")
     SUPABASE_SERVICE_ROLE_KEY: str = Field(env="SUPABASE_SERVICE_ROLE_KEY")
     
+    # AI Configuration
+    GEMINI_API_KEY: str = Field(env="GEMINI_API_KEY")
+    
     # API Keys for social media platforms (add as needed)
     INSTAGRAM_ACCESS_TOKEN: str = Field(default="", env="INSTAGRAM_ACCESS_TOKEN")
     TWITTER_BEARER_TOKEN: str = Field(default="", env="TWITTER_BEARER_TOKEN")

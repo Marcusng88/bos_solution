@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Frontend-Backend Connection</title>
+</head>
+<body>
+    <h1>Test Frontend-Backend Connection</h1>
+    <button onclick="testConnection()">Test AI Chat</button>
+    <div id="result"></div>
+
+    <script>
+        async function testConnection() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing connection...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/ai-insights/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': 'test_user'
+                    },
+                    body: JSON.stringify({
+                        message: 'How are my campaigns performing?'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = '<h3>✅ Success!</h3><p>Response: ' + data.response.substring(0, 200) + '...</p>';
+                } else {
+                    resultDiv.innerHTML = '<h3>❌ Error: ' + response.status + '</h3><p>' + response.statusText + '</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<h3>❌ Connection Failed</h3><p>' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useApiClient, handleApiClient } from "@/lib/api-client"
+import { useApiClient, handleApiError } from "@/lib/api-client"
 import { TrendingUp, AlertTriangle, Clock, Target, DollarSign, TrendingDown, Pause, DollarSign as DollarSignIcon } from "lucide-react"
 
 interface OverspendingPrediction {
@@ -44,7 +44,7 @@ export function OverspendingPredictionWidget() {
       const predictionsData = await apiClient.getOverspendingPredictions(userId)
       setPredictions(predictionsData)
     } catch (error) {
-      console.error('Failed to fetch predictions:', handleApiClient(error))
+      console.error('Failed to fetch predictions:', handleApiError(error))
       setPredictions([])
     } finally {
       setLoading(false)

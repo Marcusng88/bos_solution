@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useApiClient, handleApiError } from "@/lib/api-client"
-import { MessageCircle, Send, Bot, User, X, Minimize2, Maximize2 } from "lucide-react"
+import { MessageCircle, Send, Bot, User, X, Minimize2, Maximize2, Loader2 } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
 interface Message {
   id: string
@@ -15,19 +16,59 @@ interface Message {
   timestamp: Date
 }
 
-export function AIAssistant() {
+// Function to format AI responses for better readability (ChatGPT style)
+function formatAIResponse(content: string): string {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
+    .replace(/\*(.*?)\*/g, '$1') // Remove italic markdown
+    .replace(/^\s*[-*]\s+/gm, '• ') // Convert list markers to bullets
+    .replace(/\n\s*\n/g, '\n\n') // Clean up extra line breaks
+    .replace(/Campaign Data:/g, '📊 Campaign Data:')
+    .replace(/Competitor Data:/g, '🏢 Competitor Data:')
+    .replace(/Market Monitoring:/g, '👁️ Market Monitoring:')
+    .replace(/Overall Performance Summary:/g, '📈 Overall Performance Summary:')
+    .replace(/Campaign Optimization:/g, '🚀 Campaign Optimization:')
+    .replace(/Budget Management:/g, '💰 Budget Management:')
+    .replace(/Performance Analysis:/g, '📊 Performance Analysis:')
+    .replace(/Risk Assessment:/g, '⚠️ Risk Assessment:')
+    .replace(/Actionable Steps:/g, '✅ Actionable Steps:')
+    .replace(/Recommendations:/g, '💡 Recommendations:')
+    .replace(/High-Performing Campaigns:/g, '🏆 High-Performing Campaigns:')
+    .replace(/Low-Performing Campaigns:/g, '📉 Low-Performing Campaigns:')
+    .replace(/Ongoing Campaigns:/g, '🔄 Ongoing Campaigns:')
+    .replace(/Status:/g, '📋 Status:')
+    .replace(/Impressions:/g, '👁️ Impressions:')
+    .replace(/Clicks:/g, '🖱️ Clicks:')
+    .replace(/CTR:/g, '📊 CTR:')
+    .replace(/CPC:/g, '💰 CPC:')
+    .replace(/Spend:/g, '💸 Spend:')
+    .replace(/Budget:/g, '📈 Budget:')
+    .replace(/Conversions:/g, '🎯 Conversions:')
+    .replace(/Net Profit:/g, '💵 Net Profit:')
+    .trim()
+}
+
+export function AIChatWidget() {
+  const { user, isSignedIn } = useUser()
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: "Hi! I'm your AI marketing assistant. I can help you optimize your campaigns, analyze performance, and provide actionable insights. What would you like to know?",
+      content: "Hi! I'm your AI marketing assistant. I can help you with campaign optimization, performance analysis, competitor insights, and answer any business questions. What would you like to know?",
       isUser: false,
       timestamp: new Date()
     }
   ])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+
+  // Only show the widget if user is signed in
+  if (!isSignedIn || !user) {
+    return null
+  }
+
+  // Get API client - this will throw an error if user is not signed in, but we've already checked above
   const { apiClient, userId } = useApiClient()
 
   const handleSendMessage = async () => {
@@ -46,7 +87,14 @@ export function AIAssistant() {
     setIsLoading(true)
 
     try {
+      console.log("🔍 Sending message to AI:", currentInput)
+      console.log("🔍 User ID:", userId)
+      
       const response = await apiClient.chatWithAI(userId, currentInput)
+      console.log("✅ AI response received:", response)
+      console.log("✅ AI response.response:", response.response)
+      console.log("✅ AI response type:", typeof response.response)
+      
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: response.response,
@@ -55,7 +103,9 @@ export function AIAssistant() {
       }
       setMessages(prev => [...prev, aiMessage])
     } catch (error) {
-      console.error('Failed to get AI response:', handleApiError(error))
+      console.error('❌ Failed to get AI response:', error)
+      console.error('❌ Error details:', handleApiError(error))
+      
       // Fallback to mock response
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -69,38 +119,20 @@ export function AIAssistant() {
     }
   }
 
-  const getAIResponse = (userInput: string): string => {
-    const input = userInput.toLowerCase()
-    
-    if (input.includes('budget') || input.includes('spend')) {
-      return "I see you're asking about budget management. Based on your recent data, you've utilized 74% of today's budget. I recommend setting up alerts when utilization exceeds 80% to prevent overspending. Would you like me to help you set up these alerts?"
-    }
-    
-    if (input.includes('performance') || input.includes('ctr') || input.includes('conversion')) {
-      return "Great question about performance! Your top performing campaign 'Summer Sale' has a 3.2% CTR and $2.15 CPC. However, 'Brand Awareness' campaign is underperforming with 0.8% CTR. I recommend pausing the underperforming campaign and reallocating budget to your winners."
-    }
-    
-    if (input.includes('recommendation') || input.includes('optimize')) {
-      return "I have several optimization recommendations for you: 1) Scale your 'Summer Sale' campaign budget by 30% - it's performing 40% above average. 2) Pause 'Brand Awareness' campaign - it has zero conversions after $200 spend. 3) Test new ad creatives for campaigns with CTR below 1.5%. Would you like detailed action steps for any of these?"
-    }
-    
-    if (input.includes('alert') || input.includes('issue') || input.includes('problem')) {
-      return "You currently have 3 active alerts: 1) 'Mobile Campaign' exceeded budget by 15% yesterday, 2) 'Retargeting Campaign' has declining CTR (down 25% this week), 3) Spending spike detected on 'Black Friday Prep' campaign. I recommend addressing the budget overage first. Shall I help you create an action plan?"
-    }
-    
-    if (input.includes('competitor') || input.includes('market')) {
-      return "While I focus on self-optimization, I can see your campaigns are performing well relative to industry benchmarks. Your average CTR of 2.4% is above the industry average of 1.9%. However, there's room for improvement in conversion rate optimization. Would you like suggestions for improving conversion rates?"
-    }
-    
-    return "I understand you're looking for insights about your campaign optimization. I can help you with budget monitoring, performance analysis, risk detection, and actionable recommendations. Could you be more specific about what aspect of your campaigns you'd like to optimize?"
-  }
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
   }
+
+  const quickQuestions = [
+    "How are my campaigns performing?",
+    "What are the top optimization opportunities?",
+    "Any budget risks I should know about?",
+    "How do I compare to competitors?",
+    "What's my campaign health score?"
+  ]
 
   if (!isOpen) {
     return (
@@ -118,7 +150,7 @@ export function AIAssistant() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <Card className={`w-96 shadow-2xl transition-all duration-300 ${isMinimized ? 'h-16' : 'h-[500px]'}`}>
+             <Card className={`w-[600px] shadow-2xl transition-all duration-300 ${isMinimized ? 'h-16' : 'h-[700px]'}`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
@@ -147,7 +179,7 @@ export function AIAssistant() {
         </CardHeader>
 
         {!isMinimized && (
-          <CardContent className="flex flex-col h-[432px] p-0">
+                     <CardContent className="flex flex-col h-[632px] p-0">
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
@@ -174,14 +206,18 @@ export function AIAssistant() {
                           <Bot className="h-4 w-4 text-white" />
                         )}
                       </div>
-                      <div
-                        className={`rounded-lg p-3 ${
-                          message.isUser
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                        }`}
-                      >
-                        <p className="text-sm">{message.content}</p>
+                                             <div
+                         className={`rounded-lg p-4 ${
+                           message.isUser
+                             ? 'bg-blue-600 text-white ml-8'
+                             : 'bg-white text-gray-900 mr-8 border border-gray-200 shadow-sm'
+                         }`}
+                       >
+                         <div className={`text-sm whitespace-pre-wrap leading-relaxed ${
+                           message.isUser ? '' : 'prose prose-sm max-w-none'
+                         }`}>
+                           {message.isUser ? message.content : formatAIResponse(message.content)}
+                         </div>
                         <p className="text-xs mt-1 opacity-70">
                           {message.timestamp.toLocaleTimeString([], {
                             hour: '2-digit',
@@ -227,20 +263,26 @@ export function AIAssistant() {
                   disabled={!inputValue.trim() || isLoading}
                   size="sm"
                 >
-                  <Send className="h-4 w-4" />
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
+              
+              {/* Quick Questions */}
               <div className="flex flex-wrap gap-1 mt-2">
-                {['Budget analysis', 'Performance review', 'Recommendations', 'Alert summary'].map((suggestion) => (
+                {quickQuestions.map((question) => (
                   <Button
-                    key={suggestion}
+                    key={question}
                     variant="outline"
                     size="sm"
-                    onClick={() => setInputValue(suggestion)}
+                    onClick={() => setInputValue(question)}
                     className="text-xs h-6 px-2"
                     disabled={isLoading}
                   >
-                    {suggestion}
+                    {question}
                   </Button>
                 ))}
               </div>

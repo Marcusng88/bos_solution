@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API Direct</title>
+</head>
+<body>
+    <h1>Test API Direct</h1>
+    <button onclick="testAPI()">Test AI Chat API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing API...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/ai-insights/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-User-ID': 'test_user'
+                    },
+                    body: JSON.stringify({
+                        message: 'How are my ongoing campaigns performing?'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = '<h3>✅ Success!</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<h3>❌ Error: ' + response.status + '</h3><p>' + response.statusText + '</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<h3>❌ Connection Failed</h3><p>' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

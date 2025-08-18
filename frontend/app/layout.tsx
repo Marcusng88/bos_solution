@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ClerkProviderWrapper } from "@/components/providers/clerk-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { AIChatWidget } from "@/components/ai-chat-widget"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -29,10 +30,11 @@ html {
 }
         `}</style>
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <ClerkProviderWrapper>
             {children}
+            <AIChatWidget />
             <Toaster />
           </ClerkProviderWrapper>
         </ThemeProvider>
