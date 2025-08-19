@@ -12,7 +12,7 @@ function YouTubeCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { handleCallback } = useYouTubeStore()
+  const { handleCallback, getROIAnalytics } = useYouTubeStore()
   
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
@@ -42,7 +42,26 @@ function YouTubeCallbackContent() {
       setMessage('Exchanging authorization code for access tokens...')
       
       await handleCallback(code)
-      
+
+      // After tokens are stored, fetch ROI analytics first
+      setMessage('Fetching ROI analytics...')
+      try {
+        const roi = await getROIAnalytics()
+
+        // Trigger JSON download
+        const blob = new Blob([JSON.stringify(roi, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'youtube_roi_analytics.json'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        console.error('ROI fetch error:', e)
+      }
+
       setStatus('success')
       setMessage('Successfully connected to YouTube!')
       

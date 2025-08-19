@@ -32,7 +32,14 @@ async def create_user_preferences(
         
         # Transform frontend values to match database constraints
         def transform_budget(budget: str) -> str:
-            """Transform frontend budget values to database constraint values"""
+            """Transform frontend budget values to database constraint values and ensure validity"""
+            allowed_budgets = {
+                "$0 - $1,000",
+                "$1,000 - $5,000",
+                "$5,000 - $10,000",
+                "$10,000 - $25,000",
+                "$25,000+",
+            }
             budget_mapping = {
                 # Frontend values from goals-step.tsx
                 "under-500": "$0 - $1,000",
@@ -45,9 +52,17 @@ async def create_user_preferences(
                 # Alternative formats (for backward compatibility)
                 "0-1000": "$0 - $1,000",
                 "25000+": "$25,000+",
-                "25000-plus": "$25,000+"
+                "25000-plus": "$25,000+",
+                "": "$0 - $1,000",  # Safeguard for empty string
+                None: "$0 - $1,000",  # type: ignore
             }
-            transformed = budget_mapping.get(budget, budget)
+            # Normalize and map
+            normalized = (budget or "").strip()
+            transformed = budget_mapping.get(normalized, normalized)
+            # Final safeguard: default to lowest tier if still invalid
+            if transformed not in allowed_budgets:
+                print(f"Budget transformed (fallback): '{budget}' -> '$0 - $1,000'")
+                transformed = "$0 - $1,000"
             # Log transformation for debugging
             if budget != transformed:
                 print(f"Budget transformed: '{budget}' -> '{transformed}'")
@@ -136,11 +151,18 @@ async def update_user_preferences(
     try:
         # Transform frontend values to match database constraints
         def transform_budget(budget: str) -> str:
-            """Transform frontend budget values to database constraint values"""
+            """Transform frontend budget values to database constraint values and ensure validity"""
+            allowed_budgets = {
+                "$0 - $1,000",
+                "$1,000 - $5,000",
+                "$5,000 - $10,000",
+                "$10,000 - $25,000",
+                "$25,000+",
+            }
             budget_mapping = {
                 # Frontend values from goals-step.tsx
                 "under-500": "$0 - $1,000",
-                "500-1000": "$0 - $1,000",  # Map to closest valid constraint
+                "500-1000": "$0 - $1,000",
                 "1000-5000": "$1,000 - $5,000", 
                 "5000-10000": "$5,000 - $10,000",
                 "10000-25000": "$10,000 - $25,000",
@@ -149,10 +171,15 @@ async def update_user_preferences(
                 # Alternative formats (for backward compatibility)
                 "0-1000": "$0 - $1,000",
                 "25000+": "$25,000+",
-                "25000-plus": "$25,000+"
+                "25000-plus": "$25,000+",
+                "": "$0 - $1,000",
+                None: "$0 - $1,000",  # type: ignore
             }
-            transformed = budget_mapping.get(budget, budget)
-            # Log transformation for debugging
+            normalized = (budget or "").strip()
+            transformed = budget_mapping.get(normalized, normalized)
+            if transformed not in allowed_budgets:
+                print(f"Budget transformed (fallback): '{budget}' -> '$0 - $1,000'")
+                transformed = "$0 - $1,000"
             if budget != transformed:
                 print(f"Budget transformed: '{budget}' -> '{transformed}'")
             return transformed

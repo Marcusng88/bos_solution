@@ -22,6 +22,16 @@ export function CompletionStep({ data }: CompletionStepProps) {
   const [isSaving, setIsSaving] = useState(false)
   
   const handleGetStarted = async () => {
+    // Validate required fields before save
+    if (!data.budget || (data.goals?.length ?? 0) === 0 || !data.industry || !data.companySize) {
+      toast({
+        title: "Incomplete",
+        description: "Please complete all steps (industry, company size, goals, and budget) before continuing.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!user?.id) {
       toast({
         title: "Error",

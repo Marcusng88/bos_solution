@@ -20,7 +20,9 @@ class SupabaseClient:
         self.headers = {
             "apikey": self.supabase_key,
             "Authorization": f"Bearer {self.supabase_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            # Ask Supabase to return inserted/updated rows to avoid 204 No Content
+            "Prefer": "return=representation",
         }
 
     async def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None):
@@ -136,8 +138,15 @@ class SupabaseClient:
         """Create a new competitor"""
         try:
             response = await self._make_request("POST", "my_competitors", competitor_data)
-            if response.status_code in [200, 201, 204]:
-                return {"success": True, "data": response.json()}
+            if response.status_code in [200, 201]:
+                try:
+                    data = response.json() if response.content else None
+                except Exception:
+                    data = None
+                return {"success": True, "data": data}
+            if response.status_code == 204:
+                # No content returned; treat as success without data
+                return {"success": True, "data": None}
             else:
                 raise Exception(f"Failed to create competitor: {response.status_code}")
         except Exception as e:

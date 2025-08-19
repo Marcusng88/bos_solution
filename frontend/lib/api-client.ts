@@ -55,11 +55,30 @@ export class ApiClient {
         throw new Error('Authentication failed. Please log in again.');
       }
       
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `API request failed: ${response.statusText}`);
+      // Try to parse error body as JSON; if not JSON, fall back to text
+      let message = `API request failed: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData?.detail) message = errorData.detail;
+      } catch (_) {
+        try {
+          const text = await response.text();
+          if (text) message = text;
+        } catch (_) {}
+      }
+      throw new Error(message);
     }
 
-    return response.json();
+    // 204 No Content or empty body: return null
+    if (response.status === 204) return null as unknown as T;
+    const text = await response.text();
+    if (!text) return null as unknown as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch (_) {
+      // If backend returned non-JSON (shouldn't happen), return as any
+      return text as unknown as T;
+    }
   }
 
   // User endpoints
