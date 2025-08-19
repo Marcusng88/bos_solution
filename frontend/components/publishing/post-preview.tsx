@@ -1,9 +1,11 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Facebook, Instagram, Heart, MessageCircle, Share, Clock } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
 interface PostPreviewProps {
   caption: string
@@ -14,12 +16,60 @@ interface PostPreviewProps {
   postType: string
 }
 
+interface SocialMediaAccount {
+  platform: string
+  accountName: string
+  username: string
+  profilePicture?: string
+}
+
 const platformData = {
   facebook: { name: "Facebook", icon: Facebook, color: "bg-blue-600" },
   instagram: { name: "Instagram", icon: Instagram, color: "bg-pink-600" },
 }
 
 export function PostPreview({ caption, media, platforms, scheduledDate, scheduledTime, postType }: PostPreviewProps) {
+  const { user } = useUser()
+  const [accounts, setAccounts] = useState<SocialMediaAccount[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch real connected accounts from database
+  useEffect(() => {
+    const fetchConnectedAccounts = async () => {
+      if (!user?.id) return
+
+      try {
+        setIsLoading(true)
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
+          headers: {
+            'X-User-ID': user.id,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log('Preview component fetched accounts:', data) // Debug log
+          console.log('Individual accounts:', data.accounts) // Debug log
+          setAccounts(data.accounts || [])
+        } else {
+          console.error('Failed to fetch accounts:', response.status, await response.text())
+        }
+      } catch (error) {
+        console.error('Error fetching connected accounts:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchConnectedAccounts()
+  }, [user?.id])
+
+  // Helper function to get account data for a platform
+  const getAccountData = (platform: string): SocialMediaAccount | null => {
+    return accounts.find(acc => acc.platform === platform) || null
+  }
+
   const formatScheduleTime = () => {
     if (postType === "now") return "Publishing immediately"
     if (postType === "optimal") return "AI will choose optimal time"
@@ -67,11 +117,18 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                    <AvatarFallback>YB</AvatarFallback>
+                    <AvatarImage 
+                      src={getAccountData("instagram")?.profilePicture || "/placeholder.svg?height=32&width=32"} 
+                      alt="Profile"
+                    />
+                    <AvatarFallback>
+                      {getAccountData("instagram")?.accountName?.slice(0, 2).toUpperCase() || "YB"}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold text-sm">your_business</p>
+                    <p className="font-semibold text-sm">
+                      {getAccountData("instagram")?.username || (isLoading ? "Loading..." : "your_business")}
+                    </p>
                     <p className="text-xs text-muted-foreground">Sponsored</p>
                   </div>
                 </div>
@@ -95,7 +152,9 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
                 <div className="space-y-1">
                   <p className="font-semibold text-sm">1,234 likes</p>
                   <p className="text-sm">
-                    <span className="font-semibold">your_business</span> {caption || "Your caption will appear here..."}
+                    <span className="font-semibold">
+                      {getAccountData("instagram")?.username || "your_business"}
+                    </span> {caption || "Your caption will appear here..."}
                   </p>
                 </div>
               </div>
@@ -107,11 +166,18 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                    <AvatarFallback>YB</AvatarFallback>
+                    <AvatarImage 
+                      src={getAccountData("facebook")?.profilePicture || "/placeholder.svg?height=40&width=40"} 
+                      alt="Profile"
+                    />
+                    <AvatarFallback>
+                      {getAccountData("facebook")?.accountName?.slice(0, 2).toUpperCase() || "YB"}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold">Your Business</p>
+                    <p className="font-semibold">
+                      {getAccountData("facebook")?.accountName || (isLoading ? "Loading..." : "Your Business")}
+                    </p>
                     <p className="text-xs text-muted-foreground">2 hours ago • 🌍</p>
                   </div>
                 </div>

@@ -109,6 +109,47 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
         channel
       })
 
+      // Also save the connection to the social_media_accounts table
+      try {
+        const user = (window as any)?.Clerk?.user
+        console.log('Attempting to save YouTube connection to database...', {
+          hasUser: !!user,
+          userId: user?.id,
+          hasAccessToken: !!tokens.access_token,
+          apiUrl: process.env.NEXT_PUBLIC_API_URL
+        })
+        
+        if (user?.id && tokens.access_token) {
+          console.log('Making request to backend YouTube connect endpoint...')
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/social-media/connect/youtube`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-ID': user.id,
+            },
+            body: JSON.stringify({ access_token: tokens.access_token }),
+          })
+          
+          console.log('YouTube backend response status:', response.status)
+          
+          if (response.ok) {
+            const result = await response.json()
+            console.log('✅ YouTube connection saved to database successfully!', result)
+          } else {
+            const errorText = await response.text()
+            console.error('❌ Failed to save YouTube connection to database:', errorText)
+            console.error('Response status:', response.status)
+          }
+        } else {
+          console.warn('Missing required data for database save:', {
+            userId: user?.id,
+            hasAccessToken: !!tokens.access_token
+          })
+        }
+      } catch (error) {
+        console.error('❌ Error saving YouTube connection to database:', error)
+      }
+
       return data
     } catch (error) {
       console.error('YouTube callback error:', error)
