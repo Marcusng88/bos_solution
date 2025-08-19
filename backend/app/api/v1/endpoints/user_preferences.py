@@ -47,10 +47,25 @@ async def create_user_preferences(
         }
         
         # Use Supabase REST API instead of direct database connection
-        result = await supabase_client.upsert_user_preferences(preference_data)
+        result = await supabase_client.upsert_user_preferences(user_id, preference_data)
         
-        if result:
-            return result
+        if result and result.get("success"):
+            # Return the created/updated preferences data instead of just success message
+            saved_prefs = await supabase_client.get_user_preferences(user_id)
+            if saved_prefs:
+                return saved_prefs
+            else:
+                # Fallback: return the data we tried to save with some defaults
+                return {
+                    "id": "temp",
+                    "user_id": user_id,
+                    "industry": preferences.industry,
+                    "company_size": transform_company_size(preferences.company_size),
+                    "marketing_goals": preferences.marketing_goals,
+                    "monthly_budget": transform_budget(preferences.monthly_budget),
+                    "created_at": "2024-01-01T00:00:00Z",
+                    "updated_at": "2024-01-01T00:00:00Z"
+                }
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -125,10 +140,25 @@ async def update_user_preferences(
         }
         
         # Use Supabase REST API instead of direct database connection
-        result = await supabase_client.upsert_user_preferences(preference_data)
+        result = await supabase_client.upsert_user_preferences(user_id, preference_data)
         
-        if result:
-            return result
+        if result and result.get("success"):
+            # Return the updated preferences data instead of just success message
+            saved_prefs = await supabase_client.get_user_preferences(user_id)
+            if saved_prefs:
+                return saved_prefs
+            else:
+                # Fallback: return the data we tried to save with some defaults
+                return {
+                    "id": "temp",
+                    "user_id": user_id,
+                    "industry": preferences.industry,
+                    "company_size": transform_company_size(preferences.company_size),
+                    "marketing_goals": preferences.marketing_goals,
+                    "monthly_budget": transform_budget(preferences.monthly_budget),
+                    "created_at": "2024-01-01T00:00:00Z",
+                    "updated_at": "2024-01-01T00:00:00Z"
+                }
         else:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

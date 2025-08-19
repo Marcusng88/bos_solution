@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     
     # CORS
     ALLOWED_HOSTS: List[str] = Field(
-        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "https://308a8c214f1d.ngrok-free.app"],
         env="ALLOWED_HOSTS"
     )
     

@@ -250,6 +250,84 @@ CREATE TABLE my_competitors (
     CONSTRAINT unique_user_competitor_name UNIQUE(user_id, competitor_name)
 );
 
+-- ============================================================================
+-- NEW TABLES FOR SOCIAL MEDIA CONTENT UPLOAD
+-- ============================================================================
+
+-- Social media accounts table - stores connected social media accounts
+CREATE TABLE social_media_accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    platform social_media_platform NOT NULL,
+    account_name VARCHAR(255) NOT NULL,
+    username VARCHAR(255),
+    profile_picture_url TEXT,
+    account_id VARCHAR(255), -- Platform-specific account ID
+    access_token TEXT, -- Encrypted access token
+    refresh_token TEXT, -- Encrypted refresh token
+    token_expires_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT true,
+    is_test_account BOOLEAN DEFAULT false, -- For safe testing
+    permissions JSONB, -- What the app can do with this account
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT unique_user_platform_account UNIQUE(user_id, platform, account_name),
+    
+    -- Foreign key reference to users table
+    CONSTRAINT fk_social_media_accounts_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE
+);
+
+-- Content uploads table - stores content that users want to post
+CREATE TABLE content_uploads (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    title VARCHAR(255),
+    content_text TEXT,
+    media_files JSONB, -- Array of media file info: [{"url": "...", "type": "image", "size": 1234}]
+    scheduled_at TIMESTAMP WITH TIME ZONE, -- When to post (null for immediate)
+    platform social_media_platform NOT NULL,
+    account_id UUID REFERENCES social_media_accounts(id) ON DELETE CASCADE,
+    status VARCHAR(50) DEFAULT 'draft', -- draft, scheduled, posted, failed, cancelled
+    post_id VARCHAR(255), -- Platform-specific post ID after successful upload
+    post_url VARCHAR(500), -- URL to the posted content
+    error_message TEXT, -- If upload failed
+    upload_attempts INTEGER DEFAULT 0,
+    last_attempt_at TIMESTAMP WITH TIME ZONE,
+    is_test_post BOOLEAN DEFAULT false, -- For safe testing
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_status CHECK (status IN ('draft', 'scheduled', 'posted', 'failed', 'cancelled')),
+    CONSTRAINT valid_upload_attempts CHECK (upload_attempts >= 0),
+    
+    -- Foreign key reference to users table
+    CONSTRAINT fk_content_uploads_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE
+);
+
+-- Content templates table - reusable content templates for quick posting
+CREATE TABLE content_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    content_text TEXT,
+    media_files JSONB, -- Default media files
+    platforms TEXT[], -- Which platforms this template works for
+    tags TEXT[], -- For organization
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_platforms CHECK (array_length(platforms, 1) > 0),
+    
+    -- Foreign key reference to users table
+    CONSTRAINT fk_content_templates_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE
+);
+
 -- Create indexes for new tables
 CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
 CREATE INDEX idx_user_preferences_industry ON user_preferences(industry);
@@ -258,9 +336,31 @@ CREATE INDEX idx_my_competitors_user_id ON my_competitors(user_id);
 CREATE INDEX idx_my_competitors_competitor_name ON my_competitors(competitor_name);
 CREATE INDEX idx_my_competitors_platforms ON my_competitors USING gin(active_platforms);
 
+-- Social media content indexes
+CREATE INDEX idx_social_media_accounts_user_id ON social_media_accounts(user_id);
+CREATE INDEX idx_social_media_accounts_platform ON social_media_accounts(platform);
+CREATE INDEX idx_social_media_accounts_is_test ON social_media_accounts(is_test_account);
+CREATE INDEX idx_content_uploads_user_id ON content_uploads(user_id);
+CREATE INDEX idx_content_uploads_status ON content_uploads(status);
+CREATE INDEX idx_content_uploads_platform ON content_uploads(platform);
+CREATE INDEX idx_content_uploads_scheduled_at ON content_uploads(scheduled_at);
+CREATE INDEX idx_content_uploads_is_test ON content_uploads(is_test_post);
+CREATE INDEX idx_content_templates_user_id ON content_templates(user_id);
+CREATE INDEX idx_content_templates_platforms ON content_templates USING gin(platforms);
+CREATE INDEX idx_content_templates_tags ON content_templates USING gin(tags);
+
 -- Create triggers for updated_at on new tables
 CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_my_competitors_updated_at BEFORE UPDATE ON my_competitors
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_social_media_accounts_updated_at BEFORE UPDATE ON social_media_accounts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_content_uploads_updated_at BEFORE UPDATE ON content_uploads
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_content_templates_updated_at BEFORE UPDATE ON content_templates
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

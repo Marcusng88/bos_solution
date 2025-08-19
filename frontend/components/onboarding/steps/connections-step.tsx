@@ -47,9 +47,51 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
   // Get available platforms from OAuth config
   const availablePlatforms = getAvailablePlatforms()
 
-  // Facebook login status checking
+  // Check database for connected accounts and Facebook login status
   useEffect(() => {
-    // Check if Facebook SDK is loaded
+    const checkConnectedAccounts = async () => {
+      try {
+        // Get user from Clerk context (assuming it's available)
+        const user = (window as any)?.Clerk?.user
+        if (!user?.id) return
+
+        // Fetch connected accounts from database
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
+          headers: {
+            'X-User-ID': user.id,
+          },
+        })
+
+        if (response.ok) {
+          const dbAccounts = (await response.json()).accounts || []
+          console.log('Connected accounts from database:', dbAccounts)
+          
+          // Update onboarding data with database connections
+          const connectedPlatforms = dbAccounts.map((account: any) => ({
+            platform: account.platform,
+            accountId: account.account_id,
+            accountName: account.account_name,
+            username: account.username,
+            isConnected: true
+          }))
+          
+          updateData({ connectedAccounts: connectedPlatforms })
+          
+          // Set Facebook status if connected in database
+          const hasFacebookConnection = dbAccounts.some((acc: any) => acc.platform === 'facebook')
+          if (hasFacebookConnection) {
+            setFacebookLoginStatus('connected')
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching connected accounts:', error)
+      }
+    }
+
+    // Check both database and Facebook SDK
+    checkConnectedAccounts()
+    
     if (typeof window !== 'undefined' && window.FB) {
       checkFacebookLoginStatus()
     }
@@ -211,7 +253,58 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
                         size="sm"
                         onClick={() => {
                           if (typeof window !== 'undefined' && window.FB) {
-                            window.FB.login(function(response: any) {
+                            window.FB.login(async function(response: any) {
+                              // Persist server-side when connected
+                              if (response?.status === 'connected') {
+                                const apiBase = process.env.NEXT_PUBLIC_API_URL
+                                const accessToken = response.authResponse?.accessToken
+                                const userId = (window as any)?.Clerk?.user?.id
+                                
+                                if (apiBase && accessToken && userId) {
+                                  try {
+                                    const saveResponse = await fetch(`${apiBase}/social-media/connect/facebook`, {
+                                      method: 'POST',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-User-ID': userId,
+                                      },
+                                      body: JSON.stringify({ access_token: accessToken }),
+                                    })
+                                    
+                                    if (saveResponse.ok) {
+                                      // Refresh from database to get accurate connection state
+                                      const accountsResponse = await fetch(`${apiBase}/social-media/connected-accounts`, {
+                                        headers: { 'X-User-ID': userId },
+                                      })
+                                      
+                                      if (accountsResponse.ok) {
+                                        const dbAccounts = (await accountsResponse.json()).accounts || []
+                                        const connectedPlatforms = dbAccounts.map((account: any) => ({
+                                          platform: account.platform,
+                                          accountId: account.account_id,
+                                          accountName: account.account_name,
+                                          username: account.username,
+                                          isConnected: true
+                                        }))
+                                        updateData({ connectedAccounts: connectedPlatforms })
+                                        setFacebookLoginStatus('connected')
+                                        
+                                        toast({
+                                          title: "Connected!",
+                                          description: "Facebook & Instagram connected successfully!",
+                                        })
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('Error saving Facebook connection:', error)
+                                    toast({
+                                      title: "Connection Error",
+                                      description: "Connected to Facebook but failed to save.",
+                                      variant: "destructive",
+                                    })
+                                  }
+                                }
+                              }
                               checkLoginState()
                             }, {
                               scope: 'pages_read_engagement,pages_show_list,pages_manage_metadata,pages_read_user_content,instagram_basic,instagram_content_publish'

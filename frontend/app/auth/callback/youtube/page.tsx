@@ -62,6 +62,8 @@ function YouTubeCallbackContent() {
       setTimeout(() => {
         if (returnContext === 'settings') {
           router.push('/dashboard/settings')
+        } else if (returnContext === 'publishing') {
+          router.push('/dashboard/publishing')
         } else {
           // Add step as URL parameter as backup
           router.push(`/onboarding${returnStep ? `?step=${returnStep}` : ''}`)
@@ -87,6 +89,8 @@ function YouTubeCallbackContent() {
     
     if (returnContext === 'settings') {
       router.push('/dashboard/settings')
+    } else if (returnContext === 'publishing') {
+      router.push('/dashboard/publishing')
     } else {
       router.push('/onboarding')
     }

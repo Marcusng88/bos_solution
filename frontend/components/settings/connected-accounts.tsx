@@ -23,61 +23,120 @@ export function ConnectedAccounts() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  // Get real user data and check actual connections
+  // Get real user data and check actual connections from database
   useEffect(() => {
     if (!user) return
 
     const checkRealConnections = async () => {
-      const realAccounts: ConnectedAccount[] = [
-        {
-          platform: "facebook",
-          username: user.primaryEmailAddress?.emailAddress || "",
-          displayName: user.fullName || user.firstName || "User",
-          isConnected: false, // We'll check this with Facebook SDK
-          lastSync: "",
-          permissions: []
-        },
-        {
-          platform: "twitter",
-          username: "",
-          displayName: "Twitter",
-          isConnected: false,
-          permissions: []
-        },
-        {
-          platform: "linkedin",
-          username: "",
-          displayName: "LinkedIn",
-          isConnected: false,
-          permissions: []
-        },
-        {
-          platform: "youtube",
-          username: "",
-          displayName: "YouTube",
-          isConnected: false,
-          permissions: []
-        }
-      ]
+      try {
+        // First fetch connected accounts from database
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
+          headers: {
+            'X-User-ID': user.id,
+          },
+        })
 
-      // Check Facebook connection status using Facebook SDK
-      if (typeof window !== 'undefined' && window.FB) {
-        try {
-          window.FB.getLoginStatus(function(response: any) {
-            if (response.status === 'connected') {
-              setAccounts(prev => prev.map(acc => 
-                acc.platform === 'facebook' || acc.platform === 'instagram'
-                  ? { ...acc, isConnected: true, lastSync: 'Just now' }
-                  : acc
-              ))
-            }
-          })
-        } catch (error) {
-          console.log('Facebook SDK not ready yet')
-        }
+        const dbAccounts = response.ok ? (await response.json()).accounts || [] : []
+        console.log('Connected accounts from database:', dbAccounts)
+
+        // Create account list with database status
+        const realAccounts: ConnectedAccount[] = [
+          {
+            platform: "facebook",
+            username: "",
+            displayName: "Facebook",
+            isConnected: false,
+            lastSync: "",
+            permissions: []
+          },
+          {
+            platform: "instagram", 
+            username: "",
+            displayName: "Instagram",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "twitter",
+            username: "",
+            displayName: "Twitter",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "linkedin",
+            username: "",
+            displayName: "LinkedIn",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "youtube",
+            username: "",
+            displayName: "YouTube",
+            isConnected: false,
+            permissions: []
+          }
+        ]
+
+        // Update accounts with database information
+        realAccounts.forEach(account => {
+          const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
+          if (dbAccount) {
+            account.isConnected = true
+            account.username = dbAccount.username || dbAccount.account_name || ""
+            account.displayName = dbAccount.account_name || account.displayName
+            account.lastSync = dbAccount.updated_at || dbAccount.created_at || ""
+            account.permissions = Object.keys(dbAccount.permissions || {})
+          }
+        })
+
+        setAccounts(realAccounts)
+      } catch (error) {
+        console.error('Error fetching connected accounts:', error)
+        
+        // Fallback to basic account list
+        const fallbackAccounts: ConnectedAccount[] = [
+          {
+            platform: "facebook",
+            username: "",
+            displayName: "Facebook",
+            isConnected: false,
+            lastSync: "",
+            permissions: []
+          },
+          {
+            platform: "instagram",
+            username: "",
+            displayName: "Instagram", 
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "twitter",
+            username: "",
+            displayName: "Twitter",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "linkedin",
+            username: "",
+            displayName: "LinkedIn",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "youtube",
+            username: "",
+            displayName: "YouTube",
+            isConnected: false,
+            permissions: []
+          }
+        ]
+        setAccounts(fallbackAccounts)
       }
-
-      setAccounts(realAccounts)
     }
 
     checkRealConnections()
@@ -223,16 +282,73 @@ export function ConnectedAccounts() {
       // Trigger Facebook OAuth flow
       if (typeof window !== 'undefined' && window.FB) {
         window.FB.login(function(response: any) {
+          console.log('FB.login response:', response);
           if (response.status === 'connected') {
-            // Successfully connected
-            setAccounts(prev => prev.map(acc => 
-              acc.platform === 'facebook' || acc.platform === 'instagram'
-                ? { ...acc, isConnected: true, lastSync: 'Just now' }
-                : acc
-            ))
-            toast({
-              title: "Connected!",
-              description: "Facebook & Instagram connected successfully!",
+            // Send token to backend to persist connection
+            const apiBase = process.env.NEXT_PUBLIC_API_URL
+            const userId = user?.id
+            const accessToken = response.authResponse?.accessToken
+            console.log('Extracted data:', { apiBase, userId, accessTokenPresent: !!accessToken });
+            
+            if (!apiBase || !userId || !accessToken) {
+              console.error('Missing required data:', { apiBase: !!apiBase, userId: !!userId, accessToken: !!accessToken });
+              toast({
+                title: "Missing config",
+                description: "Unable to persist connection. Please try again.",
+                variant: "destructive",
+              })
+              return
+            }
+            
+            console.log('Sending request to backend...');
+            fetch(`${apiBase}/social-media/connect/facebook`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': userId,
+              },
+              body: JSON.stringify({ access_token: accessToken }),
+            }).then(async (r) => {
+              if (!r.ok) {
+                const err = await r.json().catch(() => ({}))
+                throw new Error(err?.detail || 'Failed to save connection')
+              }
+              
+              // Refresh accounts from database to get the real connection status
+              const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
+                headers: {
+                  'X-User-ID': userId,
+                },
+              })
+              
+              if (response.ok) {
+                const dbAccounts = (await response.json()).accounts || []
+                setAccounts(prev => prev.map(account => {
+                  const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
+                  if (dbAccount) {
+                    return {
+                      ...account,
+                      isConnected: true,
+                      username: dbAccount.username || dbAccount.account_name || "",
+                      displayName: dbAccount.account_name || account.displayName,
+                      lastSync: 'Just now',
+                      permissions: Object.keys(dbAccount.permissions || {})
+                    }
+                  }
+                  return account
+                }))
+              }
+              
+              toast({
+                title: "Connected!",
+                description: "Facebook & Instagram connected successfully!",
+              })
+            }).catch(() => {
+              toast({
+                title: "Persist failed",
+                description: "Connected on Facebook, but saving failed.",
+                variant: "destructive",
+              })
             })
           } else if (response.status === 'not_authorized') {
             toast({

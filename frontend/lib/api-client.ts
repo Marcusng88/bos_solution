@@ -214,6 +214,233 @@ export class ApiClient {
       method: 'PUT',
     });
   }
+
+  // Social Media Content Management
+  async createSocialMediaAccount(userId: string, accountData: {
+    platform: string;
+    accountName: string;
+    isTestAccount?: boolean;
+  }) {
+    return this.request('/social-media/accounts', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(accountData),
+    });
+  }
+
+  async getSocialMediaAccounts(userId: string, platform?: string) {
+    const url = platform 
+      ? `/social-media/accounts?platform=${platform}`
+      : '/social-media/accounts';
+    return this.request(url, { userId, method: 'GET' });
+  }
+
+  async updateSocialMediaAccount(userId: string, accountId: string, updateData: {
+    accountName?: string;
+    isActive?: boolean;
+    isTestAccount?: boolean;
+  }) {
+    return this.request(`/social-media/accounts/${accountId}`, {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async deleteSocialMediaAccount(userId: string, accountId: string) {
+    return this.request(`/social-media/accounts/${accountId}`, {
+      userId,
+      method: 'DELETE',
+    });
+  }
+
+  async createContentUpload(userId: string, uploadData: {
+    title?: string;
+    contentText: string;
+    mediaFiles?: Array<{
+      url: string;
+      type: string;
+      size?: number;
+      filename?: string;
+      mimeType?: string;
+    }>;
+    scheduledAt?: string;
+    platform: string;
+    accountId: string;
+    isTestPost?: boolean;
+  }) {
+    return this.request('/social-media/uploads', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(uploadData),
+    });
+  }
+
+  async getContentUploads(userId: string, status?: string) {
+    const url = status 
+      ? `/social-media/uploads?status=${status}`
+      : '/social-media/uploads';
+    return this.request(url, { userId, method: 'GET' });
+  }
+
+  async updateContentUpload(userId: string, uploadId: string, updateData: {
+    title?: string;
+    contentText?: string;
+    mediaFiles?: Array<{
+      url: string;
+      type: string;
+      size?: number;
+      filename?: string;
+      mimeType?: string;
+    }>;
+    scheduledAt?: string;
+    status?: string;
+    isTestPost?: boolean;
+  }) {
+    return this.request(`/social-media/uploads/${uploadId}`, {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async deleteContentUpload(userId: string, uploadId: string) {
+    return this.request(`/social-media/uploads/${uploadId}`, {
+      userId,
+      method: 'DELETE',
+    });
+  }
+
+  async postContentNow(userId: string, uploadId: string) {
+    return this.request(`/social-media/uploads/${uploadId}/post`, {
+      userId,
+      method: 'POST',
+    });
+  }
+
+  async createContentTemplate(userId: string, templateData: {
+    name: string;
+    description?: string;
+    contentText: string;
+    mediaFiles?: Array<{
+      url: string;
+      type: string;
+      size?: number;
+      filename?: string;
+      mimeType?: string;
+    }>;
+    platforms: string[];
+    tags?: string[];
+    isActive?: boolean;
+  }) {
+    return this.request('/social-media/templates', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(templateData),
+    });
+  }
+
+  async getContentTemplates(userId: string, platform?: string) {
+    const url = platform 
+      ? `/social-media/templates?platform=${platform}`
+      : '/social-media/templates';
+    return this.request(url, { userId, method: 'GET' });
+  }
+
+  async updateContentTemplate(userId: string, templateId: string, updateData: {
+    name?: string;
+    description?: string;
+    contentText?: string;
+    mediaFiles?: Array<{
+      url: string;
+      type: string;
+      size?: number;
+      filename?: string;
+      mimeType?: string;
+    }>;
+    platforms?: string[];
+    tags?: string[];
+    isActive?: boolean;
+  }) {
+    return this.request(`/social-media/templates/${templateId}`, {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async deleteContentTemplate(userId: string, templateId: string) {
+    return this.request(`/social-media/templates/${templateId}`, {
+      userId,
+      method: 'DELETE',
+    });
+  }
+
+  async previewContent(userId: string, contentText: string, platform: string, mediaCount: number = 0) {
+    const formData = new FormData();
+    formData.append('content_text', contentText);
+    formData.append('platform', platform);
+    formData.append('media_count', mediaCount.toString());
+
+    return this.request('/social-media/preview', {
+      userId,
+      method: 'POST',
+      body: formData,
+      headers: {}, // Let browser set Content-Type for FormData
+    });
+  }
+
+  async bulkUploadContent(userId: string, bulkRequest: {
+    content: {
+      title?: string;
+      contentText: string;
+      mediaFiles?: Array<{
+        url: string;
+        type: string;
+        size?: number;
+        filename?: string;
+        mimeType?: string;
+      }>;
+      scheduledAt?: string;
+      platform: string;
+      accountId: string;
+      isTestPost?: boolean;
+    };
+    platforms: string[];
+    scheduleStrategy?: string;
+    customSchedule?: Record<string, string>;
+  }) {
+    return this.request('/social-media/bulk-upload', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify(bulkRequest),
+    });
+  }
+
+  async getPlatformStatus(userId: string) {
+    return this.request('/social-media/platform-status', {
+      userId,
+      method: 'GET',
+    });
+  }
+
+  async getConnectedAccounts(userId: string) {
+    return this.request('/social-media/connected-accounts', {
+      userId,
+      method: 'GET',
+    });
+  }
+
+  async connectPlatform(userId: string, platform: string) {
+    return this.request(`/social-media/connect/${platform}`, {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({}),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
 }
 
 /**

@@ -30,6 +30,7 @@ interface VideoFileUploadData extends VideoUploadData {
 
 interface YouTubeState {
   isConnected: boolean
+  connectionStatus: string
   tokens: YouTubeTokens | null
   channel: YouTubeChannel | null
   connect: () => Promise<void>
@@ -45,6 +46,7 @@ const STORAGE_KEY = 'youtube_tokens'
 
 export const useYouTubeStore = create<YouTubeState>((set, get) => ({
   isConnected: false,
+  connectionStatus: 'disconnected',
   tokens: null,
   channel: null,
 
@@ -66,6 +68,7 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
     localStorage.removeItem(STORAGE_KEY)
     set({
       isConnected: false,
+      connectionStatus: 'disconnected',
       tokens: null,
       channel: null
     })
@@ -101,6 +104,7 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
 
       set({
         isConnected: true,
+        connectionStatus: 'connected',
         tokens,
         channel
       })
@@ -266,6 +270,7 @@ if (typeof window !== 'undefined') {
       if (data.tokens && data.tokens.expires_at && Date.now() < data.tokens.expires_at - 300000) { // 5 min buffer
         useYouTubeStore.setState({
           isConnected: true,
+          connectionStatus: 'connected',
           tokens: data.tokens,
           channel: data.channel || null // Restore channel info if available
         })

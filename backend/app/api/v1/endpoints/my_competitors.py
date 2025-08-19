@@ -11,8 +11,19 @@ async def create_competitor(
     competitor: MyCompetitorCreate,
     user_id: str = Depends(get_user_id_from_header)
 ):
-    """Create a new competitor entry"""
+    """Create a new competitor entry or return existing one if duplicate"""
     try:
+        # Check if competitor already exists for this user
+        existing_competitors = await supabase_client.get_user_competitors(user_id)
+        existing_competitor = next(
+            (comp for comp in existing_competitors if comp.get("competitor_name") == competitor.competitor_name),
+            None
+        )
+        
+        if existing_competitor:
+            # Return existing competitor instead of creating duplicate
+            return existing_competitor
+        
         # Prepare data for Supabase with all required fields
         competitor_data = {
             "user_id": user_id,
@@ -25,13 +36,15 @@ async def create_competitor(
         # Use Supabase REST API instead of direct database connection
         result = await supabase_client.create_competitor(competitor_data)
         
-        if result:
-            return result
+        if result and result.get("success"):
+            return result.get("data", result)
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create competitor via Supabase API"
             )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

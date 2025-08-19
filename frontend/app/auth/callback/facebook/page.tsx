@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle, XCircle, Facebook } from "lucide-react"
 import { handleOAuthCallback } from "@/lib/oauth"
 import { useToast } from "@/hooks/use-toast"
+import { useUser } from "@clerk/nextjs"
 
 export default function FacebookCallbackPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { user } = useUser()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState<string>('')
 
@@ -33,15 +35,33 @@ export default function FacebookCallbackPage() {
         return
       }
 
-      const { code, state } = result
+      const { code } = result
 
-      // TODO: Send authorization code to backend for token exchange
-      // For now, simulate successful connection
-      console.log('Facebook OAuth successful:', { code, state })
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
+      // Build redirect_uri to match the one used to initiate auth
+      const redirectUri = `${window.location.origin}/auth/callback/facebook`
+
+      // Call backend to exchange code and persist account
+      const apiBase = process.env.NEXT_PUBLIC_API_URL
+      if (!apiBase) {
+        throw new Error('Missing NEXT_PUBLIC_API_URL')
+      }
+      if (!user?.id) {
+        throw new Error('Missing user id')
+      }
+
+      const resp = await fetch(`${apiBase}/social-media/facebook/auth/callback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id,
+        },
+        body: JSON.stringify({ code, redirect_uri: redirectUri }),
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err?.detail || 'Backend callback failed')
+      }
+
       setStatus('success')
       
       // Show success toast
@@ -169,4 +189,5 @@ export default function FacebookCallbackPage() {
 
   return null
 }
+
 

@@ -32,10 +32,10 @@ class VideoUploadRequest(BaseModel):
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
 
-# Google OAuth and YouTube API configuration - use the provided credentials directly
-GOOGLE_CLIENT_ID = "326775019777-v43jhcbs891rtv00p5vevif0ss57gc0r.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET = "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"
-GOOGLE_API_KEY = "AIzaSyAYn7IgfCjD8kHE70Sc_or2HS1zKIl6so8"
+# Google OAuth and YouTube API configuration - load from environment
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "326775019777-v43jhcbs891rtv00p5vevif0ss57gc0r.apps.googleusercontent.com")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyAYn7IgfCjD8kHE70Sc_or2HS1zKIl6so8")
 REDIRECT_URI = "http://localhost:3000/auth/callback/youtube"
 
 # OAuth scopes for YouTube

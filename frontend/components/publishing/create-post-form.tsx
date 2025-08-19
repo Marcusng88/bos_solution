@@ -10,19 +10,16 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { useYouTubeStore } from "@/hooks/use-youtube"
 import { MediaUpload } from "./media-upload"
 import { PostPreview } from "./post-preview"
-import { Facebook, Instagram, Youtube, Calendar, Send, Save, Sparkles } from "lucide-react"
+import { Facebook, Instagram, Calendar, Send, Save, Sparkles } from "lucide-react"
 
 const platforms = [
   { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600", connected: true },
   { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600", connected: true },
-  { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600", connected: false }, // This will be dynamically updated
 ]
 
 export function CreatePostForm() {
-  const { isConnected: isYouTubeConnected } = useYouTubeStore()
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["facebook", "instagram"])
   const [postData, setPostData] = useState({
     caption: "",
@@ -33,12 +30,8 @@ export function CreatePostForm() {
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([])
   const { toast } = useToast()
 
-  // Create platforms array with dynamic YouTube connection status
-  const dynamicPlatforms = platforms.map(platform => 
-    platform.id === "youtube" 
-      ? { ...platform, connected: isYouTubeConnected }
-      : platform
-  )
+  // Use platforms directly since YouTube is handled separately
+  const dynamicPlatforms = platforms
 
   const togglePlatform = (platformId: string) => {
     setSelectedPlatforms((prev) =>
@@ -76,22 +69,6 @@ export function CreatePostForm() {
     }
 
     try {
-      // Handle YouTube video upload if YouTube is selected and there are video files
-      if (selectedPlatforms.includes("youtube") && isYouTubeConnected) {
-        const videoFiles = uploadedMedia.filter(file => file.type.startsWith("video/"))
-        
-        if (videoFiles.length > 0) {
-          toast({
-            title: "Uploading to YouTube",
-            description: "Please wait while we upload your video(s) to YouTube...",
-          })
-
-          for (const videoFile of videoFiles) {
-            await uploadVideoToYouTube(videoFile, postData.caption)
-          }
-        }
-      }
-
       const action = postData.postType === "now" ? "published" : "scheduled"
       toast({
         title: `Post ${action}!`,
@@ -110,44 +87,6 @@ export function CreatePostForm() {
         description: error.message || "Failed to publish content. Please try again.",
         variant: "destructive",
       })
-    }
-  }
-
-  const uploadVideoToYouTube = async (videoFile: File, description: string) => {
-    const { uploadVideoFile } = useYouTubeStore.getState()
-    
-    try {
-      // Extract title from filename (remove extension)
-      const title = videoFile.name.replace(/\.[^/.]+$/, "")
-      
-      // Parse hashtags from description for tags
-      const hashtags = description.match(/#\w+/g)?.map(tag => tag.replace('#', '')) || []
-      
-      // Create video data object with file
-      const videoData = {
-        videoFile: videoFile,
-        title: title,
-        description: description,
-        tags: hashtags,
-        privacy_status: "public" // Changed to public for better visibility
-      }
-
-      const result = await uploadVideoFile(videoData)
-      
-      toast({
-        title: "YouTube Upload Successful",
-        description: `"${title}" has been uploaded to YouTube.`,
-      })
-      
-      return result
-    } catch (error: any) {
-      console.error('YouTube upload error:', error)
-      toast({
-        title: "YouTube Upload Failed",
-        description: `Failed to upload "${videoFile.name}" to YouTube: ${error.message}`,
-        variant: "destructive",
-      })
-      throw error
     }
   }
 
