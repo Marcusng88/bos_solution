@@ -916,7 +916,7 @@ async def get_connected_accounts(
 
         # If nothing saved yet, try env-based fallback (read-only), then persist
         if not sanitized_accounts:
-            for platform in ["facebook", "instagram", "youtube"]:
+            for platform in ["facebook", "instagram"]:
                 try:
                     info = await get_account_info(platform, user_id)
                     sanitized_accounts.append(info)
@@ -985,7 +985,7 @@ async def connect_platform(
         print(f"Payload: {payload}")
         
         platform = platform.lower()
-        if platform not in ["facebook", "instagram", "youtube"]:
+        if platform not in ["facebook", "instagram"]:
             raise HTTPException(status_code=400, detail="Unsupported platform")
 
         # Choose token precedence: provided > env default
@@ -1085,71 +1085,6 @@ async def connect_platform(
                     "permissions": await _get_facebook_permissions(access_token),
                 }
                 await supabase_client.create_social_media_account(account_payload)
-
-            elif platform == "youtube":
-                # For YouTube, we expect the access_token to be a YouTube OAuth token
-                # Validate the token by fetching channel info
-                youtube_api_response = await client.get(
-                    "https://www.googleapis.com/youtube/v3/channels",
-                    params={
-                        "part": "snippet,statistics",
-                        "mine": "true",
-                        "access_token": access_token
-                    }
-                )
-                
-                if youtube_api_response.status_code != 200:
-                    raise HTTPException(status_code=400, detail=f"YouTube token validation failed: {youtube_api_response.text}")
-                
-                channel_data = youtube_api_response.json()
-                items = channel_data.get("items", [])
-                
-                if not items:
-                    raise HTTPException(status_code=400, detail="No YouTube channel found for this account")
-                
-                channel = items[0]
-                snippet = channel.get("snippet", {})
-                statistics = channel.get("statistics", {})
-                
-                account_payload = {
-                    "user_id": user_id,
-                    "platform": "youtube",
-                    "account_id": channel.get("id"),
-                    "account_name": snippet.get("title", "YouTube Channel"),
-                    "username": snippet.get("customUrl", "").replace("@", "") if snippet.get("customUrl") else None,
-                    "profile_picture_url": snippet.get("thumbnails", {}).get("default", {}).get("url"),
-                    "access_token": access_token,
-                    "refresh_token": None,  # Will be set if provided separately
-                    "token_expires_at": None,  # Will be calculated if expires_in provided
-                    "is_active": True,
-                    "is_test_account": False,
-                    "permissions": {
-                        "upload": True,
-                        "read": True,
-                        "subscriber_count": statistics.get("subscriberCount", "0"),
-                        "video_count": statistics.get("videoCount", "0"),
-                        "view_count": statistics.get("viewCount", "0")
-                    },
-                }
-                
-                print(f"Saving YouTube account payload to database...")
-                try:
-                    result = await supabase_client.create_social_media_account(account_payload)
-                    print(f"YouTube save successful: {result}")
-                except Exception as save_error:
-                    print(f"YouTube save error: {save_error}")
-                    # Try to handle duplicate accounts by updating existing one
-                    try:
-                        existing_accounts = await supabase_client.get_user_social_accounts(user_id, "youtube")
-                        if existing_accounts:
-                            print("YouTube account already exists, updating instead...")
-                            result = await supabase_client.update_social_media_account(existing_accounts[0]["id"], account_payload)
-                            print(f"YouTube update successful: {result}")
-                        else:
-                            raise save_error
-                    except Exception as fallback_error:
-                        print(f"YouTube fallback also failed: {fallback_error}")
-                        raise HTTPException(status_code=500, detail=f"Failed to save YouTube account: {str(save_error)}")
 
         return {"success": True}
     except HTTPException:

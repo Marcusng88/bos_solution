@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Settings, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
-import { useYouTubeStore } from "@/hooks/use-youtube"
 
 interface ConnectedAccount {
   platform: string
@@ -21,7 +20,6 @@ interface ConnectedAccount {
 export function ConnectedAccounts() {
   const { toast } = useToast()
   const { user } = useUser()
-  const { connect: connectYouTube, isConnected: isYouTubeConnected, channel: youtubeChannel } = useYouTubeStore()
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -43,93 +41,59 @@ export function ConnectedAccounts() {
         console.log('Connected accounts from database:', dbAccounts)
 
         // Create account list with database status
-      const realAccounts: ConnectedAccount[] = [
-        {
-          platform: "facebook",
-          username: "",
-          displayName: "Facebook & Instagram",
-          isConnected: false,
-          lastSync: "",
-          permissions: []
-        },
-        {
-          platform: "twitter",
-          username: "",
-          displayName: "Twitter",
-          isConnected: false,
-          permissions: []
-        },
-        {
-          platform: "linkedin",
-          username: "",
-          displayName: "LinkedIn",
-          isConnected: false,
-          permissions: []
-        },
-        {
-          platform: "youtube",
-          username: "",
-          displayName: "YouTube",
-          isConnected: false,
-          permissions: []
-        }
-      ]
+        const realAccounts: ConnectedAccount[] = [
+          {
+            platform: "facebook",
+            username: "",
+            displayName: "Facebook",
+            isConnected: false,
+            lastSync: "",
+            permissions: []
+          },
+          {
+            platform: "instagram", 
+            username: "",
+            displayName: "Instagram",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "twitter",
+            username: "",
+            displayName: "Twitter",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "linkedin",
+            username: "",
+            displayName: "LinkedIn",
+            isConnected: false,
+            permissions: []
+          },
+          {
+            platform: "youtube",
+            username: "",
+            displayName: "YouTube",
+            isConnected: false,
+            permissions: []
+          }
+        ]
 
         // Update accounts with database information
         realAccounts.forEach(account => {
-          if (account.platform === 'facebook') {
-            // For Facebook, check both Facebook and Instagram connections
-            const fbAccount = dbAccounts.find((db: any) => db.platform === 'facebook')
-            const igAccount = dbAccounts.find((db: any) => db.platform === 'instagram')
-            
-            if (fbAccount || igAccount) {
-              account.isConnected = true
-              
-              // Prioritize Facebook data, fallback to Instagram
-              const primaryAccount = fbAccount || igAccount
-              account.username = primaryAccount.username || primaryAccount.account_name || ""
-              
-              // Show both platforms if connected to both
-              if (fbAccount && igAccount) {
-                account.displayName = "Facebook & Instagram"
-                account.permissions = [
-                  ...Object.keys(fbAccount.permissions || {}),
-                  ...Object.keys(igAccount.permissions || {})
-                ]
-              } else if (fbAccount) {
-                account.displayName = "Facebook & Instagram"
-                account.permissions = Object.keys(fbAccount.permissions || {})
-              } else {
-                account.displayName = "Facebook & Instagram"
-                account.permissions = Object.keys(igAccount.permissions || {})
-              }
-              
-              account.lastSync = primaryAccount.updated_at || primaryAccount.created_at || ""
-            }
-          } else {
-            // For other platforms, normal logic
-            const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
-            if (dbAccount) {
-              account.isConnected = true
-              account.username = dbAccount.username || dbAccount.account_name || ""
-              account.displayName = dbAccount.account_name || account.displayName
-              account.lastSync = dbAccount.updated_at || dbAccount.created_at || ""
-              account.permissions = Object.keys(dbAccount.permissions || {})
-            }
-          }
-          
-          // For YouTube, also check the store state as fallback
-          if (account.platform === 'youtube' && !account.isConnected && isYouTubeConnected) {
+          const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
+          if (dbAccount) {
             account.isConnected = true
-            account.username = youtubeChannel?.title || ""
-            account.displayName = youtubeChannel?.title || "YouTube Channel"
-            account.lastSync = "Connected via YouTube Store"
-            account.permissions = ["upload", "read"]
+            account.username = dbAccount.username || dbAccount.account_name || ""
+            account.displayName = dbAccount.account_name || account.displayName
+            account.lastSync = dbAccount.updated_at || dbAccount.created_at || ""
+            account.permissions = Object.keys(dbAccount.permissions || {})
           }
         })
 
         setAccounts(realAccounts)
-        } catch (error) {
+      } catch (error) {
         console.error('Error fetching connected accounts:', error)
         
         // Fallback to basic account list
@@ -137,9 +101,16 @@ export function ConnectedAccounts() {
           {
             platform: "facebook",
             username: "",
-            displayName: "Facebook & Instagram",
+            displayName: "Facebook",
             isConnected: false,
             lastSync: "",
+            permissions: []
+          },
+          {
+            platform: "instagram",
+            username: "",
+            displayName: "Instagram", 
+            isConnected: false,
             permissions: []
           },
           {
@@ -169,85 +140,7 @@ export function ConnectedAccounts() {
     }
 
     checkRealConnections()
-  }, [user, isYouTubeConnected, youtubeChannel])
-
-  // Listen for YouTube return context to refresh accounts
-  useEffect(() => {
-    const checkYouTubeReturn = () => {
-      const returnContext = sessionStorage.getItem('youtube_return_context')
-      if (returnContext === 'settings') {
-        // Clear the context and refresh accounts
-        sessionStorage.removeItem('youtube_return_context')
-        
-        // Wait a moment for the YouTube store to save to database, then refresh
-        setTimeout(async () => {
-          if (user?.id) {
-            try {
-              const apiBase = process.env.NEXT_PUBLIC_API_URL
-              const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
-                headers: { 'X-User-ID': user.id },
-              })
-              
-              if (response.ok) {
-                const dbAccounts = (await response.json()).accounts || []
-                setAccounts(prev => prev.map(account => {
-                  if (account.platform === 'facebook') {
-                    // For Facebook, check both Facebook and Instagram connections
-                    const fbAccount = dbAccounts.find((db: any) => db.platform === 'facebook')
-                    const igAccount = dbAccounts.find((db: any) => db.platform === 'instagram')
-                    
-                    if (fbAccount || igAccount) {
-                      const primaryAccount = fbAccount || igAccount
-                      return {
-                        ...account,
-                        isConnected: true,
-                        username: primaryAccount.username || primaryAccount.account_name || "",
-                        displayName: "Facebook & Instagram",
-                        lastSync: 'Just now',
-                        permissions: [
-                          ...Object.keys(fbAccount?.permissions || {}),
-                          ...Object.keys(igAccount?.permissions || {})
-                        ]
-                      }
-                    }
-                  } else {
-                    // For other platforms, normal logic
-                    const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
-                    if (dbAccount) {
-                      return {
-                        ...account,
-                        isConnected: true,
-                        username: dbAccount.username || dbAccount.account_name || "",
-                        displayName: dbAccount.account_name || account.displayName,
-                        lastSync: 'Just now',
-                        permissions: Object.keys(dbAccount.permissions || {})
-                      }
-                    }
-                  }
-                  return account
-                }))
-                
-                toast({
-                  title: "Connected!",
-                  description: "YouTube connected successfully!",
-                })
-              }
-            } catch (error) {
-              console.error('Error refreshing accounts after YouTube connection:', error)
-            }
-          }
-        }, 1000) // 1 second delay to allow backend to save
-      }
-    }
-
-    // Check immediately and also listen for storage events
-    checkYouTubeReturn()
-    window.addEventListener('storage', checkYouTubeReturn)
-    
-    return () => {
-      window.removeEventListener('storage', checkYouTubeReturn)
-    }
-  }, [user, toast])
+  }, [user])
 
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
@@ -431,46 +324,24 @@ export function ConnectedAccounts() {
               if (response.ok) {
                 const dbAccounts = (await response.json()).accounts || []
                 setAccounts(prev => prev.map(account => {
-                  if (account.platform === 'facebook') {
-                    // For Facebook, check both Facebook and Instagram connections
-                    const fbAccount = dbAccounts.find((db: any) => db.platform === 'facebook')
-                    const igAccount = dbAccounts.find((db: any) => db.platform === 'instagram')
-                    
-                    if (fbAccount || igAccount) {
-                      const primaryAccount = fbAccount || igAccount
-                      return {
-                        ...account,
-                        isConnected: true,
-                        username: primaryAccount.username || primaryAccount.account_name || "",
-                        displayName: "Facebook & Instagram",
-                        lastSync: 'Just now',
-                        permissions: [
-                          ...Object.keys(fbAccount?.permissions || {}),
-                          ...Object.keys(igAccount?.permissions || {})
-                        ]
-                      }
-                    }
-                  } else {
-                    // For other platforms, normal logic
-                    const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
-                    if (dbAccount) {
-                      return {
-                        ...account,
-                        isConnected: true,
-                        username: dbAccount.username || dbAccount.account_name || "",
-                        displayName: dbAccount.account_name || account.displayName,
-                        lastSync: 'Just now',
-                        permissions: Object.keys(dbAccount.permissions || {})
-                      }
+                  const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
+                  if (dbAccount) {
+                    return {
+                      ...account,
+                      isConnected: true,
+                      username: dbAccount.username || dbAccount.account_name || "",
+                      displayName: dbAccount.account_name || account.displayName,
+                      lastSync: 'Just now',
+                      permissions: Object.keys(dbAccount.permissions || {})
                     }
                   }
                   return account
                 }))
               }
               
-            toast({
-              title: "Connected!",
-              description: "Facebook & Instagram connected successfully!",
+              toast({
+                title: "Connected!",
+                description: "Facebook & Instagram connected successfully!",
               })
             }).catch(() => {
               toast({
@@ -501,30 +372,6 @@ export function ConnectedAccounts() {
           description: "Please wait for Facebook SDK to load and try again.",
           variant: "destructive",
         })
-      }
-    } else if (platform === 'youtube') {
-      // Handle YouTube connection
-      try {
-        setIsLoading(true)
-        
-        // Set return context so after YouTube connection, we know to refresh this page
-        sessionStorage.setItem('youtube_return_context', 'settings')
-        
-        // Use the YouTube store to initiate connection
-        await connectYouTube()
-        
-        // The actual connection will happen in the callback, and the store will handle
-        // saving to the database. We'll refresh the accounts when we return.
-        
-      } catch (error) {
-        console.error('YouTube connection error:', error)
-        toast({
-          title: "Connection Failed",
-          description: "Failed to connect YouTube. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
       }
     } else {
       // For other platforms, show a message

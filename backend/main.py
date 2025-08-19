@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.v1.api import api_router
-from app.core.database import init_db
+from app.core.database_fixed import init_db, get_connection_mode
 
 
 @asynccontextmanager
@@ -18,9 +18,11 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         await init_db()
-        print("Database initialized successfully")
+        connection_mode = get_connection_mode()
+        print(f"Database initialized successfully in {connection_mode} mode")
     except Exception as e:
         print(f"Database initialization failed: {e}")
+        print("Application will continue using available connection methods")
     yield
     # Shutdown
     # Add cleanup code here if needed

@@ -103,14 +103,19 @@ class SupabaseClient:
                 if response.status_code in [200, 204]:
                     return {"success": True, "action": "updated"}
                 else:
-                    raise Exception(f"Failed to update user preferences: {response.status_code}")
+                    error_detail = response.text if hasattr(response, 'text') else f"Status {response.status_code}"
+                    raise Exception(f"Failed to update user preferences: {response.status_code} - {error_detail}")
             else:
                 # Preferences don't exist, create
                 response = await self._make_request("POST", "user_preferences", preferences_data)
                 if response.status_code in [200, 201, 204]:
                     return {"success": True, "action": "created"}
                 else:
-                    raise Exception(f"Failed to create user preferences: {response.status_code}")
+                    error_detail = response.text if hasattr(response, 'text') else f"Status {response.status_code}"
+                    if response.status_code == 409:
+                        raise Exception(f"Failed to create user preferences: Foreign key constraint violation. User must exist in users table first. Details: {error_detail}")
+                    else:
+                        raise Exception(f"Failed to create user preferences: {response.status_code} - {error_detail}")
                     
         except Exception as e:
             raise Exception(f"Failed to upsert user preferences: {str(e)}")

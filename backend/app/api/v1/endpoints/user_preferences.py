@@ -13,17 +13,45 @@ async def create_user_preferences(
 ):
     """Create or update user preferences"""
     try:
+        # First, ensure the user exists in the users table
+        user = await supabase_client.get_user_by_clerk_id(user_id)
+        if not user:
+            # User doesn't exist, this shouldn't happen if user sync was called properly
+            # But we'll create a minimal user record to prevent foreign key violations
+            minimal_user_data = {
+                "clerk_id": user_id,
+                "email": f"user_{user_id}@temp.com",  # Temporary email
+                "is_active": True
+            }
+            user_result = await supabase_client.upsert_user(minimal_user_data)
+            if not user_result or not user_result.get("success"):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create user record before saving preferences"
+                )
+        
         # Transform frontend values to match database constraints
         def transform_budget(budget: str) -> str:
             """Transform frontend budget values to database constraint values"""
             budget_mapping = {
-                "0-1000": "$0 - $1,000",
+                # Frontend values from goals-step.tsx
+                "under-500": "$0 - $1,000",
+                "500-1000": "$0 - $1,000",  # Map to closest valid constraint
                 "1000-5000": "$1,000 - $5,000", 
                 "5000-10000": "$5,000 - $10,000",
                 "10000-25000": "$10,000 - $25,000",
-                "25000+": "$25,000+"
+                "over-25000": "$25,000+",
+                
+                # Alternative formats (for backward compatibility)
+                "0-1000": "$0 - $1,000",
+                "25000+": "$25,000+",
+                "25000-plus": "$25,000+"
             }
-            return budget_mapping.get(budget, budget)
+            transformed = budget_mapping.get(budget, budget)
+            # Log transformation for debugging
+            if budget != transformed:
+                print(f"Budget transformed: '{budget}' -> '{transformed}'")
+            return transformed
         
         def transform_company_size(size: str) -> str:
             """Transform frontend company size values to database constraint values"""
@@ -110,13 +138,24 @@ async def update_user_preferences(
         def transform_budget(budget: str) -> str:
             """Transform frontend budget values to database constraint values"""
             budget_mapping = {
-                "0-1000": "$0 - $1,000",
+                # Frontend values from goals-step.tsx
+                "under-500": "$0 - $1,000",
+                "500-1000": "$0 - $1,000",  # Map to closest valid constraint
                 "1000-5000": "$1,000 - $5,000", 
                 "5000-10000": "$5,000 - $10,000",
                 "10000-25000": "$10,000 - $25,000",
-                "25000+": "$25,000+"
+                "over-25000": "$25,000+",
+                
+                # Alternative formats (for backward compatibility)
+                "0-1000": "$0 - $1,000",
+                "25000+": "$25,000+",
+                "25000-plus": "$25,000+"
             }
-            return budget_mapping.get(budget, budget)
+            transformed = budget_mapping.get(budget, budget)
+            # Log transformation for debugging
+            if budget != transformed:
+                print(f"Budget transformed: '{budget}' -> '{transformed}'")
+            return transformed
         
         def transform_company_size(size: str) -> str:
             """Transform frontend company size values to database constraint values"""

@@ -35,7 +35,8 @@ interface ConnectionsStepProps {
 }
 
 const platforms = [
-  { id: "facebook", name: "Facebook & Instagram", icon: Facebook, color: "bg-blue-600" },
+  { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600" },
+  { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600" },
 ]
 
 export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettings = false, onSave, currentStep }: ConnectionsStepProps) {
@@ -77,8 +78,8 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
           
           updateData({ connectedAccounts: connectedPlatforms })
           
-          // Set Facebook status if connected in database (Facebook or Instagram)
-          const hasFacebookConnection = dbAccounts.some((acc: any) => acc.platform === 'facebook' || acc.platform === 'instagram')
+          // Set Facebook status if connected in database
+          const hasFacebookConnection = dbAccounts.some((acc: any) => acc.platform === 'facebook')
           if (hasFacebookConnection) {
             setFacebookLoginStatus('connected')
           }

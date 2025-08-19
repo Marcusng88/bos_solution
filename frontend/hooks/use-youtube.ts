@@ -40,6 +40,9 @@ interface YouTubeState {
   uploadVideo: (videoData: VideoUploadData) => Promise<any>
   uploadVideoFile: (videoData: VideoFileUploadData) => Promise<any>
   getUserVideos: (maxResults?: number) => Promise<any>
+  getRecentActivity: (hoursBack?: number) => Promise<any>
+  getVideoComments: (videoId: string, maxResults?: number, hoursBack?: number) => Promise<any>
+  getROIAnalytics: (daysBack?: number, includeRevenue?: boolean) => Promise<any>
 }
 
 const STORAGE_KEY = 'youtube_tokens'
@@ -108,47 +111,6 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
         tokens,
         channel
       })
-
-      // Also save the connection to the social_media_accounts table
-      try {
-        const user = (window as any)?.Clerk?.user
-        console.log('Attempting to save YouTube connection to database...', {
-          hasUser: !!user,
-          userId: user?.id,
-          hasAccessToken: !!tokens.access_token,
-          apiUrl: process.env.NEXT_PUBLIC_API_URL
-        })
-        
-        if (user?.id && tokens.access_token) {
-          console.log('Making request to backend YouTube connect endpoint...')
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/social-media/connect/youtube`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-User-ID': user.id,
-            },
-            body: JSON.stringify({ access_token: tokens.access_token }),
-          })
-          
-          console.log('YouTube backend response status:', response.status)
-          
-          if (response.ok) {
-            const result = await response.json()
-            console.log('✅ YouTube connection saved to database successfully!', result)
-          } else {
-            const errorText = await response.text()
-            console.error('❌ Failed to save YouTube connection to database:', errorText)
-            console.error('Response status:', response.status)
-          }
-        } else {
-          console.warn('Missing required data for database save:', {
-            userId: user?.id,
-            hasAccessToken: !!tokens.access_token
-          })
-        }
-      } catch (error) {
-        console.error('❌ Error saving YouTube connection to database:', error)
-      }
 
       return data
     } catch (error) {
@@ -296,6 +258,91 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
       return await response.json()
     } catch (error) {
       console.error('Fetch videos error:', error)
+      throw error
+    }
+  },
+
+  getRecentActivity: async (hoursBack = 1) => {
+    const { tokens } = get()
+    if (!tokens) {
+      throw new Error('Not authenticated with YouTube')
+    }
+
+    // Check if token needs refresh
+    if (Date.now() >= tokens.expires_at) {
+      await get().refreshToken()
+    }
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/youtube/recent-activity?access_token=${get().tokens?.access_token}&hours_back=${hoursBack}`
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch recent activity')
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Fetch recent activity error:', error)
+      throw error
+    }
+  },
+
+  getVideoComments: async (videoId: string, maxResults = 20, hoursBack?: number) => {
+    const { tokens } = get()
+    if (!tokens) {
+      throw new Error('Not authenticated with YouTube')
+    }
+
+    // Check if token needs refresh
+    if (Date.now() >= tokens.expires_at) {
+      await get().refreshToken()
+    }
+
+    try {
+      let url = `${process.env.NEXT_PUBLIC_API_URL}/youtube/video-comments?access_token=${get().tokens?.access_token}&video_id=${videoId}&max_results=${maxResults}`
+      
+      if (hoursBack) {
+        url += `&hours_back=${hoursBack}`
+      }
+
+      const response = await fetch(url)
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch video comments')
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Fetch video comments error:', error)
+      throw error
+    }
+  },
+
+  getROIAnalytics: async (daysBack = 7, includeRevenue = true) => {
+    const { tokens } = get()
+    if (!tokens) {
+      throw new Error('Not authenticated with YouTube')
+    }
+
+    // Check if token needs refresh
+    if (Date.now() >= tokens.expires_at) {
+      await get().refreshToken()
+    }
+
+    try {
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/youtube/analytics/roi-dashboard?access_token=${get().tokens?.access_token}&days_back=${daysBack}&include_estimated_revenue=${includeRevenue}`
+
+      const response = await fetch(url)
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch ROI analytics')
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Fetch ROI analytics error:', error)
       throw error
     }
   }
