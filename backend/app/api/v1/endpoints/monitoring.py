@@ -15,9 +15,9 @@ from app.models.user_settings import UserMonitoringSettings
 from app.models.monitoring import MonitoringAlert
 from app.schemas.monitoring import (
     UserMonitoringSettingsCreate, UserMonitoringSettingsResponse, UserMonitoringSettingsUpdate,
-    MonitoringAlertCreate, MonitoringAlertResponse
+    MonitoringAlertCreate, MonitoringAlertResponse, PlatformScanRequest, PlatformScanResponse
 )
-from app.services.monitoring import monitoring_scheduler, MonitoringService, AgentMonitoringService
+from app.services.monitoring import monitoring_scheduler, MonitoringService, SimpleMonitoringService
 
 router = APIRouter()
 
@@ -337,21 +337,55 @@ async def run_monitoring_for_all_competitors(
 ) -> Dict[str, Any]:
     """Run monitoring for all user's active competitors"""
     try:
-        monitoring_service = AgentMonitoringService(db)
+        logger.info(f"🚀 Starting monitoring for all competitors for user: {user_id}")
         
-        # Run monitoring in background
-        def run_monitoring():
-            import asyncio
-            asyncio.create_task(monitoring_service.run_monitoring_for_all_active_competitors(user_id))
+        # Convert Clerk user ID to database UUID
+        db_user_id = await get_db_user_id(user_id, db)
         
-        background_tasks.add_task(run_monitoring)
+        # Verify user has competitors
+        from app.models.competitor import Competitor
+        competitors_result = await db.execute(
+            select(Competitor).where(
+                Competitor.user_id == db_user_id,
+                Competitor.status == 'active'
+            )
+        )
+        competitors = competitors_result.scalars().all()
         
-        return {
-            "success": True,
-            "message": "Monitoring started for all active competitors"
-        }
+        if not competitors:
+            return {
+                "success": False,
+                "message": "No active competitors found for this user",
+                "total_competitors": 0
+            }
+        
+        logger.info(f"📊 Found {len(competitors)} active competitors for user {user_id}")
+        
+        # Initialize the monitoring service
+        monitoring_service = SimpleMonitoringService(db)
+        
+        try:
+            # Run monitoring for all competitors
+            result = await monitoring_service.run_monitoring_for_all_active_competitors(user_id)
+            
+            logger.info(f"✅ Monitoring completed for all competitors. Result: {result}")
+            
+            return {
+                "success": True,
+                "message": f"Monitoring completed for {result.get('competitors_scanned', 0)} competitors",
+                "total_competitors": result.get("total_competitors", 0),
+                "competitors_scanned": result.get("competitors_scanned", 0),
+                "successful_scans": result.get("successful_scans", 0),
+                "failed_scans": result.get("failed_scans", 0),
+                "details": result
+            }
+            
+        finally:
+            # Always close the service
+            await monitoring_service.close()
         
     except Exception as e:
+        logger.error(f"❌ Error running monitoring for all competitors: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to run monitoring for all competitors: {str(e)}"
@@ -365,24 +399,24 @@ async def test_agent_workflow(
 ) -> Dict[str, Any]:
     """Test the agent workflow for a specific competitor"""
     try:
-        from app.services.monitoring.agents.supervisor import SupervisorAgent
+        from app.services.monitoring import SimpleMonitoringService
         
-        supervisor = SupervisorAgent(db)
-        logger.info(f"Testing agent workflow for competitor {competitor_id}")
+        monitoring_service = SimpleMonitoringService()
+        logger.info(f"Testing simple monitoring service for competitor {competitor_id}")
         
-        result = await supervisor.analyze_competitor(competitor_id)
+        result = await monitoring_service.run_monitoring_for_competitor(competitor_id)
         
         return {
             "success": True,
-            "message": "Agent workflow test completed",
+            "message": "Simple monitoring service test completed",
             "result": result
         }
         
     except Exception as e:
-        logger.error(f"Error testing agent workflow: {e}")
+        logger.error(f"Error testing simple monitoring service: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to test agent workflow: {str(e)}"
+            detail=f"Failed to test simple monitoring service: {str(e)}"
         )
 
 
@@ -462,7 +496,7 @@ async def test_youtube_agent(
         
         logger.info(f"Testing YouTube agent for competitor {competitor_id} with handle {youtube_handle}")
         
-        youtube_agent = YouTubeAgent(db)
+        youtube_agent = YouTubeAgent()
         result = await youtube_agent.analyze_competitor(competitor_id, youtube_handle)
         
         return {
@@ -486,26 +520,26 @@ async def test_supervisor_agent(
     competitor_id: str,
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
-    """Test the supervisor agent directly"""
+    """Test the simple monitoring service directly"""
     try:
-        from app.services.monitoring.agents.supervisor import SupervisorAgent
+        from app.services.monitoring import SimpleMonitoringService
         
-        logger.info(f"Testing supervisor agent for competitor {competitor_id}")
+        logger.info(f"Testing simple monitoring service for competitor {competitor_id}")
         
-        supervisor = SupervisorAgent(db)
-        result = await supervisor.analyze_competitor(competitor_id)
+        monitoring_service = SimpleMonitoringService()
+        result = await monitoring_service.run_monitoring_for_competitor(competitor_id)
         
         return {
             "success": True,
-            "message": "Supervisor agent test completed",
+            "message": "Simple monitoring service test completed",
             "result": result
         }
         
     except Exception as e:
-        logger.error(f"Error testing supervisor agent: {e}")
+        logger.error(f"Error testing simple monitoring service: {e}")
         return {
             "success": False,
-            "message": f"Supervisor agent test failed: {str(e)}",
+            "message": f"Simple monitoring service test failed: {str(e)}",
             "error": str(e),
             "error_type": type(e).__name__
         }
@@ -519,7 +553,7 @@ async def test_agent_workflow(
     """Test the complete agent workflow with a competitor by name"""
     try:
         from app.models.competitor import Competitor
-        from app.services.monitoring.agents.supervisor import SupervisorAgent
+        from app.services.monitoring import SimpleMonitoringService
         
         # Find competitor by name
         result = await db.execute(
@@ -535,58 +569,9 @@ async def test_agent_workflow(
         
         logger.info(f"Testing agent workflow for competitor: {competitor.name} (ID: {competitor.id})")
         
-        # Test supervisor agent
-        supervisor = SupervisorAgent(db)
-        result = await supervisor.analyze_competitor(str(competitor.id))
-        
-        return {
-            "success": True,
-            "message": "Agent workflow test completed",
-            "competitor": {
-                "id": str(competitor.id),
-                "name": competitor.name,
-                "industry": competitor.industry
-            },
-            "result": result
-        }
-        
-    except Exception as e:
-        logger.error(f"Error testing agent workflow: {e}")
-        return {
-            "success": False,
-            "message": f"Agent workflow test failed: {str(e)}",
-            "error": str(e),
-            "error_type": type(e).__name__
-        }
-
-
-@router.post("/test-agent-workflow")
-async def test_agent_workflow(
-    competitor_name: str = "Nike",
-    db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
-    """Test the complete agent workflow with a competitor by name"""
-    try:
-        from app.models.competitor import Competitor
-        from app.services.monitoring.agents.supervisor import SupervisorAgent
-        
-        # Find competitor by name
-        result = await db.execute(
-            select(Competitor).where(Competitor.name == competitor_name)
-        )
-        competitor = result.scalar_one_or_none()
-        
-        if not competitor:
-            return {
-                "success": False,
-                "message": f"Competitor '{competitor_name}' not found. Use /create-test-competitor first."
-            }
-        
-        logger.info(f"Testing agent workflow for competitor: {competitor.name} (ID: {competitor.id})")
-        
-        # Test supervisor agent
-        supervisor = SupervisorAgent(db)
-        result = await supervisor.analyze_competitor(str(competitor.id))
+        # Test simple monitoring service instead of supervisor agent
+        monitoring_service = SimpleMonitoringService()
+        result = await monitoring_service.run_monitoring_for_competitor(str(competitor.id))
         
         return {
             "success": True,
@@ -723,4 +708,161 @@ async def get_monitoring_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get monitoring data: {str(e)}"
+        )
+
+
+@router.post("/scan-platform/{platform}", response_model=PlatformScanResponse)
+async def scan_specific_platform(
+    platform: str,
+    request: PlatformScanRequest,
+    user_id: str = Depends(get_user_id_from_header),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """Run monitoring for a specific platform and competitor"""
+    try:
+        competitor_id = request.competitor_id
+        logger.info(f"Starting {platform} scan for competitor {competitor_id}")
+        
+        # Convert Clerk user ID to database UUID
+        db_user_id = await get_db_user_id(user_id, db)
+        
+        # Initialize the simple monitoring service
+        monitoring_service = SimpleMonitoringService()
+        
+        try:
+            # Run platform-specific monitoring
+            result = await monitoring_service.run_platform_specific_monitoring(competitor_id, platform)
+            
+            logger.info(f"✅ {platform} scan completed for competitor {competitor_id}")
+            
+            return PlatformScanResponse(
+                success=True,
+                platform=platform,
+                competitor_id=competitor_id,
+                result=result,
+                message=f"{platform} scan completed successfully"
+            )
+            
+        finally:
+            # Always close the service
+            await monitoring_service.close()
+            
+    except Exception as e:
+        logger.error(f"❌ Error in {platform} scan for competitor {competitor_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run {platform} scan: {str(e)}"
+        )
+
+
+@router.get("/scanning-progress")
+async def get_scanning_progress(
+    user_id: str = Depends(get_user_id_from_header),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """Get real-time scanning progress for all user's competitors"""
+    try:
+        # Convert Clerk user ID to database UUID
+        db_user_id = await get_db_user_id(user_id, db)
+        
+        # Get all competitors and their scanning status
+        from app.models.competitor import Competitor
+        from app.models.monitoring import CompetitorMonitoringStatus
+        
+        # Get competitors with their monitoring status
+        query = select(Competitor, CompetitorMonitoringStatus).outerjoin(
+            CompetitorMonitoringStatus, 
+            Competitor.id == CompetitorMonitoringStatus.competitor_id
+        ).where(Competitor.user_id == db_user_id)
+        
+        result = await db.execute(query)
+        rows = result.all()
+        
+        scanning_progress = []
+        total_competitors = len(rows)
+        currently_scanning = 0
+        completed_scans = 0
+        failed_scans = 0
+        
+        for competitor, status in rows:
+            if status and status.is_scanning:
+                currently_scanning += 1
+                scan_status = "scanning"
+            elif status and status.last_successful_scan:
+                if status.last_failed_scan and status.last_failed_scan > status.last_successful_scan:
+                    failed_scans += 1
+                    scan_status = "failed"
+                else:
+                    completed_scans += 1
+                    scan_status = "completed"
+            else:
+                scan_status = "not_started"
+            
+            scanning_progress.append({
+                "competitor_id": str(competitor.id),
+                "competitor_name": competitor.name,
+                "status": scan_status,
+                "last_scan": status.last_successful_scan.isoformat() if status and status.last_successful_scan else None,
+                "last_failed_scan": status.last_failed_scan.isoformat() if status and status.last_failed_scan else None,
+                "error_message": status.scan_error_message if status else None,
+                "scan_started_at": status.scan_started_at.isoformat() if status and status.scan_started_at else None
+            })
+        
+        return {
+            "success": True,
+            "total_competitors": total_competitors,
+            "currently_scanning": currently_scanning,
+            "completed_scans": completed_scans,
+            "failed_scans": failed_scans,
+            "not_started": total_competitors - currently_scanning - completed_scans - failed_scans,
+            "progress_percentage": (completed_scans / total_competitors * 100) if total_competitors > 0 else 0,
+            "competitors": scanning_progress
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting scanning progress: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get scanning progress: {str(e)}"
+        )
+
+
+@router.post("/scan-competitor/{competitor_id}")
+async def scan_specific_competitor(
+    competitor_id: str,
+    platforms: List[str] = None,
+    user_id: str = Depends(get_user_id_from_header),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """Run monitoring for a specific competitor with optional platform selection"""
+    try:
+        logger.info(f"Starting scan for competitor {competitor_id} with platforms: {platforms or 'all'}")
+        
+        # Convert Clerk user ID to database UUID
+        db_user_id = await get_db_user_id(user_id, db)
+        
+        # Initialize the simple monitoring service
+        monitoring_service = SimpleMonitoringService(db)
+        
+        try:
+            # Run competitor monitoring
+            result = await monitoring_service.run_monitoring_for_competitor(competitor_id, platforms)
+            
+            logger.info(f"✅ Scan completed for competitor {competitor_id}")
+            
+            return {
+                "success": True,
+                "competitor_id": competitor_id,
+                "result": result
+            }
+            
+        finally:
+            # Always close the service
+            await monitoring_service.close()
+            
+    except Exception as e:
+        logger.error(f"❌ Error in scan for competitor {competitor_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run competitor scan: {str(e)}"
         )

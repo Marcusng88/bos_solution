@@ -5,6 +5,7 @@
 
 import { useUser } from '@clerk/nextjs';
 import { Competitor, CompetitorCreate, CompetitorUpdate, CompetitorStats } from './types';
+import { useMemo } from 'react';
 
 // API base URL - adjust based on your backend configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -84,10 +85,15 @@ export class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = createApiHeaders(userId, requestOptions.headers as Record<string, string>);
 
+    console.log(`🌐 API Request: ${url}`);
+    console.log(`🔑 Headers:`, headers);
+
     const response = await fetch(url, {
       ...requestOptions,
       headers,
     });
+
+    console.log(`📡 Response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -98,7 +104,9 @@ export class ApiClient {
       throw new Error(errorData.detail || `API request failed: ${response.statusText}`);
     }
 
-    return response.json();
+    const responseData = await response.json();
+    console.log(`✅ Response data:`, responseData);
+    return responseData;
   }
 
   // User synchronization
@@ -243,6 +251,11 @@ export class ApiClient {
     return this.request(endpoint, { userId });
   }
 
+  // Get scanning progress
+  async getScanningProgress(userId: string): Promise<any> {
+    return this.request('/monitoring/scanning-progress', { userId });
+  }
+
   // User settings
   async getUserSettings(userId: string) {
     return this.request(`/users/settings`, { userId });
@@ -275,7 +288,8 @@ export function useApiClient() {
     throw new Error('User must be signed in to use API client');
   }
 
-  const apiClient = new ApiClient();
+  // Memoize the API client instance to prevent recreation on every render
+  const apiClient = useMemo(() => new ApiClient(), []);
 
   return {
     apiClient,
@@ -490,25 +504,71 @@ export const monitoringAPI = {
     
     const url = `${API_BASE_URL}/monitoring/monitoring-data${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     
+    console.log(`🌐 Monitoring API Request: ${url}`);
+    console.log(`🔑 Monitoring API Headers:`, createApiHeaders(userId));
+    
     const response = await fetch(url, {
       headers: createApiHeaders(userId),
     });
     
+    console.log(`📡 Monitoring API Response: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
       throw new Error('Failed to fetch monitoring data');
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ Monitoring API Response data:`, responseData);
+    return responseData;
+  },
+
+  // Get monitoring stats
+  getMonitoringStats: async (userId: string): Promise<any> => {
+    const url = `${API_BASE_URL}/monitoring/monitoring-stats`;
+    
+    console.log(`🌐 Monitoring Stats API Request: ${url}`);
+    console.log(`🔑 Monitoring Stats API Headers:`, createApiHeaders(userId));
+    
+    const response = await fetch(url, {
+      headers: createApiHeaders(userId),
+    });
+    
+    console.log(`📡 Monitoring Stats API Response: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch monitoring stats');
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ Monitoring Stats API Response data:`, responseData);
+    return responseData;
+  },
+
+  // Scan specific platform for a competitor
+  scanPlatform: async (userId: string, platform: string, competitorId: string): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/monitoring/scan-platform/${platform}`, {
+      method: 'POST',
+      headers: createApiHeaders(userId),
+      body: JSON.stringify({ competitor_id: competitorId }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to scan ${platform} for competitor`);
     }
     
     return response.json();
   },
 
-  // Get monitoring stats
-  getMonitoringStats: async (userId: string): Promise<any> => {
-    const response = await fetch(`${API_BASE_URL}/monitoring/monitoring-stats`, {
+  // Scan specific competitor with optional platforms
+  scanCompetitor: async (userId: string, competitorId: string, platforms?: string[]): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/monitoring/scan-competitor/${competitorId}`, {
+      method: 'POST',
       headers: createApiHeaders(userId),
+      body: JSON.stringify({ platforms }),
     });
     
     if (!response.ok) {
-      throw new Error('Failed to fetch monitoring stats');
+      throw new Error('Failed to scan competitor');
     }
     
     return response.json();

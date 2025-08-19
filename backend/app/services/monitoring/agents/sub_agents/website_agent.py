@@ -1,295 +1,724 @@
 """
-Website Sub-Agent for Competitor Analysis
-Uses Crawl4AI to crawl and analyze competitor websites for strategic insights
+Intelligent Website Sub-Agent for Competitor Website Intelligence
+Uses Crawl4AI intelligently to analyze competitor websites and detect changes
 """
 
 import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
+import hashlib
 import json
 import re
+from urllib.parse import urljoin, urlparse
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+# Import Windows compatibility utilities
+from app.core.windows_compatibility import setup_windows_compatibility
+
+# Import isolated crawler
+from app.services.monitoring.agents.sub_agents.isolated_crawler import IsolatedCrawler, crawl_websites_isolated
+
+# Import crawling dependencies conditionally (for fallback)
+try:
+    from crawl4ai import AsyncWebCrawler
+    from crawl4ai.extraction_strategy import LLMExtractionStrategy
+    CRAWL4AI_AVAILABLE = True
+except ImportError as e:
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Crawl4AI dependencies not available: {e}")
+    CRAWL4AI_AVAILABLE = False
 
 # Import langchain dependencies conditionally
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_core.tools import tool
     LANGCHAIN_AVAILABLE = True
 except ImportError as e:
-    logging.getLogger(__name__).warning(f"LangChain dependencies not available: {e}")
+    logger = logging.getLogger(__name__)
+    logger.warning(f"LangChain dependencies not available: {e}")
     LANGCHAIN_AVAILABLE = False
 
-# Import Crawl4AI dependencies conditionally
-try:
-    from crawl4ai import Crawl4AI
-    from crawl4ai.web_crawler import WebCrawler
-    CRAWL4AI_AVAILABLE = True
-except ImportError as e:
-    logging.getLogger(__name__).warning(f"Crawl4AI dependencies not available: {e}")
-    CRAWL4AI_AVAILABLE = False
-
-from app.models.competitor import Competitor
 from app.core.config import settings
-from ...core_service import MonitoringService
+from app.services.monitoring.supabase_client import supabase_client
 
 logger = logging.getLogger(__name__)
 
 
 class WebsiteAgent:
-    """Website crawling agent for competitor analysis using Crawl4AI"""
+    """Intelligent website agent for competitor website intelligence using Crawl4AI"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.monitoring_service = MonitoringService(db)
+    def __init__(self):
+        logger.info("🌐 Intelligent WebsiteAgent initializing...")
+        self.crawl_count = 0
+        self.crawl_limit = 10  # Limit for intelligent crawling
 
+        # Initialize LLM for intelligent analysis
         self.llm = None
         if LANGCHAIN_AVAILABLE:
             try:
                 self.llm = ChatGoogleGenerativeAI(
                     model="gemini-2.5-flash-lite",
                     api_key=settings.GOOGLE_API_KEY,
-                    temperature=0.1
+                    temperature=0.3
                 )
+                logger.info("✅ LLM initialized successfully")
             except Exception as e:
                 logger.warning(f"Failed to initialize LLM: {e}")
 
-        self.crawler = None
-        if CRAWL4AI_AVAILABLE and self.llm:
-            try:
-                self.crawler = Crawl4AI(
-                    llm=self.llm,
-                    max_requests_per_minute=20,
-                    smart_threading=True,
-                    allow_backtracking=False
-                )
-                logger.info("Crawl4AI crawler initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize Crawl4AI: {e}")
-        elif not CRAWL4AI_AVAILABLE:
+        # Check Crawl4AI availability
+        if not CRAWL4AI_AVAILABLE:
             logger.warning("Crawl4AI not available - website analysis will be limited")
 
-    @tool
-    def get_sitemap(self, url: str) -> List[str]:
+        logger.info("🌐 Intelligent WebsiteAgent initialization completed")
+
+    async def analyze_competitor(self, competitor_id: str, competitor_name: str) -> Dict[str, Any]:
         """
-        Extracts URLs from a website's sitemap.
-
-        Args:
-            url (str): The base URL of the website.
-
-        Returns:
-            List[str]: A list of URLs found in the sitemap.
-        """
-        try:
-            sitemap_url = url.rstrip('/') + '/sitemap.xml'
-            logger.info(f"Attempting to fetch sitemap from: {sitemap_url}")
-
-            # Use WebCrawler to fetch and parse sitemap
-            sitemap_crawler = WebCrawler()
-            sitemap_content = sitemap_crawler.fetch_url(sitemap_url)
-
-            if not sitemap_content:
-                logger.warning(f"Could not fetch sitemap from {sitemap_url}")
-                return []
-
-            # Extract URLs from XML content
-            urls = re.findall(r'<loc>(.*?)</loc>', sitemap_content)
-            logger.info(f"Found {len(urls)} URLs in sitemap for {url}")
-            return urls[:50] # Limit to 50 URLs to avoid excessive crawling
-
-        except Exception as e:
-            logger.error(f"Error extracting sitemap for {url}: {e}")
-            return []
-
-    async def analyze_competitor(self, competitor_id: str, url: str) -> Dict[str, Any]:
-        """
-        Analyze a competitor's website using Crawl4AI
-
+        Intelligently analyze a competitor's website for changes and insights
+        
         Args:
             competitor_id: Database ID of the competitor
-            url: URL of the competitor's website to analyze
-
+            competitor_name: Name of the competitor to analyze
+            
         Returns:
             Dict containing analysis results and extracted content
         """
-        if not self.crawler:
-            logger.error("Crawl4AI is not initialized, cannot analyze website.")
-            return {"platform": "website", "content": [], "error": "Crawl4AI not available"}
+        self.crawl_count = 0  # Reset crawl count for each analysis
 
         try:
-            logger.info(f"Starting website analysis for competitor {competitor_id}, URL: {url}")
+            logger.info(f"🌐 Starting intelligent website analysis for {competitor_name}")
+            
+            if not CRAWL4AI_AVAILABLE:
+                return {
+                    "platform": "website", 
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [], 
+                    "error": "Crawl4AI not available"
+                }
 
-            competitor = await self._get_competitor(competitor_id)
-            if not competitor:
-                logger.error(f"Competitor {competitor_id} not found in database")
-                return {"platform": "website", "content": [], "error": "Competitor not found"}
+            # Step 1: Generate intelligent URLs to crawl
+            urls_to_crawl = await self._generate_intelligent_urls(competitor_name)
+            logger.info(f"🔍 Generated {len(urls_to_crawl)} intelligent URLs to crawl")
 
-            analysis_prompt = self._build_analysis_prompt(competitor)
+            if not urls_to_crawl:
+                logger.info(f"ℹ️  No URLs found to crawl for {competitor_name}")
+                return {
+                    "platform": "website",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": f"No crawlable URLs found for {competitor_name}"
+                }
 
-            # Use Crawl4AI to crawl and extract information
-            logger.info(f"Running Crawl4AI on {url} with prompt...")
-            result = await self.crawler.run_async(url=url, user_prompt=analysis_prompt)
+            # Step 2: Crawl and analyze websites
+            all_content = await self._crawl_websites_intelligently(urls_to_crawl, competitor_name)
+            logger.info(f"📰 Crawled {len(all_content)} website pages")
 
-            if not result or not result.extracted_data:
-                logger.warning(f"Crawl4AI did not extract any data for {url}")
-                return {"platform": "website", "content": [], "status": "completed", "analysis_summary": "No data extracted"}
+            if not all_content:
+                logger.info(f"ℹ️  No website content extracted for {competitor_name}")
+                return {
+                    "platform": "website",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": f"No website content extracted for {competitor_name}"
+                }
 
-            logger.info(f"Crawl4AI extracted {len(result.extracted_data)} data points.")
+            # Step 3: Analyze and process content
+            processed_posts = []
+            alerts_created = 0
 
-            # Process the extracted data
-            processed_content = await self._process_extracted_data(competitor_id, result.extracted_data)
+            for content_item in all_content:
+                try:
+                    # Analyze content using AI
+                    analysis_result = await self._analyze_content_intelligence(content_item, competitor_name)
+                    
+                    # Create monitoring data
+                    post_data = self._create_monitoring_data(content_item, analysis_result, competitor_id)
+                    
+                    # Check for existing content
+                    existing_content = await supabase_client.check_existing_post(
+                        competitor_id, 'website', content_item.get('content_hash', '')
+                    )
+                    
+                    if existing_content:
+                        # Check for content changes
+                        if self._has_content_changed(existing_content, post_data):
+                            # Update existing content
+                            updated = await supabase_client.update_post_content(
+                                existing_content['id'], post_data
+                            )
+                            if updated and analysis_result['is_alert_worthy']:
+                                await self._create_content_change_alert(competitor_id, content_item, analysis_result, existing_content['id'])
+                                alerts_created += 1
+                        continue
+                    
+                    # Save new content to Supabase
+                    data_id = await supabase_client.save_monitoring_data(post_data)
+                    
+                    if data_id:
+                        processed_posts.append({
+                            "id": data_id,
+                            "post_id": content_item.get('content_hash', ''),
+                            "title": content_item.get('title', ''),
+                            "url": content_item.get('url', ''),
+                            "ai_analysis": analysis_result['summary'],
+                            "is_alert_worthy": analysis_result['is_alert_worthy'],
+                            "alert_reason": analysis_result.get('alert_reason', '')
+                        })
+                        
+                        logger.info(f"✅ Saved website content: {content_item.get('title', 'Unknown')[:50]}...")
+                        
+                        # Create alert if deemed significant
+                        if analysis_result['is_alert_worthy']:
+                            await self._create_intelligent_alert(competitor_id, content_item, analysis_result, data_id)
+                            alerts_created += 1
+                            logger.info(f"🚨 Created alert for significant content: {content_item.get('title', 'Unknown')[:50]}...")
 
+                except Exception as e:
+                    logger.error(f"❌ Error processing website content: {e}")
+                    continue
+
+            logger.info(f"✅ Website analysis completed for {competitor_name}")
+            logger.info(f"   📊 Processed {len(processed_posts)} content items")
+            logger.info(f"   🚨 Created {alerts_created} alerts")
+            
             return {
                 "platform": "website",
-                "content": processed_content,
+                "competitor_id": competitor_id,
+                "competitor_name": competitor_name,
                 "status": "completed",
-                "analysis_summary": f"Extracted {len(processed_content)} significant findings."
+                "posts": processed_posts,
+                "analysis_summary": f"Intelligently analyzed {len(processed_posts)} website pages for {competitor_name}. Created {alerts_created} alerts for significant content.",
+                "insights": {
+                    "total_pages_analyzed": len(processed_posts),
+                    "alerts_created": alerts_created,
+                    "urls_crawled": len(urls_to_crawl),
+                    "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                }
             }
-
+            
         except Exception as e:
-            logger.error(f"Error in website analysis for competitor {competitor_id}: {e}")
-            return {"platform": "website", "content": [], "error": str(e)}
-
-    def _build_analysis_prompt(self, competitor: Competitor) -> str:
-        """Build the analysis prompt for Crawl4AI"""
-        return f"""
-        Analyze the website of competitor "{competitor.name}" in the {competitor.industry} industry.
-        Focus on content updated in the last 24-48 hours if possible.
-
-        Extract the following information:
-        1.  **Product Launches & Updates**: Identify any new products, services, or significant updates to existing ones. Look for phrases like "new", "introducing", "updated", "version 2.0".
-        2.  **Pricing Changes & Promotions**: Find any changes in pricing, new subscription plans, special offers, or discounts. Look for pages like "pricing", "plans", "sale", "offers".
-        3.  **New Features & Capabilities**: Detail any newly announced features or capabilities of their products/services.
-        4.  **Brand Messaging & Positioning**: Analyze the key marketing messages on the homepage and about page. What is their value proposition?
-        5.  **Customer Testimonials & Case Studies**: Extract any new customer testimonials or case studies that showcase their success.
-        6.  **Content & SEO**: Extract meta tags (title, description), keywords, and H1 tags from key pages like the homepage and product pages.
-
-        For each finding, provide the extracted text, the source URL, and a brief summary of its significance.
-        """
-
-    async def _process_extracted_data(self, competitor_id: str, extracted_data: List[Dict]) -> List[Dict]:
-        """Process data extracted by Crawl4AI and create alerts for significant findings."""
-        processed_content = []
-        for item in extracted_data:
-            try:
-                # Assess if the finding is significant enough for an alert
-                alert_assessment = await self._assess_finding_for_alert(item)
-
-                if alert_assessment.get("create_alert"):
-                    await self._create_website_alert(competitor_id, item, alert_assessment)
-
-                    processed_item = {
-                        "type": "website_finding",
-                        "alert_created": True,
-                        "priority": alert_assessment.get('priority', 'medium'),
-                        "summary": alert_assessment.get('summary'),
-                        "data": item
-                    }
-                    processed_content.append(processed_item)
-
-            except Exception as e:
-                logger.error(f"Error processing extracted website data item: {e}")
-
-        logger.info(f"Processed {len(extracted_data)} extracted items, created {len(processed_content)} alerts.")
-        return processed_content
-
-    async def _assess_finding_for_alert(self, finding: Dict) -> Dict:
-        """Use AI to assess if a website finding warrants an alert."""
-
-        prompt = f"""
-        Analyze this extracted website content for competitor analysis and determine if it warrants creating an alert.
-
-        EXTRACTED CONTENT:
-        {json.dumps(finding, indent=2)}
-
-        ASSESSMENT CRITERIA:
-        Determine if the content indicates any of the following alert-worthy events:
-        - A new product or service launch.
-        - Significant changes to pricing or plans.
-        - A major new feature announcement.
-        - A strategic shift in brand messaging.
-        - A high-profile customer case study.
-
-        RESPONSE FORMAT:
-        Provide a JSON response with:
-        {{
-            "create_alert": true/false,
-            "priority": "low/medium/high",
-            "summary": "Brief summary of why an alert is or isn't needed",
-            "alert_type": "product_launch/pricing_change/new_feature/messaging_shift/case_study/other"
-        }}
-
-        Be selective - only recommend alerts for truly significant competitive events. A minor blog post or a small text change is not alert-worthy.
-        """
-
-        if not self.llm:
-            return {"create_alert": False, "summary": "LLM not available for assessment"}
-
-        try:
-            response = await self.llm.ainvoke(prompt)
-            content = response.content.strip()
-
-            # Extract JSON from response
-            match = re.search(r'\{.*\}', content, re.DOTALL)
-            if match:
-                json_str = match.group(0)
-                return json.loads(json_str)
-            else:
-                logger.error(f"Failed to parse AI response as JSON: {content}")
-                return {"create_alter": False, "summary": "AI response parsing failed"}
-
-        except Exception as e:
-            logger.error(f"Error assessing content for alerts: {e}")
-            return {"create_alert": False, "summary": f"Assessment error: {e}"}
-
-    async def _create_website_alert(self, competitor_id: str, finding: Dict, alert_assessment: Dict) -> None:
-        """Create an alert record for a significant website finding."""
-        try:
-            competitor = await self._get_competitor(competitor_id)
-            if not competitor:
-                logger.error(f"Cannot create alert: competitor {competitor_id} not found")
-                return
-
-            alert_type = f"website_{alert_assessment.get('alert_type', 'finding')}"
-            priority = alert_assessment.get('priority', 'medium')
-            title = f"Website Intelligence: {alert_assessment.get('alert_type', 'Significant Finding').replace('_', ' ').title()}"
-            message = alert_assessment.get('summary', 'AI analysis detected a significant change on the competitor website.')
-
-            alert_metadata = {
+            logger.error(f"❌ Error in intelligent website analysis for competitor {competitor_id}: {e}")
+            return {
                 "platform": "website",
-                "source_url": finding.get("source_url"),
-                "extracted_data": finding,
-                "ai_assessment": alert_assessment,
+                "competitor_id": competitor_id,
+                "competitor_name": competitor_name,
+                "status": "failed",
+                "posts": [],
+                "error": str(e)
             }
 
-            await self.monitoring_service.create_alert(
-                user_id=competitor.user_id,
-                competitor_id=competitor_id,
-                alert_type=alert_type,
-                title=title,
-                message=message,
-                priority=priority,
-                alert_metadata=alert_metadata
-            )
-            logger.info(f"🚨 Created website intelligence alert: {alert_type}")
-
-        except Exception as e:
-            logger.error(f"Error creating website alert: {e}")
-
-    async def _get_competitor(self, competitor_id: str) -> Optional[Competitor]:
-        """Get competitor from database"""
+    async def _generate_intelligent_urls(self, competitor_name: str) -> List[str]:
+        """Generate intelligent URLs to crawl using AI or heuristics"""
         try:
-            result = await self.db.execute(
-                select(Competitor).where(Competitor.id == competitor_id)
-            )
-            return result.scalar_one_or_none()
+            if self.llm:
+                # Use AI to generate intelligent URLs
+                prompt = f"""
+Generate 5-8 intelligent website URLs to crawl for the competitor "{competitor_name}".
+
+The URLs should target:
+1. Main company website homepage
+2. News/press releases page
+3. Products/services page
+4. About us page
+5. Blog or insights page
+6. Careers page
+7. Investor relations page
+
+Generate realistic URLs for "{competitor_name}" following common website patterns.
+Return only the URLs, one per line, without additional text.
+
+Example format:
+https://www.{competitor_name.lower().replace(' ', '')}.com
+https://www.{competitor_name.lower().replace(' ', '')}.com/news
+https://www.{competitor_name.lower().replace(' ', '')}.com/products
+"""
+                
+                response = await self.llm.ainvoke(prompt)
+                urls = [url.strip() for url in response.content.strip().split('\n') if url.strip().startswith('http')]
+                
+                # Filter and validate URLs
+                valid_urls = []
+                for url in urls[:8]:  # Limit to 8 URLs
+                    if self._is_valid_url(url):
+                        valid_urls.append(url)
+                
+                if valid_urls:
+                    logger.info(f"🧠 AI generated {len(valid_urls)} URLs to crawl")
+                    return valid_urls
+            
+            # Fallback to heuristic URLs
+            logger.info("🔍 Using heuristic URL generation")
+            return self._generate_heuristic_urls(competitor_name)
+            
         except Exception as e:
-            logger.error(f"Error getting competitor {competitor_id}: {e}")
-            return None
+            logger.error(f"❌ Error generating URLs: {e}")
+            return self._generate_heuristic_urls(competitor_name)
+
+    def _generate_heuristic_urls(self, competitor_name: str) -> List[str]:
+        """Generate URLs using heuristics"""
+        # Clean competitor name for URL generation
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '', competitor_name.lower())
+        
+        base_patterns = [
+            f"https://www.{clean_name}.com",
+            f"https://{clean_name}.com",
+            f"https://www.{clean_name}.io",
+            f"https://{clean_name}.io"
+        ]
+        
+        # Try to find valid base URL first
+        for base_url in base_patterns:
+            if self._is_potentially_valid_domain(base_url):
+                return [
+                    base_url,
+                    f"{base_url}/news",
+                    f"{base_url}/press",
+                    f"{base_url}/products",
+                    f"{base_url}/about",
+                    f"{base_url}/blog",
+                    f"{base_url}/careers",
+                    f"{base_url}/investors"
+                ]
+        
+        # If no patterns match, return the first pattern as fallback
+        return [base_patterns[0]]
+
+    def _is_valid_url(self, url: str) -> bool:
+        """Check if URL is valid"""
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except:
+            return False
+
+    def _is_potentially_valid_domain(self, url: str) -> bool:
+        """Check if domain could potentially be valid (simple heuristic)"""
+        try:
+            result = urlparse(url)
+            domain = result.netloc.lower()
+            # Basic checks for common patterns
+            return len(domain) > 4 and '.' in domain and not any(char in domain for char in [' ', '<', '>', '"'])
+        except:
+            return False
+
+    async def _crawl_websites_intelligently(self, urls: List[str], competitor_name: str) -> List[Dict[str, Any]]:
+        """Crawl websites using isolated intelligent extraction"""
+        try:
+            logger.info(f"🔒 Using isolated crawler for {len(urls)} URLs")
+            
+            # Prepare extraction configuration for isolated crawler
+            extraction_config = None
+            if self.llm and LANGCHAIN_AVAILABLE:
+                extraction_config = {
+                    'use_llm': True,
+                    'api_key': settings.GOOGLE_API_KEY,
+                    'schema': {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "main_content": {"type": "string"},
+                            "key_announcements": {"type": "array", "items": {"type": "string"}},
+                            "product_updates": {"type": "array", "items": {"type": "string"}},
+                            "business_updates": {"type": "array", "items": {"type": "string"}}
+                        }
+                    }
+                }
+            
+            # Use isolated crawler
+            all_content = []
+            try:
+                # Limit URLs to crawl limit
+                urls_to_crawl = urls[:self.crawl_limit]
+                logger.info(f"🕷️ Starting isolated crawling for {len(urls_to_crawl)} URLs")
+                
+                # Crawl using isolated environment
+                results = await crawl_websites_isolated(
+                    urls=urls_to_crawl,
+                    extraction_config=extraction_config,
+                    max_concurrent=3
+                )
+                
+                # Process results
+                for result in results:
+                    if result.get('status') == 'success':
+                        content_item = {
+                            'url': result['url'],
+                            'title': result.get('title', ''),
+                            'content': result.get('content', ''),
+                            'extracted_data': result.get('extracted_data', {}),
+                            'crawled_at': result.get('crawled_at', datetime.now(timezone.utc).isoformat()),
+                            'content_hash': result.get('content_hash', '')
+                        }
+                        
+                        # Only include if there's meaningful content
+                        if len(content_item['content']) > 100:  # At least 100 characters
+                            all_content.append(content_item)
+                            self.crawl_count += 1
+                            logger.info(f"   ✅ Extracted content from {result['url']}")
+                        else:
+                            logger.info(f"   ⚠️  Insufficient content from {result['url']}")
+                    else:
+                        logger.warning(f"   ❌ Failed to crawl {result['url']}: {result.get('error', 'Unknown error')}")
+                
+                logger.info(f"📊 Successfully crawled {len(all_content)} websites using isolated crawler")
+                
+            except Exception as e:
+                logger.error(f"❌ Error with isolated crawler: {e}")
+                # Fallback to direct crawling if isolated crawler fails
+                logger.info("🔄 Falling back to direct crawling...")
+                all_content = await self._fallback_direct_crawling(urls[:self.crawl_limit])
+            
+            return all_content
+            
+        except Exception as e:
+            logger.error(f"❌ Error in intelligent website crawling: {e}")
+            return []
+
+    async def _fallback_direct_crawling(self, urls: List[str]) -> List[Dict[str, Any]]:
+        """Fallback method for direct crawling when isolated crawler fails"""
+        try:
+            logger.info("🔄 Using fallback direct crawling method")
+            all_content = []
+            
+            if not CRAWL4AI_AVAILABLE:
+                logger.warning("⚠️  Crawl4AI not available for fallback")
+                return []
+            
+            async with AsyncWebCrawler(verbose=False) as crawler:
+                for url in urls:
+                    if self.crawl_count >= self.crawl_limit:
+                        break
+                        
+                    try:
+                        logger.info(f"🕷️ Fallback crawling: {url}")
+                        
+                        # Simple crawling without LLM extraction
+                        result = await crawler.arun(
+                            url=url,
+                            bypass_cache=True,
+                            user_agent="Mozilla/5.0 (compatible; CompetitorBot/1.0)"
+                        )
+                        
+                        self.crawl_count += 1
+                        
+                        if result.success:
+                            content_item = {
+                                'url': url,
+                                'title': result.title or '',
+                                'content': result.markdown[:2000] if result.markdown else '',
+                                'extracted_data': {},
+                                'crawled_at': datetime.now(timezone.utc).isoformat(),
+                                'content_hash': hashlib.md5((result.markdown or '').encode()).hexdigest()
+                            }
+                            
+                            # Only include if there's meaningful content
+                            if len(content_item['content']) > 100:
+                                all_content.append(content_item)
+                                logger.info(f"   ✅ Fallback extracted content from {url}")
+                            else:
+                                logger.info(f"   ⚠️  Insufficient content from {url}")
+                        else:
+                            logger.warning(f"   ❌ Fallback failed to crawl {url}: {result.error_message}")
+                    
+                    except Exception as e:
+                        logger.error(f"❌ Error in fallback crawling {url}: {e}")
+                        continue
+
+            logger.info(f"📊 Fallback crawling completed: {len(all_content)} websites")
+            return all_content
+            
+        except Exception as e:
+            logger.error(f"❌ Error in fallback direct crawling: {e}")
+            return []
+
+    async def _analyze_content_intelligence(self, content_item: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
+        """Analyze website content using AI to determine significance"""
+        try:
+            if self.llm:
+                return await self._ai_content_analysis(content_item, competitor_name)
+            else:
+                return self._heuristic_content_analysis(content_item, competitor_name)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in content intelligence analysis: {e}")
+            return self._heuristic_content_analysis(content_item, competitor_name)
+
+    async def _ai_content_analysis(self, content_item: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
+        """Use AI to analyze website content for competitive intelligence"""
+        try:
+            title = content_item.get('title', '')
+            content = content_item.get('content', '')[:1500]  # First 1500 chars
+            url = content_item.get('url', '')
+            extracted_data = content_item.get('extracted_data', {})
+            
+            prompt = f"""
+Analyze this website content for competitive intelligence about "{competitor_name}":
+
+URL: {url}
+TITLE: {title}
+CONTENT: {content}
+EXTRACTED DATA: {json.dumps(extracted_data, default=str)[:500]}
+
+Your analysis should determine:
+1. Is this content ALERT-WORTHY for competitive intelligence?
+2. What are the key business insights about the competitor?
+3. What strategic implications does this have?
+
+ALERT-WORTHY criteria for website content:
+- New product launches or major updates
+- Significant business announcements
+- Strategic partnerships or acquisitions
+- Major website redesigns or rebranding
+- Pricing changes or new service offerings
+- Leadership announcements or company pivots
+- Crisis communications or negative developments
+- Regulatory compliance or legal updates
+
+Provide your response in this JSON format:
+{{
+    "is_alert_worthy": true/false,
+    "alert_reason": "Brief reason if alert-worthy, null if not",
+    "significance_score": 1-10,
+    "summary": "Brief competitive intelligence summary (max 200 words)",
+    "key_insights": ["insight1", "insight2", "insight3"],
+    "content_type": "homepage/product/news/blog/about/other",
+    "competitive_impact": "high/medium/low",
+    "urgency": "immediate/high/medium/low",
+    "changes_detected": ["change1", "change2"] or []
+}}
+
+Be selective with alerts - only flag truly significant competitive intelligence.
+"""
+            
+            response = await self.llm.ainvoke(prompt)
+            
+            # Parse JSON response
+            try:
+                content_str = response.content.strip()
+                if content_str.startswith('{') and content_str.endswith('}'):
+                    analysis = json.loads(content_str)
+                else:
+                    # Extract JSON from response
+                    start = content_str.find('{')
+                    end = content_str.rfind('}') + 1
+                    if start != -1 and end != 0:
+                        json_str = content_str[start:end]
+                        analysis = json.loads(json_str)
+                    else:
+                        raise ValueError("No JSON found in response")
+                
+                # Validate required fields
+                required_fields = ['is_alert_worthy', 'summary', 'significance_score']
+                if all(field in analysis for field in required_fields):
+                    logger.info(f"🧠 AI analysis completed: Significance {analysis.get('significance_score', 0)}/10")
+                    return analysis
+                else:
+                    logger.warning(f"⚠️  AI response missing required fields, using fallback")
+                    return self._heuristic_content_analysis(content_item, competitor_name)
+                    
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"❌ Failed to parse AI response: {e}")
+                return self._heuristic_content_analysis(content_item, competitor_name)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in AI content analysis: {e}")
+            return self._heuristic_content_analysis(content_item, competitor_name)
+
+    def _heuristic_content_analysis(self, content_item: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
+        """Heuristic analysis when AI is not available"""
+        title = content_item.get('title', '').lower()
+        content = content_item.get('content', '').lower()
+        url = content_item.get('url', '').lower()
+        extracted_data = content_item.get('extracted_data', {})
+        
+        # Check for alert-worthy keywords
+        alert_keywords = [
+            'launch', 'new', 'announcement', 'update', 'partnership', 'acquisition',
+            'merger', 'funding', 'expansion', 'product', 'service', 'pricing'
+        ]
+        
+        # Check URL type
+        url_indicators = {
+            'news': 'news' in url or 'press' in url or 'blog' in url,
+            'product': 'product' in url or 'service' in url,
+            'about': 'about' in url or 'company' in url,
+            'homepage': url.count('/') <= 3
+        }
+        
+        # Check for alert keywords in title/content
+        has_alert_keywords = any(keyword in title or keyword in content for keyword in alert_keywords)
+        
+        # Check extracted data for significant information
+        has_extracted_updates = any(
+            extracted_data.get(key, []) for key in ['key_announcements', 'product_updates', 'business_updates']
+        )
+        
+        # Determine significance
+        significance_score = 1
+        is_alert_worthy = False
+        alert_reason = None
+        
+        if url_indicators['news'] and has_alert_keywords:
+            is_alert_worthy = True
+            alert_reason = "News/Press page with significant keywords"
+            significance_score = 8
+        elif url_indicators['product'] and has_alert_keywords:
+            is_alert_worthy = True
+            alert_reason = "Product page with update keywords"
+            significance_score = 7
+        elif has_extracted_updates:
+            is_alert_worthy = True
+            alert_reason = "Extracted structured business updates"
+            significance_score = 6
+        elif url_indicators['homepage'] and has_alert_keywords:
+            is_alert_worthy = True
+            alert_reason = "Homepage with significant announcements"
+            significance_score = 7
+        
+        # Generate summary
+        content_type = 'homepage' if url_indicators['homepage'] else (
+            'news' if url_indicators['news'] else (
+                'product' if url_indicators['product'] else (
+                    'about' if url_indicators['about'] else 'other'
+                )
+            )
+        )
+        
+        summary = f"Website analysis for {competitor_name}: '{title}' from {content_type} page. "
+        
+        if has_alert_keywords:
+            summary += "Contains business-significant keywords. "
+        if has_extracted_updates:
+            summary += "Structured business updates detected. "
+        
+        return {
+            "is_alert_worthy": is_alert_worthy,
+            "alert_reason": alert_reason,
+            "significance_score": significance_score,
+            "summary": summary,
+            "key_insights": [
+                f"Content type: {content_type}",
+                f"Contains business keywords: {has_alert_keywords}",
+                f"Structured updates: {has_extracted_updates}",
+                f"URL: {content_item.get('url', '')}"
+            ],
+            "content_type": content_type,
+            "competitive_impact": "high" if significance_score >= 7 else ("medium" if significance_score >= 5 else "low"),
+            "urgency": "high" if significance_score >= 8 else ("medium" if significance_score >= 6 else "low"),
+            "changes_detected": list(extracted_data.get('key_announcements', [])) + list(extracted_data.get('product_updates', []))
+        }
+
+    def _create_monitoring_data(self, content_item: Dict[str, Any], analysis_result: Dict[str, Any], competitor_id: str) -> Dict[str, Any]:
+        """Create monitoring data structure for Supabase"""
+        content_text = f"{content_item.get('title', '')}\n\n{content_item.get('content', '')[:1000]}"
+        
+        return {
+            'competitor_id': str(competitor_id),
+            'platform': 'website',
+            'post_id': content_item.get('content_hash', ''),
+            'post_url': content_item.get('url', ''),
+            'content_text': content_text,
+            'content_hash': content_item.get('content_hash', ''),
+            'media_urls': [],  # Website content typically doesn't have direct media URLs
+            'engagement_metrics': {
+                'significance_score': analysis_result.get('significance_score', 0),
+                'content_length': len(content_item.get('content', ''))
+            },
+            'author_username': 'website',
+            'author_display_name': 'Official Website',
+            'post_type': analysis_result.get('content_type', 'webpage'),
+            'language': 'en',  # Default to English
+            'sentiment_score': 0.0,  # Default neutral
+            'detected_at': datetime.now(timezone.utc).isoformat(),
+            'posted_at': content_item.get('crawled_at', datetime.now(timezone.utc).isoformat()),
+            'is_new_post': True,
+            'is_content_change': False
+        }
+
+    def _has_content_changed(self, existing_content: Dict[str, Any], new_content: Dict[str, Any]) -> bool:
+        """Check if website content has changed significantly"""
+        old_hash = existing_content.get('content_hash', '')
+        new_hash = new_content.get('content_hash', '')
+        return old_hash != new_hash
+
+    async def _create_intelligent_alert(self, competitor_id: str, content_item: Dict[str, Any], analysis_result: Dict[str, Any], data_id: str):
+        """Create an intelligent alert for significant website content"""
+        try:
+            # Get competitor details to get user_id
+            competitor_details = await supabase_client.get_competitor_details(competitor_id)
+            user_id = competitor_details.get('user_id') if competitor_details else None
+            
+            alert_data = {
+                'user_id': user_id,
+                'competitor_id': str(competitor_id),
+                'monitoring_data_id': data_id,
+                'alert_type': 'website_intelligence',
+                'priority': analysis_result.get('urgency', 'medium'),
+                'title': f"Website Alert: {content_item.get('title', 'Significant Content')[:100]}",
+                'message': analysis_result.get('alert_reason', 'AI detected significant website activity'),
+                'alert_metadata': {
+                    'platform': 'website',
+                    'content_url': content_item.get('url', ''),
+                    'content_type': analysis_result.get('content_type', 'unknown'),
+                    'ai_analysis': {
+                        'significance_score': analysis_result.get('significance_score', 0),
+                        'competitive_impact': analysis_result.get('competitive_impact', 'unknown'),
+                        'urgency': analysis_result.get('urgency', 'unknown'),
+                        'key_insights': analysis_result.get('key_insights', []),
+                        'changes_detected': analysis_result.get('changes_detected', []),
+                        'analysis_timestamp': datetime.now(timezone.utc).isoformat()
+                    }
+                },
+                'is_read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            
+            alert_id = await supabase_client.create_alert(alert_data)
+            if alert_id:
+                logger.info(f"🚨 Created intelligent website alert: {alert_id}")
+            else:
+                logger.error("❌ Failed to create alert in Supabase")
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating intelligent alert: {e}")
+
+    async def _create_content_change_alert(self, competitor_id: str, content_item: Dict[str, Any], analysis_result: Dict[str, Any], data_id: str):
+        """Create an alert for website content changes"""
+        try:
+            # Get competitor details to get user_id
+            competitor_details = await supabase_client.get_competitor_details(competitor_id)
+            user_id = competitor_details.get('user_id') if competitor_details else None
+            
+            alert_data = {
+                'user_id': user_id,
+                'competitor_id': str(competitor_id),
+                'monitoring_data_id': data_id,
+                'alert_type': 'website_content_change',
+                'priority': 'medium',
+                'title': f"Website Update: {content_item.get('title', 'Content Changed')[:100]}",
+                'message': f"Website content has been updated: {analysis_result.get('alert_reason', 'Significant changes detected')}",
+                'alert_metadata': {
+                    'platform': 'website',
+                    'content_url': content_item.get('url', ''),
+                    'change_type': 'content_update',
+                    'ai_analysis': analysis_result,
+                    'detected_at': datetime.now(timezone.utc).isoformat()
+                },
+                'is_read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            
+            alert_id = await supabase_client.create_alert(alert_data)
+            if alert_id:
+                logger.info(f"🔄 Created website content change alert: {alert_id}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating content change alert: {e}")
 
     async def close(self):
         """Close any resources"""
-        logger.info("WebsiteAgent closed")
-        pass
+        logger.info("🌐 Intelligent WebsiteAgent closed")

@@ -16,8 +16,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-# Import supervisor agent - LangGraph dependencies will always be available
-from app.services.monitoring.agents.supervisor import SupervisorAgent
+# Supervisor agent removed - using simplified monitoring service instead
 
 router = APIRouter()
 
@@ -341,26 +340,33 @@ async def scan_all_competitors(
                 "user_id": user_id
             }
         
-        # Initialize supervisor agent
-        supervisor_agent = SupervisorAgent(db)
-        logger.info(f"Initialized supervisor agent for user {user_id}")
+        # Initialize simple monitoring service
+        from app.services.monitoring import SimpleMonitoringService
+        monitoring_service = SimpleMonitoringService()
+        logger.info(f"Initialized simple monitoring service for user {user_id}")
         
-        # Trigger supervisor agent for all active competitors
+        # Trigger monitoring for all active competitors sequentially
         current_time = datetime.now(timezone.utc)
         
-        # Start scanning all active competitors concurrently
-        scan_tasks = []
+        # Start scanning all active competitors sequentially
+        scan_results = []
         for competitor in active_competitors:
             logger.info(f"🔍 Starting scan for competitor {competitor.name} (ID: {competitor.id}) for user {user_id}")
             logger.info(f"   📊 Social media handles: {competitor.social_media_handles}")
             logger.info(f"   📱 Platforms: {competitor.platforms}")
-            task = supervisor_agent.analyze_competitor(str(competitor.id))
-            scan_tasks.append(task)
+            try:
+                # Ensure we're in the right async context
+                # Pass competitor name since orchestrator no longer queries database
+                result = await monitoring_service.run_monitoring_for_competitor(
+                    str(competitor.id), 
+                    competitor.name
+                )
+                scan_results.append(result)
+                logger.info(f"✅ Scan completed for {competitor.name}")
+            except Exception as e:
+                logger.error(f"❌ Scan failed for {competitor.name}: {e}")
+                scan_results.append({"error": str(e)})
         
-        logger.info(f"Started {len(scan_tasks)} concurrent scan tasks for user {user_id}")
-        
-        # Wait for all scans to complete
-        scan_results = await asyncio.gather(*scan_tasks, return_exceptions=True)
         logger.info(f"Completed {len(scan_results)} scan tasks for user {user_id}")
         
         # Process results
@@ -398,30 +404,29 @@ async def scan_all_competitors(
                     "error": result.get("error")
                 })
         
-        # Update last scan time for all competitors
-        for competitor in active_competitors:
-            competitor.last_scan_at = current_time
+        # Close the monitoring service properly
+        try:
+            await monitoring_service.close()
+            logger.info("✅ Monitoring service closed successfully")
+        except Exception as e:
+            logger.warning(f"⚠️  Warning: Could not close monitoring service: {e}")
         
-        await db.commit()
-        logger.info(f"Updated last_scan_at for {active_count} competitors for user {user_id}")
-        
-        logger.info(f"Scan completed for user {user_id}: {successful_scans} successful, {failed_scans} failed out of {active_count} active competitors")
-        
+        # Return comprehensive scan results
         return {
-            "message": f"Scan completed for {active_count} active competitors",
-            "competitors_scanned": active_count,
+            "message": f"Scan completed for {len(active_competitors)} active competitors",
+            "competitors_scanned": len(active_competitors),
             "total_competitors": len(competitors),
             "active_competitors": active_count,
             "successful_scans": successful_scans,
             "failed_scans": failed_scans,
             "scan_started_at": current_time.isoformat(),
+            "scan_completed_at": datetime.now(timezone.utc).isoformat(),
             "scan_details": scan_details,
             "user_id": user_id
         }
-    except HTTPException:
-        raise
+        
     except Exception as e:
-        logger.error(f"Error scanning all competitors for user {user_id}: {e}")
+        logger.error(f"❌ Error scanning all competitors for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to complete competitor scans"
@@ -450,11 +455,12 @@ async def scan_competitor(
         
         current_time = datetime.now(timezone.utc)
         
-        # Initialize supervisor agent and trigger analysis
-        supervisor_agent = SupervisorAgent(db)
+        # Initialize simple monitoring service and trigger analysis
+        from app.services.monitoring import SimpleMonitoringService
+        monitoring_service = SimpleMonitoringService()
         
         # Start the competitor analysis
-        scan_result = await supervisor_agent.analyze_competitor(competitor_id)
+        scan_result = await monitoring_service.run_monitoring_for_competitor(competitor_id)
         
         # Update last scan time
         competitor.last_scan_at = current_time

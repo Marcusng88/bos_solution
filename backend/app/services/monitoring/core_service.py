@@ -2,6 +2,9 @@
 Core Monitoring service for business logic
 """
 
+import sys
+import asyncio
+import platform
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +15,10 @@ from app.schemas.monitoring import MonitoringDataCreate, MonitoringAlertCreate
 import hashlib
 import logging
 import sys
+
+# Import and setup Windows compatibility early
+from app.core.windows_compatibility import setup_windows_compatibility
+setup_windows_compatibility()
 
 # Configure logging to output to terminal with colors and formatting
 logger = logging.getLogger(__name__)

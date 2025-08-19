@@ -1,6 +1,6 @@
 """
-YouTube Sub-Agent for Competitor Analysis
-Uses YouTube Data API with LangGraph agent to analyze YouTube channels and videos
+Intelligent YouTube Sub-Agent for Competitor Analysis
+Uses YouTube Data API intelligently to analyze competitor videos from today only
 """
 
 import asyncio
@@ -10,18 +10,18 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-import logging
+# Import Windows compatibility utilities
+from app.core.windows_compatibility import setup_windows_compatibility
+
+# Set up logger for this module
 logger = logging.getLogger(__name__)
+
 # Import langchain dependencies conditionally
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI
-    from langgraph.prebuilt import create_react_agent
-    from langchain_core.tools import tool
     LANGCHAIN_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"LangChain dependencies not available: {e}")
+    logger.warning(f"⚠️  LangChain dependencies not available: {e}")
     LANGCHAIN_AVAILABLE = False
 
 # Import Google API dependencies conditionally
@@ -30,834 +30,556 @@ try:
     from googleapiclient.errors import HttpError
     GOOGLE_API_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"Google API dependencies not available: {e}")
+    logger.warning(f"⚠️  Google API dependencies not available: {e}")
     GOOGLE_API_AVAILABLE = False
 
-from app.models.competitor import Competitor
-from app.models.monitoring import MonitoringData, MonitoringAlert
 from app.core.config import settings
-from ...core_service import MonitoringService
-
-logger = logging.getLogger(__name__)
+from app.services.monitoring.supabase_client import supabase_client
 
 
 class YouTubeAgent:
-    """YouTube-specific agent for competitor analysis using YouTube Data API"""
+    """Intelligent YouTube agent for competitor analysis using YouTube Data API"""
     
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.monitoring_service = MonitoringService(db)
+    def __init__(self):
+        logger.info("🎬 Intelligent YouTubeAgent initializing...")
         
-        # Initialize LLM only if langchain is available
+        # Initialize LLM for intelligent analysis
         self.llm = None
         if LANGCHAIN_AVAILABLE:
             try:
                 self.llm = ChatGoogleGenerativeAI(
                     model="gemini-2.5-flash-lite",
                     api_key=settings.GOOGLE_API_KEY,
-                    temperature=0
+                    temperature=0.3  # Slightly more creative for search terms
                 )
+                logger.info("✅ LLM initialized successfully")
             except Exception as e:
-                logger.warning(f"Failed to initialize LLM: {e}")
+                logger.warning(f"⚠️  Failed to initialize LLM: {e}")
+        else:
+            logger.info("ℹ️  LLM not available - will use heuristic analysis")
         
         # Initialize YouTube API client
         self.youtube_api = None
-        if GOOGLE_API_AVAILABLE and settings.youtube_api_key:
+        if GOOGLE_API_AVAILABLE and hasattr(settings, 'youtube_api_key') and settings.youtube_api_key:
             try:
                 self.youtube_api = build('youtube', 'v3', developerKey=settings.youtube_api_key)
-                logger.info("YouTube Data API client initialized successfully")
+                logger.info("✅ YouTube Data API client initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize YouTube API client: {e}")
+                logger.error(f"❌ Failed to initialize YouTube API client: {e}")
         elif not GOOGLE_API_AVAILABLE:
-            logger.warning("Google API client not available - YouTube analysis will be limited")
+            logger.warning("⚠️  Google API client not available - YouTube analysis will be limited")
+        elif not hasattr(settings, 'youtube_api_key') or not settings.youtube_api_key:
+            logger.warning("⚠️  No YouTube API key configured - YouTube analysis will be limited")
         
-        # Initialize agent
-        self.agent = None
-        self._initialized = False
+        logger.info("🎬 Intelligent YouTubeAgent initialization completed")
     
-    async def _initialize_agent(self):
-        """Initialize the YouTube agent with YouTube API tools"""
-        if self._initialized:
-            return
+    async def analyze_competitor(self, competitor_id: str, competitor_name: str = None) -> Dict[str, Any]:
+        """
+        Intelligently analyze a competitor's YouTube presence
         
+        Args:
+            competitor_id: Database ID of the competitor
+            competitor_name: Name of the competitor to search for
+            
+        Returns:
+            Dict containing analysis results and extracted videos
+        """
         try:
-            logger.info("Initializing YouTube agent with API tools...")
+            logger.info(f"🎬 Starting intelligent YouTube analysis for competitor {competitor_id}")
+            
+            # Use provided competitor name or fallback
+            if not competitor_name:
+                logger.warning(f"⚠️  No competitor name available for {competitor_id}")
+                competitor_name = f"Competitor_{competitor_id}"
+            
+            logger.info(f"🎯 Analyzing YouTube content for: {competitor_name}")
             
             if not self.youtube_api:
-                raise Exception("YouTube API client not available - check YOUTUBE_API_KEY")
+                logger.warning("⚠️  YouTube API not available - returning empty analysis")
+                return {
+                    "platform": "youtube",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": "YouTube API not available",
+                    "error": "YouTube API client not initialized"
+                }
             
-            if not LANGCHAIN_AVAILABLE:
-                raise Exception("LangChain dependencies not available - cannot create agent")
+            # Step 1: Generate intelligent search queries
+            search_queries = await self._generate_intelligent_search_queries(competitor_name)
+            logger.info(f"🔍 Generated {len(search_queries)} intelligent search queries")
             
-            if not self.llm:
-                raise Exception("LLM not available - cannot create agent")
+            # Step 2: Search for videos from today only
+            today_videos = await self._search_todays_videos(search_queries)
+            logger.info(f"📹 Found {len(today_videos)} videos from today")
             
-            # Create YouTube API tools
-            tools = self._create_youtube_tools()
-            logger.info(f"Created {len(tools)} YouTube API tools")
+            if not today_videos:
+                logger.info(f"ℹ️  No videos found from today for {competitor_name}")
+                return {
+                    "platform": "youtube",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": f"No YouTube videos found from today for {competitor_name}"
+                }
             
-            # Create agent with YouTube-specific prompt
-            logger.info("Creating LangGraph ReAct agent...")
-            self.agent = create_react_agent(
-                model=self.llm,
-                tools=tools,
-                prompt=(
-                    "You are a YouTube competitor analysis agent. Your job is to analyze YouTube channels and videos to extract valuable competitive intelligence.\n\n"
-                    "INSTRUCTIONS:\n"
-                    "1. Use the provided YouTube API tools to search for channels and analyze videos\n"
-                    "2. Focus ONLY on content from the last 24 hours (current day only)\n"
-                    "3. Search for up to 5 relevant channels associated with the competitor (not just one official channel)\n"
-                    "4. For each video found, analyze:\n"
-                    "   - Video content (title, description, captions)\n"
-                    "   - Engagement metrics (views, likes, comments)\n"
-                    "   - Comment sentiment and audience reaction\n"
-                    "   - Marketing strategy and messaging\n"
-                    "5. Use AI analysis to determine if each video represents a significant marketing event\n"
-                    "6. Only flag content as 'ALERT-WORTHY' if it shows:\n"
-                    "   - Unusually high engagement for the channel\n"
-                    "   - New product launches or announcements\n"
-                    "   - Viral marketing campaigns\n"
-                    "   - Significant strategic shifts\n"
-                    "   - Major brand partnerships or collaborations\n"
-                    "7. Return structured data with clear alert recommendations\n\n"
-                    "Remember: Be selective with alerts - only flag truly significant competitive events, not routine content."
-                ),
-                name="youtube_agent"
-            )
+            # Step 3: Analyze each video and determine significance
+            processed_posts = []
+            alerts_created = 0
             
-            self._initialized = True
-            logger.info("YouTube agent initialized successfully")
+            for video in today_videos:
+                try:
+                    # Get detailed video information
+                    video_details = await self._get_video_details(video['video_id'])
+                    if not video_details:
+                        continue
+                    
+                    # Analyze the video content using AI
+                    analysis_result = await self._analyze_video_intelligence(video_details, competitor_name)
+                    
+                    # Create monitoring data
+                    post_data = self._create_monitoring_data(video_details, analysis_result, competitor_id)
+                    
+                    # Save to Supabase
+                    data_id = await supabase_client.save_monitoring_data(post_data)
+                    
+                    if data_id:
+                        processed_posts.append({
+                            "id": data_id,
+                            "post_id": video_details['video_id'],
+                            "title": video_details['title'],
+                            "url": video_details['url'],
+                            "engagement": post_data["engagement_metrics"],
+                            "ai_analysis": analysis_result['summary'],
+                            "is_alert_worthy": analysis_result['is_alert_worthy'],
+                            "alert_reason": analysis_result.get('alert_reason', '')
+                        })
+                        
+                        logger.info(f"✅ Saved video: {video_details['title'][:50]}...")
+                        
+                        # Create alert if deemed significant
+                        if analysis_result['is_alert_worthy']:
+                            await self._create_intelligent_alert(competitor_id, video_details, analysis_result, data_id)
+                            alerts_created += 1
+                            logger.info(f"🚨 Created alert for significant video: {video_details['title'][:50]}...")
+                
+                except Exception as e:
+                    logger.error(f"❌ Error processing video: {e}")
+                    continue
+            
+            logger.info(f"✅ YouTube analysis completed for {competitor_name}")
+            logger.info(f"   📊 Processed {len(processed_posts)} videos")
+            logger.info(f"   🚨 Created {alerts_created} alerts")
+            
+            return {
+                "platform": "youtube",
+                "competitor_id": competitor_id,
+                "competitor_name": competitor_name,
+                "status": "completed",
+                "posts": processed_posts,
+                "analysis_summary": f"Intelligently analyzed {len(processed_posts)} YouTube videos from today for {competitor_name}. Created {alerts_created} alerts for significant content.",
+                "insights": {
+                    "total_videos_analyzed": len(processed_posts),
+                    "alerts_created": alerts_created,
+                    "search_queries_used": len(search_queries),
+                    "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            }
+                
+        except Exception as e:
+            logger.error(f"❌ Error in intelligent YouTube analysis for competitor {competitor_id}: {e}")
+            return {
+                "platform": "youtube",
+                "competitor_id": competitor_id,
+                "competitor_name": competitor_name or f"Competitor_{competitor_id}",
+                "status": "failed",
+                "posts": [],
+                "error": str(e)
+            }
+    
+    async def _generate_intelligent_search_queries(self, competitor_name: str) -> List[str]:
+        """Generate intelligent search queries using AI or heuristics"""
+        try:
+            if self.llm:
+                # Use AI to generate intelligent search queries
+                prompt = f"""
+Generate 5-7 intelligent YouTube search queries to find videos about the competitor "{competitor_name}" that were published today.
+
+The queries should be designed to find:
+1. Official company content
+2. News and announcements about the company
+3. Product launches or updates
+4. Reviews or mentions by others
+5. Industry discussions involving the company
+
+Return the queries as a simple list, one per line, without numbers or bullets.
+Make the queries specific and likely to return relevant results.
+
+Example format:
+{competitor_name} official
+{competitor_name} announcement today
+{competitor_name} product launch
+{competitor_name} news
+{competitor_name} review
+"""
+                
+                response = await self.llm.ainvoke(prompt)
+                queries = [q.strip() for q in response.content.strip().split('\n') if q.strip()]
+                
+                # Filter out empty queries and limit to 7
+                queries = [q for q in queries if len(q) > 3][:7]
+                
+                if queries:
+                    logger.info(f"🧠 AI generated {len(queries)} search queries")
+                    return queries
+            
+            # Fallback to heuristic queries
+            logger.info("🔍 Using heuristic search queries")
+            return self._generate_heuristic_queries(competitor_name)
             
         except Exception as e:
-            logger.error(f"Error initializing YouTube agent: {e}")
-            logger.error(f"Error details: {type(e).__name__}: {str(e)}")
-            raise
+            logger.error(f"❌ Error generating search queries: {e}")
+            return self._generate_heuristic_queries(competitor_name)
     
-    def _create_youtube_tools(self):
-        """Create YouTube API tools for the agent"""
-        
-        @tool
-        def search_youtube_channels(query: str, max_results: int = 10) -> List[Dict]:
-            """
-            Search for YouTube channels by name or keywords.
+    def _generate_heuristic_queries(self, competitor_name: str) -> List[str]:
+        """Generate search queries using heuristics"""
+        return [
+            f"{competitor_name}",
+            f"{competitor_name} official",
+            f"{competitor_name} announcement",
+            f"{competitor_name} news",
+            f"{competitor_name} update",
+            f"{competitor_name} launch",
+            f"{competitor_name} review"
+        ]
+    
+    async def _search_todays_videos(self, search_queries: List[str]) -> List[Dict[str, Any]]:
+        """Search for videos published today using the generated queries"""
+        try:
+            # Calculate today's date range
+            today = datetime.now(timezone.utc)
+            today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+            published_after = today_start.isoformat().replace('+00:00', 'Z')
             
-            Args:
-                query: Search query for channels
-                max_results: Maximum number of results (default 10, max 50)
+            all_videos = []
+            seen_video_ids = set()
             
-            Returns:
-                List of channel information dictionaries
-            """
-            try:
-                logger.info(f"Searching YouTube channels for: {query}")
-                
-                search_response = self.youtube_api.search().list(
-                    q=query,
-                    part='snippet',
-                    type='channel',
-                    maxResults=min(max_results, 50)
-                ).execute()
-                
-                channels = []
-                for item in search_response.get('items', []):
-                    channels.append({
-                        'channel_id': item['id']['channelId'],
-                        'title': item['snippet']['title'],
-                        'description': item['snippet']['description'],
-                        'thumbnail': item['snippet']['thumbnails'].get('default', {}).get('url'),
-                        'published_at': item['snippet']['publishedAt']
-                    })
-                
-                logger.info(f"Found {len(channels)} channels")
-                return channels
-                
-            except HttpError as e:
-                logger.error(f"YouTube API error in search_channels: {e}")
-                return []
-            except Exception as e:
-                logger.error(f"Error searching channels: {e}")
-                return []
-        
-        @tool
-        def get_channel_details(channel_id: str) -> Dict:
-            """
-            Get detailed information about a specific YouTube channel.
-            
-            Args:
-                channel_id: YouTube channel ID
-            
-            Returns:
-                Channel details dictionary with statistics and info
-            """
-            try:
-                logger.info(f"Getting channel details for: {channel_id}")
-                
-                channel_response = self.youtube_api.channels().list(
-                    part='snippet,statistics,contentDetails,brandingSettings',
-                    id=channel_id
-                ).execute()
-                
-                if not channel_response.get('items'):
-                    logger.warning(f"No channel found for ID: {channel_id}")
-                    return {}
-                
-                channel = channel_response['items'][0]
-                
-                details = {
-                    'channel_id': channel['id'],
-                    'title': channel['snippet']['title'],
-                    'description': channel['snippet']['description'],
-                    'custom_url': channel['snippet'].get('customUrl'),
-                    'published_at': channel['snippet']['publishedAt'],
-                    'thumbnail': channel['snippet']['thumbnails'].get('default', {}).get('url'),
-                    'country': channel['snippet'].get('country'),
-                    'view_count': channel['statistics'].get('viewCount'),
-                    'subscriber_count': channel['statistics'].get('subscriberCount'),
-                    'video_count': channel['statistics'].get('videoCount'),
-                    'uploads_playlist_id': channel['contentDetails']['relatedPlaylists']['uploads']
-                }
-                
-                logger.info(f"Retrieved channel details: {details['title']}")
-                return details
-                
-            except HttpError as e:
-                logger.error(f"YouTube API error in get_channel_details: {e}")
-                return {}
-            except Exception as e:
-                logger.error(f"Error getting channel details: {e}")
-                return {}
-        
-        @tool
-        def get_video_captions(video_id: str) -> str:
-            """
-            Get captions/transcript for a YouTube video.
-            
-            Args:
-                video_id: YouTube video ID
-            
-            Returns:
-                Video captions text or empty string if not available
-            """
-            try:
-                logger.info(f"Getting captions for video: {video_id}")
-                
-                # Get caption tracks for the video
-                captions_response = self.youtube_api.captions().list(
-                    part='snippet',
-                    videoId=video_id
-                ).execute()
-                
-                caption_tracks = captions_response.get('items', [])
-                if not caption_tracks:
-                    logger.info(f"No captions available for video: {video_id}")
-                    return ""
-                
-                # Try to find English captions first, then any available
-                english_track = None
-                for track in caption_tracks:
-                    if track['snippet']['language'] == 'en':
-                        english_track = track
-                        break
-                
-                # Use first available track if no English found
-                selected_track = english_track or caption_tracks[0]
-                caption_id = selected_track['id']
-                
-                # Download the caption content
-                caption_content = self.youtube_api.captions().download(
-                    id=caption_id,
-                    tfmt='srt'  # SubRip format
-                ).execute()
-                
-                # Clean up the SRT format (remove timestamps)
-                import re
-                clean_text = re.sub(r'\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n', '', caption_content)
-                clean_text = re.sub(r'\n+', ' ', clean_text).strip()
-                
-                logger.info(f"Retrieved captions for video {video_id}: {len(clean_text)} characters")
-                return clean_text[:1000]  # Limit to first 1000 characters
-                
-            except Exception as e:
-                logger.info(f"Could not retrieve captions for video {video_id}: {e}")
-                return ""
-        
-        @tool
-        def get_channel_videos(channel_id: str, max_results: int = 20) -> List[Dict]:
-            """
-            Get recent videos from a YouTube channel (last 24 hours only).
-            
-            Args:
-                channel_id: YouTube channel ID
-                max_results: Maximum number of videos (default 20, max 50)
-            
-            Returns:
-                List of video information dictionaries from the last 24 hours only
-            """
-            try:
-                logger.info(f"Getting videos for channel: {channel_id} (last 24 hours only)")
-                
-                # First get the uploads playlist ID
-                channel_response = self.youtube_api.channels().list(
-                    part='contentDetails',
-                    id=channel_id
-                ).execute()
-                
-                if not channel_response.get('items'):
-                    return []
-                
-                uploads_playlist_id = channel_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-                
-                # Get videos from uploads playlist - only last 24 hours
-                published_after = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat() + 'Z'
-                
-                playlist_response = self.youtube_api.playlistItems().list(
-                    part='snippet',
-                    playlistId=uploads_playlist_id,
-                    maxResults=min(max_results, 50)
-                ).execute()
-                
-                video_ids = []
-                videos_basic = []
-                
-                for item in playlist_response.get('items', []):
-                    # Only include videos from the last 24 hours
-                    published_at = datetime.fromisoformat(item['snippet']['publishedAt'].replace('Z', '+00:00'))
-                    if published_at >= datetime.now(timezone.utc) - timedelta(days=1):
-                        video_id = item['snippet']['resourceId']['videoId']
-                        video_ids.append(video_id)
-                        videos_basic.append({
-                            'video_id': video_id,
-                            'title': item['snippet']['title'],
-                            'description': item['snippet']['description'],
-                            'published_at': item['snippet']['publishedAt'],
-                            'thumbnail': item['snippet']['thumbnails'].get('default', {}).get('url')
-                        })
-                
-                # Get detailed statistics for videos
-                if video_ids:
-                    videos_response = self.youtube_api.videos().list(
-                        part='statistics,contentDetails',
-                        id=','.join(video_ids)
-                    ).execute()
-                    
-                    # Merge statistics with basic info
-                    stats_dict = {item['id']: item for item in videos_response.get('items', [])}
-                    
-                    for video in videos_basic:
-                        video_id = video['video_id']
-                        if video_id in stats_dict:
-                            stats = stats_dict[video_id]['statistics']
-                            content = stats_dict[video_id]['contentDetails']
-                            
-                            video.update({
-                                'view_count': stats.get('viewCount'),
-                                'like_count': stats.get('likeCount'),
-                                'comment_count': stats.get('commentCount'),
-                                'duration': content.get('duration'),
-                                'video_url': f"https://www.youtube.com/watch?v={video_id}"
-                            })
-                
-                logger.info(f"Retrieved {len(videos_basic)} videos from last 24 hours")
-                return videos_basic
-                
-            except HttpError as e:
-                logger.error(f"YouTube API error in get_channel_videos: {e}")
-                return []
-            except Exception as e:
-                logger.error(f"Error getting channel videos: {e}")
-                return []
-        
-        @tool
-        def search_channel_by_handle(handle: str) -> Dict:
-            """
-            Search for a YouTube channel by its handle (e.g., @nike).
-            
-            Args:
-                handle: Channel handle with or without @ symbol
-            
-            Returns:
-                Channel information dictionary
-            """
-            try:
-                # Clean handle (remove @ if present)
-                clean_handle = handle.lstrip('@')
-                logger.info(f"Searching for channel with handle: {clean_handle}")
-                
-                # Search for channel by handle/name
-                search_response = self.youtube_api.search().list(
-                    q=clean_handle,
-                    part='snippet',
-                    type='channel',
-                    maxResults=5
-                ).execute()
-                
-                # Look for exact or close match
-                for item in search_response.get('items', []):
-                    title = item['snippet']['title'].lower()
-                    if clean_handle.lower() in title or title in clean_handle.lower():
-                        return {
-                            'channel_id': item['id']['channelId'],
-                            'title': item['snippet']['title'],
-                            'description': item['snippet']['description'],
-                            'thumbnail': item['snippet']['thumbnails'].get('default', {}).get('url'),
-                            'published_at': item['snippet']['publishedAt']
-                        }
-                
-                # If no good match, return first result
-                if search_response.get('items'):
-                    item = search_response['items'][0]
-                    return {
-                        'channel_id': item['id']['channelId'],
-                        'title': item['snippet']['title'],
-                        'description': item['snippet']['description'],
-                        'thumbnail': item['snippet']['thumbnails'].get('default', {}).get('url'),
-                        'published_at': item['snippet']['publishedAt']
-                    }
-                
-                logger.warning(f"No channel found for handle: {handle}")
-                return {}
-                
-            except HttpError as e:
-                logger.error(f"YouTube API error in search_channel_by_handle: {e}")
-                return {}
-            except Exception as e:
-                logger.error(f"Error searching channel by handle: {e}")
-                return {}
-        
-        @tool
-        def get_related_channels(self, channel_id: str, max_results: int = 5) -> List[Dict]:
-            """
-            Finds channels related to a given YouTube channel ID.
-            This can help discover similar or competing channels.
-            
-            Args:
-                channel_id: The ID of the YouTube channel to find related channels for.
-                max_results: Maximum number of related channels to return.
-
-            Returns:
-                A list of related channel information dictionaries.
-            """
-            try:
-                logger.info(f"Finding related channels for channel ID: {channel_id}")
-                # This is a creative way to find related channels as the API does not directly support it.
-                # We search for channels that are frequently watched by viewers of the source channel.
-                # This is an approximation of a "related channels" feature.
-
-                # First, get the title of the source channel
-                channel_response = self.youtube_api.channels().list(part='snippet', id=channel_id).execute()
-                if not channel_response.get('items'):
-                    return []
-                channel_title = channel_response['items'][0]['snippet']['title']
-
-                # Search for channels with similar titles or topics
-                search_query = f"{channel_title} similar channels"
-                search_response = self.youtube_api.search().list(
-                    q=search_query,
-                    part='snippet',
-                    type='channel',
-                    maxResults=max_results
-                ).execute()
-
-                related_channels = []
-                for item in search_response.get('items', []):
-                    if item['id']['channelId'] != channel_id: # Exclude the source channel
-                        related_channels.append({
-                            'channel_id': item['id']['channelId'],
-                            'title': item['snippet']['title'],
-                            'description': item['snippet']['description'],
-                        })
-
-                logger.info(f"Found {len(related_channels)} related channels for {channel_title}")
-                return related_channels
-
-            except HttpError as e:
-                logger.error(f"YouTube API error in get_related_channels: {e}")
-                return []
-            except Exception as e:
-                logger.error(f"Error finding related channels: {e}")
-                return []
-
-        @tool
-        async def intelligent_channel_search(self, competitor_name: str, industry: str, max_channels: int = 5) -> List[Dict]:
-            """
-            Intelligently search for YouTube channels related to a competitor using AI-generated search queries.
-
-            Args:
-                competitor_name: The name of the competitor.
-                industry: The industry of the competitor.
-                max_channels: The maximum number of channels to find.
-            
-            Returns:
-                A list of relevant channel information dictionaries.
-            """
-            if not self.llm:
-                return [{"error": "LLM not available for intelligent search"}]
-
-            prompt = f"""
-            Generate a diverse list of 5-7 strategic search queries to find relevant YouTube channels for the competitor '{competitor_name}' in the '{industry}' industry.
-            Include queries for:
-            - The official brand channel.
-            - Channels that review '{competitor_name}' products.
-            - News coverage about '{competitor_name}'.
-            - Influencers who work with '{competitor_name}'.
-            - Fan communities or discussion channels.
-
-            Return the queries as a JSON list of strings. For example:
-            ["query1", "query2", ...]
-            """
-            try:
-                response = await self.llm.ainvoke(prompt)
-                search_queries = json.loads(response.content)
-                
-                all_channels = []
-                for query in search_queries:
-                    if len(all_channels) >= max_channels:
-                        break
+            for query in search_queries:
+                try:
+                    logger.info(f"🔍 Searching YouTube for: '{query}' (today only)")
                     
                     search_response = self.youtube_api.search().list(
                         q=query,
                         part='snippet',
-                        type='channel',
-                        maxResults=3
+                        type='video',
+                        publishedAfter=published_after,
+                        order='relevance',
+                        maxResults=10
                     ).execute()
                     
-                    for item in search_response.get('items', []):
-                        channel_info = {
-                            'channel_id': item['id']['channelId'],
-                            'title': item['snippet']['title'],
-                            'description': item['snippet']['description'],
-                            'search_query': query
-                        }
-                        if not any(c['channel_id'] == channel_info['channel_id'] for c in all_channels):
-                            all_channels.append(channel_info)
-                
-                logger.info(f"Intelligent search found {len(all_channels)} channels for {competitor_name}")
-                return all_channels[:max_channels]
-
-            except Exception as e:
-                logger.error(f"Error during intelligent channel search: {e}")
-                return [{"error": str(e)}]
-
-        return [search_youtube_channels, get_channel_details, get_channel_videos, search_channel_by_handle, get_video_captions, intelligent_channel_search, get_related_channels]
+                    videos = search_response.get('items', [])
+                    logger.info(f"   📹 Found {len(videos)} videos for query: '{query}'")
+                    
+                    for video in videos:
+                        video_id = video['id']['videoId']
+                        if video_id not in seen_video_ids:
+                            seen_video_ids.add(video_id)
+                            all_videos.append({
+                                'video_id': video_id,
+                                'search_query': query,
+                                'snippet': video['snippet']
+                            })
+                    
+                except HttpError as e:
+                    logger.error(f"❌ YouTube API error for query '{query}': {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"❌ Error searching for query '{query}': {e}")
+                    continue
+            
+            logger.info(f"📊 Total unique videos found from today: {len(all_videos)}")
+            return all_videos
+            
+        except Exception as e:
+            logger.error(f"❌ Error searching today's videos: {e}")
+            return []
     
-    async def analyze_competitor(self, competitor_id: str, youtube_handle: str) -> Dict[str, Any]:
-        """
-        Analyze a competitor's YouTube presence using the YouTube Data API
-        
-        Args:
-            competitor_id: Database ID of the competitor
-            youtube_handle: YouTube channel handle or name (can be used as a seed)
-            
-        Returns:
-            Dict containing analysis results and extracted posts
-        """
+    async def _get_video_details(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific video"""
         try:
-            await self._initialize_agent()
+            video_response = self.youtube_api.videos().list(
+                part='snippet,statistics,contentDetails',
+                id=video_id
+            ).execute()
             
-            logger.info(f"Starting YouTube analysis for competitor {competitor_id}")
+            if not video_response.get('items'):
+                return None
             
-            competitor = await self._get_competitor(competitor_id)
-            if not competitor:
-                return {"platform": "youtube", "posts": [], "error": "Competitor not found"}
-
-            analysis_prompt = self._build_analysis_prompt(competitor)
-            
-            logger.info("Invoking YouTube agent with analysis prompt...")
-            result = await self.agent.ainvoke({
-                "messages": [{"role": "user", "content": analysis_prompt}]
-            })
-            
-            analysis_content = result["messages"][-1].content
-            posts = await self._process_analysis_results(competitor_id, analysis_content, competitor)
-            
-            logger.info(f"YouTube analysis completed for {competitor.name}: {len(posts)} posts processed")
+            video = video_response['items'][0]
+            snippet = video['snippet']
+            statistics = video.get('statistics', {})
             
             return {
-                "platform": "youtube",
-                "posts": posts,
-                "status": "completed",
-                "analysis_summary": analysis_content[:500] + "..." if analysis_content else "",
-                "competitor_name": competitor.name,
+                'video_id': video_id,
+                'title': snippet.get('title', ''),
+                'description': snippet.get('description', ''),
+                'channel_title': snippet.get('channelTitle', ''),
+                'published_at': snippet.get('publishedAt', ''),
+                'thumbnail': snippet.get('thumbnails', {}).get('high', {}).get('url', ''),
+                'url': f"https://www.youtube.com/watch?v={video_id}",
+                'view_count': int(statistics.get('viewCount', 0)),
+                'like_count': int(statistics.get('likeCount', 0)),
+                'comment_count': int(statistics.get('commentCount', 0)),
+                'duration': video.get('contentDetails', {}).get('duration', ''),
+                'tags': snippet.get('tags', [])
             }
             
         except Exception as e:
-            logger.error(f"Error in YouTube analysis for competitor {competitor_id}: {e}")
-            return {"platform": "youtube", "posts": [], "error": str(e)}
+            logger.error(f"❌ Error getting video details for {video_id}: {e}")
+            return None
     
-    def _build_analysis_prompt(self, competitor: Competitor) -> str:
-        """Build a dynamic analysis prompt for the YouTube agent"""
-        
-        return f"""
-You are an expert YouTube analyst. Your mission is to conduct a thorough competitive analysis of '{competitor.name}' in the '{competitor.industry}' industry.
-
-**Your Mission:**
-1.  **Discover Channels:** Use the `intelligent_channel_search` tool to find a variety of channels related to '{competitor.name}'.
-2.  **Expand Discovery:** For the most relevant channel found, use `get_related_channels` to discover competitors or similar channels.
-3.  **Analyze Recent Content:** For each of the top channels discovered, use `get_channel_videos` to get videos from the **last 24 hours**.
-4.  **Deep Dive Analysis:** For each new video, analyze its title, description, and captions (`get_video_captions`) to understand the content strategy, sentiment, and messaging.
-5.  **Synthesize and Report:** Consolidate your findings into a comprehensive report. For each significant video, determine if it's **ALERT-WORTHY**.
-
-**Alert-Worthy Criteria (be selective):**
--   Major product launches or announcements.
--   Unusually high engagement suggesting viral content.
--   Significant shifts in marketing strategy or messaging.
--   Negative sentiment or community backlash.
-
-Your final output should be a detailed analysis of your findings, highlighting any recommended alerts.
-"""
-    
-    async def _process_analysis_results(self, competitor_id: str, analysis_content: str, competitor: Competitor) -> List[Dict[str, Any]]:
-        """
-        Process agent analysis results and extract videos from the agent's API calls
-        Save actual YouTube videos found during analysis as monitoring data
-        """
-        logger.info(f"📊 Analysis completed for {youtube_handle}")
-        logger.info(f"📝 Analysis summary: {analysis_content[:200]}...")
-        
-        processed_posts = []
-        
+    async def _analyze_video_intelligence(self, video_details: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
+        """Analyze video content using AI to determine significance and generate insights"""
         try:
-            # The agent has already made API calls and found videos during its analysis
-            # We need to extract video information that was mentioned in the analysis
-            # and also check if we can find videos that should be saved
-            
-            # Try to find the channel again and get recent videos to save as monitoring data
-            # This ensures we capture the videos that the agent analyzed
-            
-            # Search for the channel using our tools
-            search_tools = self._create_youtube_tools()
-            search_func = next((tool for tool in search_tools if tool.name == "search_channel_by_handle"), None)
-            get_videos_func = next((tool for tool in search_tools if tool.name == "get_channel_videos"), None)
-            
-            if search_func and get_videos_func:
-                logger.info(f"🔍 Finding and saving videos for {youtube_handle}")
+            if self.llm:
+                # Use AI for intelligent analysis
+                return await self._ai_video_analysis(video_details, competitor_name)
+            else:
+                # Use heuristic analysis
+                return self._heuristic_video_analysis(video_details, competitor_name)
                 
-                # Search for the channel
-                channel_info = search_func.invoke({"handle": youtube_handle})
-                
-                if channel_info and 'channel_id' in channel_info:
-                    channel_id = channel_info['channel_id']
-                    logger.info(f"📺 Found channel {channel_id}, retrieving videos...")
-                    
-                    # Get recent videos (last 24 hours only)
-                    videos = get_videos_func.invoke({"channel_id": channel_id, "max_results": 20})
-                    
-                    logger.info(f"🎬 Found {len(videos)} videos to process")
-                    
-                    # Process each video and save as monitoring data
-                    for video in videos:
-                        try:
-                            # Try to get captions for marketing insights
-                            captions = ""
-                            video_id = video.get('video_id')
-                            if video_id:
-                                try:
-                                    captions_func = next((tool for tool in search_tools if tool.name == "get_video_captions"), None)
-                                    if captions_func:
-                                        captions = captions_func.invoke({"video_id": video_id})
-                                except Exception as e:
-                                    logger.debug(f"Could not get captions for video {video_id}: {e}")
-                            
-                            # Generate marketing summary and alert assessment using LLM
-                            marketing_summary, is_alert_worthy, alert_reason = await self._analyze_video_for_alerts(
-                                video.get('title', ''),
-                                video.get('description', ''),
-                                captions,
-                                video.get('view_count', 0),
-                                video.get('like_count', 0),
-                                video.get('comment_count', 0)
-                            )
-                            
-                            post_data = {
-                                "post_id": video.get('video_id'),
-                                "post_url": video.get('video_url', f"https://www.youtube.com/watch?v={video.get('video_id')}"),
-                                "content_text": marketing_summary,
-                                "author_username": channel_info.get('title', ''),
-                                "author_display_name": channel_info.get('title', ''),
-                                "post_type": "video",
-                                "engagement_metrics": {
-                                    "view_count": int(video.get('view_count', 0)) if video.get('view_count') else 0,
-                                    "like_count": int(video.get('like_count', 0)) if video.get('like_count') else 0,
-                                    "comment_count": int(video.get('comment_count', 0)) if video.get('comment_count') else 0
-                                },
-                                "media_urls": [video.get('thumbnail')] if video.get('thumbnail') else [],
-                                "posted_at": datetime.fromisoformat(video['published_at'].replace('Z', '+00:00')) if video.get('published_at') else None
-                            }
-                            
-                            # Save the post using MonitoringService
-                            saved_post = await self.monitoring_service.process_social_media_post(
-                                competitor_id=competitor_id,
-                                platform="youtube",
-                                post_data=post_data
-                            )
-                            
-                            # Create intelligent alert if the video is deemed alert-worthy
-                            if is_alert_worthy and saved_post and alert_reason:
-                                await self._create_intelligent_alert(competitor_id, saved_post, video, alert_reason)
-                            
-                            if saved_post:
-                                processed_posts.append({
-                                    "id": str(saved_post.id),
-                                    "post_id": saved_post.post_id,
-                                    "title": video.get('title'),
-                                    "url": saved_post.post_url,
-                                    "engagement": saved_post.engagement_metrics,
-                                    "is_alert_worthy": is_alert_worthy,
-                                    "alert_reason": alert_reason if is_alert_worthy else None
-                                })
-                                logger.info(f"✅ Saved video: {video.get('title', 'Unknown')} (ID: {saved_post.id})")
-                            
-                        except Exception as e:
-                            logger.error(f"❌ Error processing video {video.get('video_id', 'unknown')}: {e}")
-                            continue
-                    
-                else:
-                    logger.warning(f"❌ Could not find channel for handle: {youtube_handle}")
-            
-            logger.info(f"✅ Processed {len(processed_posts)} YouTube videos for {youtube_handle}")
-            
         except Exception as e:
-            logger.error(f"❌ Error processing analysis results: {e}")
-        
-        return processed_posts
+            logger.error(f"❌ Error in video intelligence analysis: {e}")
+            return self._heuristic_video_analysis(video_details, competitor_name)
     
-    async def _analyze_video_for_alerts(self, title: str, description: str, captions: str, view_count: int, like_count: int, comment_count: int) -> tuple[str, bool, str]:
-        """
-        Analyze video content to determine if it should trigger an alert and generate marketing summary
-        
-        Returns:
-            tuple: (marketing_summary, is_alert_worthy, alert_reason)
-        """
+    async def _ai_video_analysis(self, video_details: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
+        """Use AI to analyze video content for competitive intelligence"""
         try:
-            # Prepare content for analysis
-            content_parts = [f"Title: {title}"]
-            if description:
-                content_parts.append(f"Description: {description[:300]}")
-            if captions:
-                content_parts.append(f"Video Content/Captions: {captions}")
-            
-            content_text = "\n\n".join(content_parts)
+            title = video_details.get('title', '')
+            description = video_details.get('description', '')[:500]  # First 500 chars
+            channel = video_details.get('channel_title', '')
+            views = video_details.get('view_count', 0)
+            likes = video_details.get('like_count', 0)
             
             prompt = f"""
-Analyze this YouTube video for competitive intelligence and alert assessment:
+Analyze this YouTube video for competitive intelligence about "{competitor_name}":
 
-ENGAGEMENT METRICS:
-- Views: {view_count}
-- Likes: {like_count}
-- Comments: {comment_count}
+TITLE: {title}
+CHANNEL: {channel}
+DESCRIPTION: {description}
+ENGAGEMENT: {views} views, {likes} likes
+PUBLISHED: Today
 
-VIDEO CONTENT:
-{content_text}
+Your analysis should determine:
+1. Is this video ALERT-WORTHY for competitive intelligence?
+2. What are the key insights about the competitor?
+3. What marketing/business strategies can be observed?
 
-ANALYSIS TASKS:
-1. Create a marketing-focused summary highlighting:
-   - Key marketing messages and value propositions
-   - Target audience insights
-   - Content strategy patterns
-   - Competitive advantages or opportunities
+ALERT-WORTHY criteria:
+- Major product launches or announcements
+- Significant company news or changes
+- High engagement suggesting viral/trending content
+- Strategic partnerships or collaborations
+- Crisis management or negative coverage
+- Competitive moves or market positioning
 
-2. Determine if this video is ALERT-WORTHY based on:
-   - Unusually high engagement for typical YouTube content
-   - New product launches or major announcements
-   - Viral marketing campaigns or trending content
-   - Significant strategic shifts or messaging changes
-   - Major brand partnerships or collaborations
-   - Content that could impact competitive positioning
+Provide your response in this JSON format:
+{{
+    "is_alert_worthy": true/false,
+    "alert_reason": "Brief reason if alert-worthy, null if not",
+    "significance_score": 1-10,
+    "summary": "Brief competitive intelligence summary (max 200 words)",
+    "key_insights": ["insight1", "insight2", "insight3"],
+    "content_type": "announcement/review/news/official/other",
+    "competitive_impact": "high/medium/low"
+}}
 
-RESPONSE FORMAT:
-First provide the marketing summary (max 300 words), then on a new line state:
-ALERT_ASSESSMENT: YES or NO
-ALERT_REASON: [Brief reason if YES, or "None" if NO]
-
-Be selective - only flag truly significant competitive events, not routine content.
+Be selective with alerts - only flag truly significant competitive intelligence.
 """
             
             response = await self.llm.ainvoke(prompt)
-            full_response = response.content.strip()
             
-            # Parse response to extract summary and alert assessment
-            lines = full_response.split('\n')
-            alert_line = next((line for line in lines if line.startswith('ALERT_ASSESSMENT:')), '')
-            reason_line = next((line for line in lines if line.startswith('ALERT_REASON:')), '')
-            
-            is_alert_worthy = 'YES' in alert_line.upper()
-            alert_reason = reason_line.replace('ALERT_REASON:', '').strip() if reason_line else ""
-            
-            # Remove alert assessment lines from summary
-            marketing_summary = '\n'.join(line for line in lines 
-                                        if not line.startswith('ALERT_ASSESSMENT:') 
-                                        and not line.startswith('ALERT_REASON:'))
-            
-            # Add performance metrics
-            performance_note = f"\n\n📊 Performance: {view_count} views, {like_count} likes, {comment_count} comments"
-            alert_indicator = " 🚨 ALERT-WORTHY" if is_alert_worthy else ""
-            
-            final_summary = f"🎯 Marketing Analysis{alert_indicator}:\n{marketing_summary.strip()}{performance_note}"
-            
-            return final_summary, is_alert_worthy, alert_reason
-            
+            # Parse JSON response
+            try:
+                content = response.content.strip()
+                if content.startswith('{') and content.endswith('}'):
+                    analysis = json.loads(content)
+                else:
+                    # Extract JSON from response
+                    start = content.find('{')
+                    end = content.rfind('}') + 1
+                    if start != -1 and end != 0:
+                        json_str = content[start:end]
+                        analysis = json.loads(json_str)
+                    else:
+                        raise ValueError("No JSON found in response")
+                
+                # Validate required fields
+                required_fields = ['is_alert_worthy', 'summary', 'significance_score']
+                if all(field in analysis for field in required_fields):
+                    logger.info(f"🧠 AI analysis completed: Significance {analysis.get('significance_score', 0)}/10")
+                    return analysis
+                else:
+                    logger.warning(f"⚠️  AI response missing required fields, using fallback")
+                    return self._heuristic_video_analysis(video_details, competitor_name)
+                    
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"❌ Failed to parse AI response: {e}")
+                return self._heuristic_video_analysis(video_details, competitor_name)
+                
         except Exception as e:
-            logger.error(f"❌ Error analyzing video for alerts: {e}")
-            # Return basic summary on error
-            basic_summary = f"📺 {title}\n\n📝 {description[:200] if description else 'No description available'}\n\n📊 Performance: {view_count} views, {like_count} likes, {comment_count} comments"
-            return basic_summary, False, ""
+            logger.error(f"❌ Error in AI video analysis: {e}")
+            return self._heuristic_video_analysis(video_details, competitor_name)
     
-    async def _create_intelligent_alert(self, competitor_id: str, saved_post, video: Dict, alert_reason: str) -> None:
-        """
-        Create an intelligent alert record for a significant video based on AI analysis
-        """
+    def _heuristic_video_analysis(self, video_details: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
+        """Heuristic analysis when AI is not available"""
+        title = video_details.get('title', '').lower()
+        description = video_details.get('description', '').lower()
+        channel = video_details.get('channel_title', '')
+        views = video_details.get('view_count', 0)
+        likes = video_details.get('like_count', 0)
+        
+        # Check for alert-worthy keywords
+        alert_keywords = [
+            'launch', 'announcement', 'breaking', 'exclusive', 'new', 'unveiling',
+            'partnership', 'acquisition', 'merger', 'funding', 'ipo', 'expansion'
+        ]
+        
+        # Check for high engagement
+        like_ratio = (likes / views * 100) if views > 0 else 0
+        high_engagement = views > 10000 or like_ratio > 2.0
+        
+        # Check if it's from official channel (contains company name)
+        is_official_channel = competitor_name.lower() in channel.lower()
+        
+        # Check for alert keywords in title/description
+        has_alert_keywords = any(keyword in title or keyword in description for keyword in alert_keywords)
+        
+        # Determine if alert-worthy
+        is_alert_worthy = False
+        alert_reason = None
+        significance_score = 1
+        
+        if is_official_channel and has_alert_keywords:
+            is_alert_worthy = True
+            alert_reason = "Official channel with announcement keywords"
+            significance_score = 8
+        elif high_engagement and has_alert_keywords:
+            is_alert_worthy = True
+            alert_reason = f"High engagement ({views} views) with significant keywords"
+            significance_score = 7
+        elif views > 50000:
+            is_alert_worthy = True
+            alert_reason = f"Very high views ({views}) suggesting viral content"
+            significance_score = 6
+        elif is_official_channel and views > 5000:
+            is_alert_worthy = True
+            alert_reason = "Official channel content with decent reach"
+            significance_score = 5
+        
+        # Generate summary
+        summary = f"Video analysis for {competitor_name}: '{video_details.get('title', 'Unknown')}' by {channel}. "
+        summary += f"Engagement: {views:,} views, {likes:,} likes. "
+        
+        if is_official_channel:
+            summary += "Official channel content. "
+        if has_alert_keywords:
+            summary += "Contains announcement keywords. "
+        if high_engagement:
+            summary += "High engagement metrics. "
+        
+        return {
+            "is_alert_worthy": is_alert_worthy,
+            "alert_reason": alert_reason,
+            "significance_score": significance_score,
+            "summary": summary,
+            "key_insights": [
+                f"Published by: {channel}",
+                f"Engagement: {views:,} views, {likes:,} likes",
+                f"Official channel: {is_official_channel}",
+                f"Contains announcements: {has_alert_keywords}"
+            ],
+            "content_type": "official" if is_official_channel else "external",
+            "competitive_impact": "high" if significance_score >= 7 else ("medium" if significance_score >= 5 else "low")
+        }
+    
+    def _create_monitoring_data(self, video_details: Dict[str, Any], analysis_result: Dict[str, Any], competitor_id: str) -> Dict[str, Any]:
+        """Create monitoring data structure for Supabase"""
+        content_text = f"{video_details.get('title', '')}\n\n{video_details.get('description', '')[:500]}"
+        content_hash = hashlib.md5(content_text.encode()).hexdigest()
+        
+        return {
+            'competitor_id': str(competitor_id),
+            'platform': 'youtube',
+            'post_id': video_details['video_id'],
+            'post_url': video_details['url'],
+            'content_text': content_text,
+            'content_hash': content_hash,
+            'media_urls': [video_details.get('thumbnail', '')],
+            'engagement_metrics': {
+                'view_count': video_details.get('view_count', 0),
+                'like_count': video_details.get('like_count', 0),
+                'comment_count': video_details.get('comment_count', 0)
+            },
+            'author_username': video_details.get('channel_title', ''),
+            'author_display_name': video_details.get('channel_title', ''),
+            'post_type': 'video',
+            'language': 'en',  # Default to English
+            'sentiment_score': 0.0,  # Default neutral
+            'detected_at': datetime.now(timezone.utc).isoformat(),
+            'posted_at': video_details.get('published_at'),
+            'is_new_post': True,
+            'is_content_change': False
+        }
+    
+    async def _create_intelligent_alert(self, competitor_id: str, video_details: Dict[str, Any], analysis_result: Dict[str, Any], data_id: str):
+        """Create an intelligent alert for significant videos"""
         try:
-            # Get competitor info for alert context
-            competitor = await self._get_competitor(competitor_id)
-            if not competitor:
-                logger.error(f"Could not find competitor {competitor_id} for alert creation")
-                return
+            # Get competitor details to get user_id
+            competitor_details = await supabase_client.get_competitor_details(competitor_id)
+            user_id = competitor_details.get('user_id') if competitor_details else None
             
-            # Create intelligent alert data
             alert_data = {
-                "competitor_id": competitor_id,
-                "alert_type": "youtube_significant_content",
-                "priority": "high",  # AI determined this is alert-worthy
-                "title": f"Significant YouTube Activity: {video.get('title', 'Unknown Title')}",
-                "description": f"AI analysis flagged this video as strategically significant: {alert_reason}. Video has {video.get('view_count', 0)} views and {video.get('like_count', 0)} likes.",
-                "metadata": {
-                    "platform": "youtube",
-                    "post_id": saved_post.post_id,
-                    "video_url": video.get('video_url'),
-                    "engagement_metrics": {
-                        "views": video.get('view_count', 0),
-                        "likes": video.get('like_count', 0),
-                        "comments": video.get('comment_count', 0)
+                'user_id': user_id,
+                'competitor_id': str(competitor_id),
+                'monitoring_data_id': data_id,
+                'alert_type': 'youtube_intelligence',
+                'priority': 'high' if analysis_result.get('significance_score', 0) >= 7 else 'medium',
+                'title': f"YouTube Intelligence Alert: {video_details.get('title', 'Significant Video')[:100]}",
+                'message': analysis_result.get('alert_reason', 'AI detected significant YouTube activity'),
+                'alert_metadata': {
+                    'platform': 'youtube',
+                    'video_id': video_details['video_id'],
+                    'video_url': video_details['url'],
+                    'channel_title': video_details.get('channel_title', ''),
+                    'engagement_metrics': {
+                        'views': video_details.get('view_count', 0),
+                        'likes': video_details.get('like_count', 0),
+                        'comments': video_details.get('comment_count', 0)
                     },
-                    "ai_analysis": {
-                        "alert_reason": alert_reason,
-                        "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                    'ai_analysis': {
+                        'significance_score': analysis_result.get('significance_score', 0),
+                        'content_type': analysis_result.get('content_type', 'unknown'),
+                        'competitive_impact': analysis_result.get('competitive_impact', 'unknown'),
+                        'key_insights': analysis_result.get('key_insights', []),
+                        'analysis_timestamp': datetime.now(timezone.utc).isoformat()
                     }
                 },
-                "source_url": video.get('video_url'),
-                "detected_at": datetime.utcnow()
+                'is_read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
             }
             
-            # Create alert using monitoring service
-            await self.monitoring_service.create_alert(alert_data)
-            logger.info(f"🚨 Created intelligent alert for significant YouTube video: {video.get('title', 'Unknown')}")
-            logger.info(f"   📝 Alert reason: {alert_reason}")
-            
+            alert_id = await supabase_client.create_alert(alert_data)
+            if alert_id:
+                logger.info(f"🚨 Created intelligent YouTube alert: {alert_id}")
+            else:
+                logger.error("❌ Failed to create alert in Supabase")
+                
         except Exception as e:
-            logger.error(f"Error creating intelligent alert for video: {e}")
-    
-    async def _get_competitor(self, competitor_id: str) -> Competitor:
-        """Get competitor from database"""
-        try:
-            result = await self.db.execute(
-                select(Competitor).where(Competitor.id == competitor_id)
-            )
-            return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"Error getting competitor {competitor_id}: {e}")
-            return None
-    
+            logger.error(f"❌ Error creating intelligent alert: {e}")
+
     async def close(self):
         """Close any resources"""
-        logger.info("YouTubeAgent closed")
-        pass
+        logger.info("🎬 Intelligent YouTubeAgent closed")

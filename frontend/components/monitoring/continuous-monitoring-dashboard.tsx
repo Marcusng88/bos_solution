@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bell, Eye, TrendingUp, Clock, Play, Pause, Loader2 } from "lucide-react"
+import { Bell, Eye, TrendingUp, Clock, Play, Pause, Loader2, Search, RefreshCw } from "lucide-react"
 import { MonitoringAlerts } from "./monitoring-alerts"
 import { ScanningStatus } from "./scanning-status"
 import { AnalysisResults } from "./analysis-results"
@@ -33,14 +33,19 @@ interface MonitoringData {
   post_url?: string
   content_text: string
   author_username?: string
+  author_display_name?: string
+  author_avatar_url?: string
   post_type: string
   engagement_metrics?: any
+  media_urls?: any
+  content_hash?: string
+  language?: string
+  sentiment_score?: number
   detected_at: string
   posted_at?: string
-  // New fields for website and web analysis
-  source_url?: string;
-  key_insights?: string[];
-  alert_type?: string;
+  is_new_post?: boolean
+  is_content_change?: boolean
+  previous_content_hash?: string
 }
 
 export function ContinuousMonitoringDashboard() {
@@ -50,31 +55,68 @@ export function ContinuousMonitoringDashboard() {
   const [monitoringData, setMonitoringData] = useState<MonitoringData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isTogglingMonitoring, setIsTogglingMonitoring] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
   const { apiClient, userId } = useApiClient()
   const { toast } = useToast()
 
+  // Memoize the fetchAllData function to prevent infinite loops
   const fetchAllData = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('❌ No userId, skipping fetch');
+      return;
+    }
+    console.log('🚀 Starting fetchAllData for user:', userId);
+    console.log('🌐 API Base URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1');
     setIsLoading(true);
     try {
+      console.log('📡 Making API calls...');
+      
+      // Test network connectivity first
+      try {
+        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/health`);
+        console.log('🌐 Network test response:', testResponse.status, testResponse.statusText);
+      } catch (networkError) {
+        console.error('❌ Network test failed:', networkError);
+      }
+      
+      console.log('🔗 API Client base URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1');
+      console.log('🔗 Monitoring API base URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1');
+      
       const [statusRes, statsRes, dataRes] = await Promise.all([
         apiClient.getMonitoringStatus(userId),
         apiClient.getMonitoringStats(userId),
         monitoringAPI.getMonitoringData(userId, { limit: 50 }),
       ]);
 
+      console.log('✅ API responses received:', { 
+        statusRes: JSON.stringify(statusRes, null, 2), 
+        statsRes: JSON.stringify(statsRes, null, 2), 
+        dataRes: JSON.stringify(dataRes, null, 2) 
+      });
+
       if ((statusRes as any).success) {
+        console.log('✅ Status response successful, setting monitoring status');
         setMonitoringStatus((statusRes as any).status);
         setIsMonitoring((statusRes as any).status.running);
+      } else {
+        console.log('❌ Status response not successful:', statusRes);
       }
+      
       if ((statsRes as any).success) {
+        console.log('✅ Stats response successful, setting monitoring stats');
         setMonitoringStats((statsRes as any).stats);
+      } else {
+        console.log('❌ Stats response not successful:', statsRes);
       }
+      
       if (dataRes.data) {
+        console.log('✅ Data response successful, setting monitoring data');
         setMonitoringData(dataRes.data);
+      } else {
+        console.log('❌ Data response not successful or no data:', dataRes);
       }
     } catch (error) {
-      console.error('Error fetching monitoring data:', error);
+      console.error('❌ Error fetching monitoring data:', error);
       toast({
         title: "Error",
         description: handleApiError(error),
@@ -82,12 +124,29 @@ export function ContinuousMonitoringDashboard() {
       });
     } finally {
       setIsLoading(false);
+      console.log('🏁 fetchAllData completed');
     }
-  }, [userId, apiClient, toast]);
+  }, [userId, toast]); // Remove apiClient from dependencies
+
+  // Memoize the API client methods to prevent recreation
+  const memoizedApiClient = useMemo(() => ({
+    getMonitoringStatus: (userId: string) => apiClient.getMonitoringStatus(userId),
+    startContinuousMonitoring: (userId: string) => apiClient.startContinuousMonitoring(userId),
+    stopContinuousMonitoring: (userId: string) => apiClient.stopContinuousMonitoring(userId),
+    runMonitoringForAllCompetitors: (userId: string) => apiClient.runMonitoringForAllCompetitors(userId),
+  }), [apiClient]);
 
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    if (userId) {
+      console.log('🔄 Fetching monitoring data for user:', userId);
+      fetchAllData();
+    }
+    
+    // Cleanup function to prevent memory leaks
+    return () => {
+      console.log('🧹 Cleaning up monitoring dashboard');
+    };
+  }, [userId]); // Only depend on userId, not fetchAllData
 
 
   // Handle monitoring toggle
@@ -97,9 +156,9 @@ export function ContinuousMonitoringDashboard() {
       
       let response
       if (enabled) {
-        response = await apiClient.startContinuousMonitoring(userId)
+        response = await memoizedApiClient.startContinuousMonitoring(userId)
       } else {
-        response = await apiClient.stopContinuousMonitoring(userId)
+        response = await memoizedApiClient.stopContinuousMonitoring(userId)
       }
 
       if ((response as any).success) {
@@ -110,7 +169,7 @@ export function ContinuousMonitoringDashboard() {
         })
         
         // Refresh monitoring status
-        const statusResponse = await apiClient.getMonitoringStatus(userId)
+        const statusResponse = await memoizedApiClient.getMonitoringStatus(userId)
         if ((statusResponse as any).success) {
           setMonitoringStatus((statusResponse as any).status)
         }
@@ -132,6 +191,68 @@ export function ContinuousMonitoringDashboard() {
       setIsTogglingMonitoring(false)
     }
   }
+
+  // Handle scan now button click
+  const handleScanNow = async () => {
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsScanning(true);
+      toast({
+        title: "Scanning Started",
+        description: "Initiating comprehensive competitor scan across all platforms...",
+      });
+
+      // Start the scan for all competitors
+      const response = await memoizedApiClient.runMonitoringForAllCompetitors(userId);
+      
+      if ((response as any).success) {
+        toast({
+          title: "Scan Initiated",
+          description: "Competitor monitoring scan has been started. This may take several minutes to complete.",
+        });
+
+        // Wait a bit then refresh the data to show progress
+        setTimeout(() => {
+          fetchAllData();
+        }, 2000);
+
+        // Continue refreshing every 10 seconds to show progress
+        const refreshInterval = setInterval(() => {
+          fetchAllData();
+        }, 10000);
+
+        // Stop refreshing after 2 minutes
+        setTimeout(() => {
+          clearInterval(refreshInterval);
+          fetchAllData(); // Final refresh
+        }, 120000);
+
+      } else {
+        toast({
+          title: "Scan Failed",
+          description: "Failed to initiate competitor scan. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error starting scan:', error);
+      toast({
+        title: "Scan Error",
+        description: handleApiError(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   // Helper function to get last scan time
   const getLastScanTime = () => {
@@ -181,8 +302,43 @@ export function ContinuousMonitoringDashboard() {
               <Pause className="h-4 w-4 text-gray-400" />
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-            Scan Now
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleScanNow}
+            disabled={isScanning}
+            className="min-w-[100px]"
+          >
+            {isScanning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Scanning...
+              </>
+            ) : (
+              <>
+                <Search className="h-4 w-4 mr-2" />
+                Scan Now
+              </>
+            )}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchAllData}
+            disabled={isLoading}
+            className="min-w-[100px]"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -243,16 +399,35 @@ export function ContinuousMonitoringDashboard() {
         </Card>
       </div>
 
+      {/* Debug Info */}
+      <Card className="bg-gray-50">
+        <CardContent className="p-4">
+          <h3 className="font-semibold mb-2 text-sm">Debug Info</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <div><strong>User ID:</strong> {userId}</div>
+            <div><strong>Loading:</strong> {isLoading ? 'Yes' : 'No'}</div>
+            <div><strong>Data Count:</strong> {monitoringData.length}</div>
+            <div><strong>Monitoring:</strong> {isMonitoring ? 'On' : 'Off'}</div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Main Content */}
       <Tabs defaultValue="analysis-results" className="space-y-4">
         <TabsList>
           <TabsTrigger value="analysis-results">Analysis Results</TabsTrigger>
           <TabsTrigger value="alerts">Recent Alerts</TabsTrigger>
           <TabsTrigger value="scanning">Scanning Status</TabsTrigger>
+          <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
 
         <TabsContent value="analysis-results">
-          <AnalysisResults results={monitoringData} />
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Debug: {monitoringData.length} results loaded
+            </div>
+            <AnalysisResults results={monitoringData} />
+          </div>
         </TabsContent>
 
         <TabsContent value="alerts">
@@ -261,6 +436,21 @@ export function ContinuousMonitoringDashboard() {
 
         <TabsContent value="scanning">
           <ScanningStatus userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="debug">
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="font-semibold mb-2">Debug Information</h3>
+              <div className="space-y-2 text-sm">
+                <div><strong>User ID:</strong> {userId}</div>
+                <div><strong>Monitoring Status:</strong> {JSON.stringify(monitoringStatus, null, 2)}</div>
+                <div><strong>Monitoring Stats:</strong> {JSON.stringify(monitoringStats, null, 2)}</div>
+                <div><strong>Data Count:</strong> {monitoringData.length}</div>
+                <div><strong>First Data Item:</strong> {monitoringData.length > 0 ? JSON.stringify(monitoringData[0], null, 2) : 'No data'}</div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

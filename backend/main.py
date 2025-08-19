@@ -3,6 +3,30 @@ BOS Solution - FastAPI Backend
 Continuous Monitoring and Competitor Intelligence System
 """
 
+import sys
+import asyncio
+import platform
+import logging
+
+# Import and setup Windows compatibility early
+from app.core.windows_compatibility import setup_windows_compatibility
+setup_windows_compatibility()
+
+# Configure logging early - only show essential logs
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+# Reduce verbosity of third-party libraries
+# logging.getLogger('urllib3').setLevel(logging.WARNING)
+# # logging.getLogger('httpx').setLevel(logging.WARNING)
+# logging.getLogger('asyncio').setLevel(logging.WARNING)
+# logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager

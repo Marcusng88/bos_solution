@@ -116,6 +116,57 @@ export function CompetitorInvestigationDashboard() {
     fetchCompetitors()
   }, [fetchCompetitors])
 
+  // Handle platform-specific scan
+  const handlePlatformScan = async (competitorId: string, platform: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Authentication Error",
+        description: "Please log in again to continue",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      // Set this competitor as scanning
+      setScanningCompetitors(prev => new Set(prev).add(competitorId))
+      
+      toast({
+        title: "Starting Scan",
+        description: `Starting ${platform} scan for competitor...`,
+      })
+
+      // Call the platform-specific scan endpoint
+      const result = await monitoringAPI.scanPlatform(user.id, platform, competitorId)
+      
+      toast({
+        title: "Scan Complete",
+        description: `${platform} scan completed successfully`,
+      })
+
+      // Refresh data after scan
+      await Promise.all([
+        fetchCompetitors(),
+        fetchMonitoringData()
+      ])
+
+    } catch (error) {
+      console.error(`Error in ${platform} scan:`, error)
+      toast({
+        title: "Scan Error",
+        description: `Failed to complete ${platform} scan: ${error instanceof Error ? error.message : "Unknown error"}`,
+        variant: "destructive"
+      })
+    } finally {
+      // Remove from scanning set
+      setScanningCompetitors(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(competitorId)
+        return newSet
+      })
+    }
+  }
+
   // Start scan
   const startScan = async () => {
     console.log('🚀 startScan called');
@@ -455,6 +506,41 @@ export function CompetitorInvestigationDashboard() {
                         <span className="text-xs">Scanning...</span>
                       </div>
                     )}
+                    
+                    {/* Platform-specific scan buttons */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePlatformScan(competitor.id, 'youtube')}
+                        disabled={scanningCompetitors.has(competitor.id)}
+                        className="h-8 px-2 text-xs"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        YouTube
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePlatformScan(competitor.id, 'website')}
+                        disabled={scanningCompetitors.has(competitor.id)}
+                        className="h-8 px-2 text-xs"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Website
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePlatformScan(competitor.id, 'browser')}
+                        disabled={scanningCompetitors.has(competitor.id)}
+                        className="h-8 px-2 text-xs"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Web
+                      </Button>
+                    </div>
+                    
                     <Badge variant={getStatusBadgeVariant(competitor.status)}>
                       {competitor.status}
                     </Badge>

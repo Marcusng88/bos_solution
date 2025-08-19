@@ -107,10 +107,45 @@ class MonitoringAlertBase(BaseModel):
 
 
 class MonitoringAlertCreate(MonitoringAlertBase):
-    """Schema for creating monitoring alert"""
-    user_id: UUID
-    competitor_id: Optional[UUID] = None
-    monitoring_data_id: Optional[UUID] = None
+    """Schema for creating monitoring alerts"""
+    pass
+
+
+class PlatformScanRequest(BaseModel):
+    """Schema for platform-specific scan requests"""
+    competitor_id: UUID = Field(..., description="ID of the competitor to scan")
+    platforms: Optional[List[str]] = Field(None, description="Specific platforms to scan (optional)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "competitor_id": "123e4567-e89b-12d3-a456-426614174000",
+                "platforms": ["youtube", "website"]
+            }
+        }
+
+
+class PlatformScanResponse(BaseModel):
+    """Schema for platform scan responses"""
+    success: bool
+    platform: str
+    competitor_id: UUID
+    result: Dict[str, Any]
+    message: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "platform": "youtube",
+                "competitor_id": "123e4567-e89b-12d3-a456-426614174000",
+                "result": {
+                    "status": "completed",
+                    "content": []
+                },
+                "message": "Scan completed successfully"
+            }
+        }
 
 
 class MonitoringAlertResponse(MonitoringAlertBase):
