@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { useApiClient, handleApiError } from "@/lib/api-client"
 import { useUser } from "@clerk/nextjs"
+import { AIAnalysisRecommendations } from "./ai-analysis-recommendations"
 import { 
   Brain, 
   Lightbulb, 
@@ -35,6 +36,7 @@ export function AIInsightsPanel() {
   const [scanProgress, setScanProgress] = useState(0)
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [aiResponse, setAiResponse] = useState<string>("")
 
   // Only show content if user is signed in
   if (!isSignedIn || !user) {
@@ -66,6 +68,7 @@ export function AIInsightsPanel() {
     setScanProgress(0)
     setError(null)
     setAnalysis(null)
+    setAiResponse("")
 
     try {
       console.log("🔍 Starting AI scan...")
@@ -82,22 +85,46 @@ export function AIInsightsPanel() {
         })
       }, 500)
 
-      // Call the AI analysis endpoint
-      console.log("🔍 Calling API endpoint...")
-      const response = await apiClient.analyzeCampaigns(userId, {
-        include_competitors: true,
-        include_monitoring: true,
-        analysis_type: "comprehensive"
-      })
+      // Call the AI chat endpoint with the specific question
+      console.log("🔍 Calling AI chat endpoint...")
+      const aiQuestion = `Please list any recommendation actions or optimizations steps that can be taken to improve the performance of all my ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please follow this format:
+[Level of Priority]
+1.[Campaign Name]
+[Recommendation Actions]
 
-      console.log("✅ API response received:", response)
+2. [Campaign Name]
+[Recommendation Actions]
+
+......
+
+[Level of Priority]
+1.[Campaign Name]
+[Recommendation Actions]
+
+2. [Campaign Name]
+[Recommendation Actions]
+
+.....`
+      
+      const response = await apiClient.chatWithAI(userId, aiQuestion)
+
+      console.log("✅ AI response received:", response)
 
       clearInterval(progressInterval)
       setScanProgress(100)
 
       // Wait a moment to show 100% progress
       setTimeout(() => {
-        setAnalysis(response)
+        const aiResponseText = (response as any)?.response || "No response received"
+        setAiResponse(aiResponseText)
+        // Create a mock analysis object for compatibility
+        setAnalysis({
+          timestamp: new Date().toISOString(),
+          insights: aiResponseText,
+          recommendations: [],
+          risk_alerts: [],
+          performance_score: 7
+        })
         setIsScanning(false)
         setScanProgress(0)
         console.log("✅ Analysis completed and set")
@@ -105,7 +132,6 @@ export function AIInsightsPanel() {
 
     } catch (err) {
       console.error("❌ AI scan error:", err)
-      clearInterval(progressInterval)
       setIsScanning(false)
       setScanProgress(0)
       setError(handleApiError(err))
@@ -122,6 +148,14 @@ export function AIInsightsPanel() {
     if (score >= 8) return <Badge className="bg-green-100 text-green-800">Excellent</Badge>
     if (score >= 6) return <Badge className="bg-yellow-100 text-yellow-800">Good</Badge>
     return <Badge className="bg-red-100 text-red-800">Needs Attention</Badge>
+  }
+
+  const handleRecommendationClick = (recommendation: any) => {
+    console.log("Recommendation clicked:", recommendation)
+    // Here you can implement actions like:
+    // - Opening a modal with detailed steps
+    // - Navigating to specific campaign pages
+    // - Pre-filling forms with the recommendation
   }
 
   return (
@@ -216,44 +250,13 @@ export function AIInsightsPanel() {
                 </CardContent>
               </Card>
 
-              {/* Key Insights */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="h-5 w-5 text-yellow-600" />
-                    Key Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-sm max-w-none">
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {analysis.insights}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* AI Analysis Recommendations */}
+              <AIAnalysisRecommendations 
+                aiResponse={aiResponse}
+                onRecommendationClick={handleRecommendationClick}
+              />
 
-              {/* Recommendations */}
-              {analysis.recommendations && analysis.recommendations.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      Recommended Actions
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {analysis.recommendations.map((recommendation, index) => (
-                        <div key={index} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                          <p className="text-sm">{recommendation}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+
 
               {/* Risk Alerts */}
               {analysis.risk_alerts && analysis.risk_alerts.length > 0 && (

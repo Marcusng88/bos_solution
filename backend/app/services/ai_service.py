@@ -7,7 +7,8 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import json
-from sqlalchemy.orm import Session
+from decimal import Decimal
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
@@ -15,6 +16,25 @@ from app.core.config import settings
 from app.models.campaign import CampaignData
 from app.models.competitor import Competitor
 from app.models.monitoring import MonitoringData
+import uuid
+
+def convert_decimal_to_float(obj):
+    """Convert non-JSON-serializable objects to JSON-serializable types"""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {key: convert_decimal_to_float(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimal_to_float(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        # Handle custom objects by converting to dict
+        return convert_decimal_to_float(obj.__dict__)
+    else:
+        return obj
 
 
 class AIService:
@@ -22,14 +42,14 @@ class AIService:
     
     def __init__(self):
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash-lite",
             google_api_key=settings.GEMINI_API_KEY,
             temperature=0.7,
             max_tokens=2048,
             convert_system_message_to_human=True  # Fix for SystemMessage compatibility
         )
         
-    async def analyze_campaign_data(self, db: Session, user_id: str) -> Dict[str, Any]:
+    async def analyze_campaign_data(self, db: AsyncSession, user_id: str) -> Dict[str, Any]:
         """Analyze campaign data and generate AI insights"""
         
         # Get campaign data
@@ -41,33 +61,33 @@ class AIService:
         # Get monitoring data
         monitoring_data = await self._get_monitoring_data(db, user_id)
         
-        # Read README files for context
-        readme_context = await self._get_readme_context()
+        # Get risk calculation context (not old data, just the calculation logic)
+        risk_context = await self._get_risk_calculation_context()
         
         # Generate AI analysis
         analysis = await self._generate_campaign_analysis(
-            campaign_data, competitor_data, monitoring_data, readme_context
+            campaign_data, competitor_data, monitoring_data, risk_context
         )
         
         return analysis
     
-    async def chat_with_ai(self, db: Session, user_id: str, message: str) -> str:
+    async def chat_with_ai(self, db: AsyncSession, user_id: str, message: str) -> str:
         """Chat with AI about campaigns and business questions"""
         
         # Get relevant data based on the message
         campaign_data = await self._get_campaign_data(db, user_id)
         competitor_data = await self._get_competitor_data(db, user_id)
         monitoring_data = await self._get_monitoring_data(db, user_id)
-        readme_context = await self._get_readme_context()
+        risk_context = await self._get_risk_calculation_context()
         
         # Generate response
         response = await self._generate_chat_response(
-            message, campaign_data, competitor_data, monitoring_data, readme_context
+            message, campaign_data, competitor_data, monitoring_data, risk_context
         )
         
         return response
     
-    async def _get_campaign_data(self, db: Session, user_id: str) -> List[Dict[str, Any]]:
+    async def _get_campaign_data(self, db: AsyncSession, user_id: str) -> List[Dict[str, Any]]:
         """Get campaign data from database"""
         try:
             print(f"🔍 Getting campaign data for user: {user_id}")
@@ -79,7 +99,7 @@ class AIService:
                        conversions, net_profit, ongoing
                 FROM campaign_data 
                 ORDER BY date DESC
-                LIMIT 103
+                LIMIT 500
             """)
             
             print("🔍 Executing campaign data query...")
@@ -92,7 +112,7 @@ class AIService:
             row_count = 0
             for row in result:
                 row_count += 1
-                campaigns.append({
+                campaign_dict = {
                     "name": row.name,
                     "date": row.date.isoformat() if row.date else None,
                     "impressions": row.impressions,
@@ -104,7 +124,10 @@ class AIService:
                     "conversions": row.conversions,
                     "net_profit": row.net_profit,
                     "ongoing": row.ongoing
-                })
+                }
+                # Convert Decimal objects to float for JSON serialization
+                campaign_dict = convert_decimal_to_float(campaign_dict)
+                campaigns.append(campaign_dict)
                 
                 if row_count <= 3:
                     print(f"🔍 Sample row {row_count}: {row.name} - ongoing: {row.ongoing}")
@@ -122,7 +145,7 @@ class AIService:
             print(f"❌ Error getting campaign data: {e}")
             return []
     
-    async def _get_competitor_data(self, db: Session, user_id: str) -> List[Dict[str, Any]]:
+    async def _get_competitor_data(self, db: AsyncSession, user_id: str) -> List[Dict[str, Any]]:
         """Get competitor data from database"""
         try:
             print(f"🔍 Getting competitor data for user: {user_id}")
@@ -140,13 +163,16 @@ class AIService:
             
             competitor_data = []
             for row in result:
-                competitor_data.append({
+                competitor_dict = {
                     "name": row.name,
                     "industry": row.industry,
                     "website": row.website_url,
                     "social_media": row.social_media_handles,
                     "status": row.status
-                })
+                }
+                # Convert any non-JSON-serializable objects
+                competitor_dict = convert_decimal_to_float(competitor_dict)
+                competitor_data.append(competitor_dict)
             
             print(f"📊 Found {len(competitor_data)} competitors")
             
@@ -175,7 +201,7 @@ class AIService:
             print(f"❌ Error getting competitor data: {e}")
             return []
     
-    async def _get_monitoring_data(self, db: Session, user_id: str) -> List[Dict[str, Any]]:
+    async def _get_monitoring_data(self, db: AsyncSession, user_id: str) -> List[Dict[str, Any]]:
         """Get monitoring data from database"""
         try:
             print(f"🔍 Getting monitoring data for user: {user_id}")
@@ -194,14 +220,17 @@ class AIService:
             
             monitoring_data = []
             for row in result:
-                monitoring_data.append({
+                monitoring_dict = {
                     "platform": row.platform,
                     "content": row.content_text,
                     "engagement": row.engagement_metrics,
                     "sentiment": row.sentiment_score,
                     "posted_at": row.posted_at.isoformat() if row.posted_at else None,
                     "competitor_id": row.competitor_id
-                })
+                }
+                # Convert Decimal objects to float for JSON serialization
+                monitoring_dict = convert_decimal_to_float(monitoring_dict)
+                monitoring_data.append(monitoring_dict)
             
             print(f"📊 Found {len(monitoring_data)} monitoring records")
             
@@ -232,77 +261,83 @@ class AIService:
             print(f"❌ Error getting monitoring data: {e}")
             return []
     
-    async def _get_readme_context(self) -> str:
-        """Read README files for context"""
-        try:
-            # Try different possible paths for README files
-            possible_paths = [
-                "",  # Current directory
-                "../",  # Parent directory
-                "../../",  # Two levels up
-                "./backend/",  # Backend directory
-                "./frontend/"  # Frontend directory
-            ]
-            
-            readme_files = [
-                "README.md",
-                "BUDGET_OPTIMIZATION_FEATURES.md",
-                "CAMPAIGN_PERFORMANCE_EXPLANATION.md",
-                "ENHANCED_RISK_RANKING_EXPLANATION.md",
-                "IMPLEMENTATION_SUMMARY.md",
-                "SETUP_SUMMARY.md"
-            ]
-            
-            context = ""
-            files_found = 0
-            
-            for base_path in possible_paths:
-                for filename in readme_files:
-                    try:
-                        file_path = os.path.join(base_path, filename)
-                        if os.path.exists(file_path):
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                                context += f"\n\n--- {filename} ---\n{content}"
-                                files_found += 1
-                                print(f"Successfully read: {file_path}")
-                    except Exception as e:
-                        print(f"Error reading {filename} from {base_path}: {e}")
-                        continue
-            
-            print(f"Successfully read {files_found} README files for context")
-            
-            # If no files found, provide some basic context
-            if not context:
-                context = """
-                Business Context: This is a Business Operations System (BOS) that provides:
-                - Campaign performance tracking and optimization
-                - Competitor intelligence and monitoring
-                - Budget management and risk assessment
-                - AI-powered insights and recommendations
-                
-                The system helps businesses optimize their marketing campaigns by analyzing performance data,
-                monitoring competitors, and providing actionable recommendations for improvement.
-                """
-            
-            return context
-        except Exception as e:
-            print(f"Error reading README files: {e}")
-            return "Business Context: Marketing campaign optimization and competitor intelligence system."
+    async def _get_risk_calculation_context(self) -> str:
+        """Get risk calculation logic context (not old data)"""
+        return """
+        RISK CALCULATION METHODOLOGY:
+        
+        The system calculates risk scores using a weighted algorithm:
+        
+        1. Budget Utilization Risk (40% Weight):
+        - Critical (95%+): 1.0 risk score
+        - High (85-95%): 0.8 risk score  
+        - Medium (75-85%): 0.6 risk score
+        - Low (50-75%): 0.3 risk score
+        - Safe (<50%): 0.0 risk score
+        
+        2. Profit Performance Risk (30% Weight):
+        - Severe Loss (-20%+): 1.0 risk score
+        - Significant Loss (-10% to -20%): 0.8 risk score
+        - Loss (0% to -10%): 0.6 risk score
+        - Low Profit (0% to 10%): 0.3 risk score
+        - Good Profit (10%+): 0.0 risk score
+        
+        3. Performance Metrics Risk (20% Weight):
+        - CTR < 1%: +0.5 risk
+        - CTR 1-2%: +0.3 risk
+        - CPC > $5: +0.5 risk
+        - CPC $3-5: +0.3 risk
+        - Conversion Rate < 1%: +0.5 risk
+        - Conversion Rate 1-2%: +0.3 risk
+        
+        4. Spending Velocity Risk (10% Weight):
+        - Extremely Rapid (<5 days): 1.0 risk score
+        - Rapid (5-10 days): 0.8 risk score
+        - Above Average (10-15 days): 0.5 risk score
+        - Normal (>15 days): 0.0 risk score
+        
+        Final Risk Levels:
+        - Critical Risk: 0.8+ (80%+ overall risk)
+        - High Risk: 0.6-0.79 (60-79% overall risk)
+        - Medium Risk: 0.4-0.59 (40-59% overall risk)
+        - Low Risk: <0.4 (<40% overall risk)
+        
+        PERFORMANCE SCORE CALCULATION:
+        
+        Performance scores are calculated based on:
+        - CTR performance (target: 2%+)
+        - CPC efficiency (target: <$3)
+        - Conversion rate (target: 1%+)
+        - Profit margin (target: 10%+)
+        - Budget utilization efficiency
+        
+        Each metric contributes to an overall performance score from 1-10.
+        """
     
     async def _generate_campaign_analysis(
         self, 
         campaign_data: List[Dict[str, Any]], 
         competitor_data: List[Dict[str, Any]], 
         monitoring_data: List[Dict[str, Any]], 
-        readme_context: str
+        risk_context: str
     ) -> Dict[str, Any]:
         """Generate AI analysis of campaign data"""
         
         # Create prompt for campaign analysis (combine system and user prompt)
+        try:
+            campaign_data_json = json.dumps(convert_decimal_to_float(campaign_data), indent=2, default=str)
+            competitor_data_json = json.dumps(convert_decimal_to_float(competitor_data), indent=2, default=str)
+            monitoring_data_json = json.dumps(convert_decimal_to_float(monitoring_data), indent=2, default=str)
+        except Exception as json_error:
+            print(f"JSON serialization error: {json_error}")
+            # Fallback to string representation
+            campaign_data_json = str(convert_decimal_to_float(campaign_data))
+            competitor_data_json = str(convert_decimal_to_float(competitor_data))
+            monitoring_data_json = str(convert_decimal_to_float(monitoring_data))
+        
         combined_prompt = f"""You are an expert marketing AI analyst specializing in campaign optimization and performance analysis. 
  
- Your task is to analyze campaign data and provide actionable insights and recommendations. Focus on:
+ Your task is to analyze REAL-TIME campaign data and provide actionable insights and recommendations. Focus on:
  1. Performance trends and patterns
  2. Budget optimization opportunities
  3. Risk identification and mitigation
@@ -311,12 +346,12 @@ class AIService:
  
    **IMPORTANT**: When analyzing campaigns, always mention specific campaign names from the data (e.g., "Adidas Boost Launch", "CocaCola Refresh 2025", "Lazada Flash Sales 8.8"). This helps users understand which campaigns you're referring to. When asked about ongoing campaigns, focus specifically on campaigns where ongoing = 'Yes'.
   
-  Analyze the following campaign and market data to provide actionable insights:
+  Analyze the following REAL-TIME campaign and market data to provide actionable insights:
  
- Campaign Data: {json.dumps(campaign_data, indent=2)}
- Competitor Data: {json.dumps(competitor_data, indent=2)}
- Market Monitoring: {json.dumps(monitoring_data, indent=2)}
- Business Context: {readme_context}
+ Campaign Data: {campaign_data_json}
+ Competitor Data: {competitor_data_json}
+ Market Monitoring: {monitoring_data_json}
+ Risk Calculation Context: {risk_context}
  
  Please provide:
  1. Key performance insights (3-5 bullet points) - mention specific campaign names
@@ -344,6 +379,9 @@ class AIService:
             
         except Exception as e:
             print(f"Error generating AI analysis: {e}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             return {
                 "timestamp": datetime.now().isoformat(),
                 "insights": "Unable to generate AI analysis at this time.",
@@ -358,18 +396,29 @@ class AIService:
         campaign_data: List[Dict[str, Any]], 
         competitor_data: List[Dict[str, Any]], 
         monitoring_data: List[Dict[str, Any]], 
-        readme_context: str
+        risk_context: str
     ) -> str:
         """Generate AI chat response"""
         
         # Create combined prompt (no SystemMessage)
+        try:
+            campaign_data_json = json.dumps(convert_decimal_to_float(campaign_data), indent=2, default=str)
+            competitor_data_json = json.dumps(convert_decimal_to_float(competitor_data), indent=2, default=str)
+            monitoring_data_json = json.dumps(convert_decimal_to_float(monitoring_data), indent=2, default=str)
+        except Exception as json_error:
+            print(f"JSON serialization error: {json_error}")
+            # Fallback to string representation
+            campaign_data_json = str(convert_decimal_to_float(campaign_data))
+            competitor_data_json = str(convert_decimal_to_float(competitor_data))
+            monitoring_data_json = str(convert_decimal_to_float(monitoring_data))
+        
         combined_prompt = f"""You are an expert marketing AI assistant for a business operations system. 
  
- You have access to:
- - Campaign performance data
+ You have access to REAL-TIME data from:
+ - Campaign performance data (from Supabase campaign_data table)
  - Competitor analysis
  - Market monitoring data
- - Business documentation
+ - Risk calculation methodology
  
  Provide helpful, actionable advice about:
  - Campaign optimization
@@ -379,19 +428,19 @@ class AIService:
  - Risk assessment
  - General marketing questions
  
- Be conversational but professional. Provide specific, actionable insights based on the available data.
+ Be conversational but professional. Provide specific, actionable insights based on the REAL-TIME data available.
  
    **IMPORTANT**: When analyzing campaigns, always mention specific campaign names from the data (e.g., "Adidas Boost Launch", "CocaCola Refresh 2025", "Lazada Flash Sales 8.8"). This helps users understand which campaigns you're referring to. When asked about ongoing campaigns, focus specifically on campaigns where ongoing = 'Yes'.
   
   User Question: {message}
  
- Available Data:
- Campaign Data: {json.dumps(campaign_data, indent=2)}
- Competitor Data: {json.dumps(competitor_data, indent=2)}
- Market Monitoring: {json.dumps(monitoring_data, indent=2)}
- Business Context: {readme_context}
+ Available REAL-TIME Data:
+ Campaign Data: {campaign_data_json}
+ Competitor Data: {competitor_data_json}
+ Market Monitoring: {monitoring_data_json}
+ Risk Calculation Context: {risk_context}
  
- Please provide a helpful, actionable response to the user's question based on the available data. Always reference specific campaign names when discussing performance."""
+ Please provide a helpful, actionable response to the user's question based on the REAL-TIME data available. Always reference specific campaign names when discussing performance."""
         
         try:
             # Use HumanMessage only (no SystemMessage)
@@ -400,6 +449,9 @@ class AIService:
             
         except Exception as e:
             print(f"Error generating chat response: {e}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             return "I'm sorry, I'm having trouble processing your request right now. Please try again later."
     
     def _extract_recommendations(self, content: str) -> List[str]:
