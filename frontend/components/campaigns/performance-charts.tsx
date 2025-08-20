@@ -34,10 +34,8 @@ const performanceData = [
 ]
 
 const platformData = [
-  { name: "Facebook", value: 45, color: "#1877F2" },
-  { name: "Instagram", value: 30, color: "#E4405F" },
-  { name: "LinkedIn", value: 15, color: "#0A66C2" },
-  { name: "Twitter", value: 10, color: "#1DA1F2" },
+  { name: "Facebook", value: 60, color: "#1877F2" },
+  { name: "Instagram", value: 40, color: "#E4405F" },
 ]
 
 const conversionFunnelData = [

@@ -21,11 +21,8 @@ const monthlySpend = [
 ]
 
 const costPerChannel = [
-  { channel: "Google Ads", cost: 18500, cpa: 45, roas: 4.2 },
-  { channel: "Facebook Ads", cost: 12800, cpa: 38, roas: 3.8 },
-  { channel: "Instagram", cost: 6200, cpa: 52, roas: 3.1 },
-  { channel: "LinkedIn", cost: 4100, cpa: 68, roas: 2.9 },
-  { channel: "Twitter", cost: 2400, cpa: 42, roas: 3.5 },
+  { channel: "Facebook Ads", cost: 21300, cpa: 38, roas: 4.1 },
+  { channel: "Instagram", cost: 11200, cpa: 52, roas: 3.4 },
 ]
 
 export function CostAnalysis() {

@@ -1,12 +1,15 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Sparkles, ArrowRight } from "lucide-react"
+import { CheckCircle, Sparkles, ArrowRight, Loader2 } from "lucide-react"
 import type { OnboardingData } from "../onboarding-wizard"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { ApiClient } from "@/lib/api-client"
 
 interface CompletionStepProps {
   data: OnboardingData
@@ -15,18 +18,76 @@ interface CompletionStepProps {
 export function CompletionStep({ data }: CompletionStepProps) {
   const { user } = useUser()
   const router = useRouter()
+  const { toast } = useToast()
+  const [isSaving, setIsSaving] = useState(false)
+  
   const handleGetStarted = async () => {
+    // Validate required fields before save
+    if (!data.budget || (data.goals?.length ?? 0) === 0 || !data.industry || !data.companySize) {
+      toast({
+        title: "Incomplete",
+        description: "Please complete all steps (industry, company size, goals, and budget) before continuing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
     try {
+      const apiClient = new ApiClient()
+      
+      // Save user preferences to database
+      await apiClient.saveUserPreferences(user.id, {
+        industry: data.industry,
+        companySize: data.companySize,
+        goals: data.goals,
+        budget: data.budget
+      })
+      
+      // Save competitors to database (one by one)
+      for (const competitor of data.competitors) {
+        await apiClient.saveCompetitor(user.externalId || user.id, {
+          name: competitor.name,
+          website: competitor.website,
+          description: competitor.description,
+          platforms: competitor.platforms
+        })
+      }
+      
+      // Update Clerk metadata
       await user?.update({ unsafeMetadata: { onboardingComplete: true } as any })
-    } catch (e) {
-      // ignore
-    } finally {
-      try {
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("skipOnboardingGuard", "true")
-        }
-      } catch {}
+      
+      // Show success message
+      toast({
+        title: "Onboarding Complete!",
+        description: "Your preferences have been saved successfully.",
+      })
+      
+      // Clear localStorage and redirect
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("onboarding_current_step")
+        sessionStorage.setItem("skipOnboardingGuard", "true")
+      }
+      
       router.replace("/dashboard")
+    } catch (error) {
+      console.error('Failed to save onboarding data:', error)
+      toast({
+        title: "Save Failed",
+        description: "Failed to save your preferences. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -86,9 +147,18 @@ export function CompletionStep({ data }: CompletionStepProps) {
         </div>
 
         <div className="text-center pt-4">
-          <Button onClick={handleGetStarted} size="lg" className="px-8">
-            Go to Dashboard
-            <ArrowRight className="ml-2 h-4 w-4" />
+          <Button onClick={handleGetStarted} size="lg" className="px-8" disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Go to Dashboard
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
           </Button>
           <p className="text-sm text-muted-foreground mt-3">
             You can always update these settings later in your account preferences.
