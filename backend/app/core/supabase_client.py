@@ -21,8 +21,8 @@ class SupabaseClient:
             "apikey": self.supabase_key,
             "Authorization": f"Bearer {self.supabase_key}",
             "Content-Type": "application/json",
-            # Ask Supabase to return inserted/updated rows to avoid 204 No Content
-            "Prefer": "return=representation",
+            # Ask Supabase to return inserted/updated rows and merge duplicates for upsert semantics
+            "Prefer": "resolution=merge-duplicates,return=representation",
         }
 
     async def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None):
@@ -34,7 +34,7 @@ class SupabaseClient:
                 if method.upper() == "GET":
                     response = await client.get(url, headers=self.headers, params=params)
                 elif method.upper() == "POST":
-                    response = await client.post(url, headers=self.headers, json=data)
+                    response = await client.post(url, headers=self.headers, json=data, params=params)
                 elif method.upper() == "PATCH":
                     response = await client.patch(url, headers=self.headers, json=data, params=params)
                 elif method.upper() == "DELETE":
@@ -134,38 +134,90 @@ class SupabaseClient:
             raise Exception(f"Failed to get user preferences: {str(e)}")
 
     # Competitor methods
-    async def create_competitor(self, competitor_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_competitor(self, competitor_data: Dict[str, Any], user_id: str = None) -> Dict[str, Any]:
         """Create a new competitor"""
         try:
-            response = await self._make_request("POST", "my_competitors", competitor_data)
+            # Use Clerk ID directly as user_id (no UUID conversion needed)
+            if not user_id:
+                raise Exception("No user_id provided")
+            
+            # Transform data to match competitors table structure
+            transformed_data = self._transform_competitor_data(competitor_data, user_id)
+            
+            response = await self._make_request("POST", "competitors", transformed_data)
             if response.status_code in [200, 201]:
                 try:
-                    data = response.json() if response.content else None
+                    raw = response.json() if response.content else None
+                    # Supabase may return a list for inserts with Prefer: return=representation
+                    if isinstance(raw, list):
+                        data = raw[0] if raw else None
+                    else:
+                        data = raw
                 except Exception:
                     data = None
+
+                # Fallback: if no data returned, fetch by unique key (user_id, name)
+                if not data or not data.get("id"):
+                    try:
+                        fetched = await self.get_competitor_by_user_and_name(user_id, transformed_data.get("name"))
+                        if fetched:
+                            data = fetched
+                    except Exception:
+                        pass
+
                 return {"success": True, "data": data}
             if response.status_code == 204:
                 # No content returned; treat as success without data
                 return {"success": True, "data": None}
             else:
-                raise Exception(f"Failed to create competitor: {response.status_code}")
+                # Log the error response for debugging
+                error_text = response.text if hasattr(response, 'text') else "No error text"
+                logger.error(f"Supabase error response: Status {response.status_code}, Body: {error_text}")
+                raise Exception(f"Failed to create competitor: {response.status_code} - {error_text}")
         except Exception as e:
             raise Exception(f"Failed to create competitor: {str(e)}")
+
+    async def get_competitor_by_user_and_name(self, user_id: str, name: str) -> Optional[Dict[str, Any]]:
+        """Fetch a competitor by (user_id, name) unique constraint."""
+        try:
+            params = {
+                "user_id": f"eq.{user_id}",
+                "name": f"eq.{name}",
+                "order": "created_at.desc",
+                "limit": 1,
+            }
+            response = await self._make_request("GET", "competitors", params=params)
+            if response.status_code == 200:
+                rows = response.json()
+                return rows[0] if rows else None
+            return None
+        except Exception as e:
+            raise Exception(f"Failed to fetch competitor by user and name: {str(e)}")
 
     async def get_user_competitors(self, user_id: str) -> List[Dict[str, Any]]:
         """Get all competitors for a user"""
         try:
-            response = await self._make_request("GET", f"my_competitors?user_id=eq.{user_id}")
+            # Use Clerk ID directly as user_id (no UUID conversion needed)
+            response = await self._make_request("GET", f"competitors?user_id=eq.{user_id}")
             if response.status_code == 200:
-                return response.json()
+                competitors = response.json()
+                # Transform data back to frontend format
+                return [self._transform_competitor_response(comp) for comp in competitors]
             return []
         except Exception as e:
             raise Exception(f"Failed to get user competitors: {str(e)}")
 
-    async def update_competitor(self, competitor_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_competitor(self, competitor_id: str, update_data: Dict[str, Any], user_id: str = None) -> Dict[str, Any]:
         """Update a competitor"""
         try:
-            response = await self._make_request("PATCH", f"my_competitors", update_data, {"id": f"eq.{competitor_id}"})
+            # Use Clerk ID directly as user_id (no UUID conversion needed)
+            if not user_id:
+                raise Exception("No user_id provided")
+            
+            # Transform data to match competitors table structure
+            transformed_data = self._transform_competitor_data(update_data, user_id)
+            
+            response = await self._make_request("PATCH", f"competitors", transformed_data, {"id": f"eq.{competitor_id}"})
             if response.status_code in [200, 204]:
                 return {"success": True}
             else:
@@ -176,13 +228,91 @@ class SupabaseClient:
     async def delete_competitor(self, competitor_id: str) -> Dict[str, Any]:
         """Delete a competitor"""
         try:
-            response = await self._make_request("DELETE", f"my_competitors", params={"id": f"eq.{competitor_id}"})
+            response = await self._make_request("DELETE", f"competitors", params={"id": f"eq.{competitor_id}"})
             if response.status_code in [200, 204]:
                 return {"success": True}
             else:
                 raise Exception(f"Failed to delete competitor: {response.status_code}")
         except Exception as e:
             raise Exception(f"Failed to delete competitor: {str(e)}")
+
+    def _transform_competitor_data(self, data: Dict[str, Any], user_id: str = None) -> Dict[str, Any]:
+        """Transform frontend data to competitors table format"""
+        transformed = {}
+        
+        # Map frontend fields to database fields
+        if 'name' in data:
+            transformed['name'] = data['name']
+        if 'website' in data:
+            transformed['website_url'] = data['website']
+        if 'platforms' in data:
+            transformed['platforms'] = data['platforms']
+        if 'description' in data:
+            transformed['description'] = data['description']
+        if 'industry' in data:
+            transformed['industry'] = data['industry']
+        
+        # Convert platforms array to social_media_handles JSONB format
+        if 'platforms' in data and data['platforms']:
+            transformed['social_media_handles'] = {platform: "" for platform in data['platforms']}
+        else:
+            transformed['social_media_handles'] = {}
+        
+        # Ensure platforms is properly formatted as TEXT array
+        if 'platforms' in data:
+            if data['platforms'] is None:
+                transformed['platforms'] = []
+            elif isinstance(data['platforms'], list):
+                transformed['platforms'] = data['platforms']
+            else:
+                transformed['platforms'] = []
+        
+        # Set defaults for required fields
+        transformed['status'] = 'active'
+        transformed['scan_frequency_minutes'] = 60
+        transformed['last_scan_at'] = None
+        
+        # Add user_id if provided (required field)
+        if user_id:
+            transformed['user_id'] = user_id
+        else:
+            raise Exception("No user_id provided to _transform_competitor_data!")
+        
+        # Validate required fields are present (only user_id is strictly required here)
+        required_fields = ['user_id']
+        missing_fields = [field for field in required_fields if field not in transformed or transformed[field] is None]
+        if missing_fields:
+            raise Exception(f"Missing required fields: {missing_fields}")
+        
+        return transformed
+
+    def _transform_competitor_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform database data to frontend format"""
+        transformed = {}
+        
+        # Map database fields to frontend fields
+        if 'id' in data:
+            transformed['id'] = data['id']
+        if 'name' in data:
+            transformed['competitor_name'] = data['name']
+        if 'website_url' in data:
+            transformed['website_url'] = data['website_url']
+        if 'platforms' in data:
+            transformed['active_platforms'] = data['platforms']
+        if 'description' in data:
+            transformed['description'] = data['description']
+        if 'industry' in data:
+            transformed['industry'] = data['industry']
+        if 'status' in data:
+            transformed['status'] = data['status']
+        if 'created_at' in data:
+            transformed['created_at'] = data['created_at']
+        if 'updated_at' in data:
+            transformed['updated_at'] = data['updated_at']
+        if 'last_scan_at' in data:
+            transformed['last_scan_at'] = data['last_scan_at']
+        
+        return transformed
 
     # Social media account methods
     async def create_social_media_account(self, account_data: Dict[str, Any]) -> Dict[str, Any]:

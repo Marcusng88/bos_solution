@@ -28,18 +28,18 @@ CREATE TABLE public.users (
 -- Competitors table - stores competitor information
 CREATE TABLE competitors (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
+    user_id VARCHAR(255) NOT NULL, -- Clerk user ID (stored directly as VARCHAR)
     name VARCHAR(255) NOT NULL,
     description TEXT,
     website_url VARCHAR(500),
     social_media_handles JSONB, -- Store platform:handle mappings
+    platforms TEXT[], -- Array of platforms to monitor (e.g., ["youtube", "instagram", "twitter"])
     industry VARCHAR(100),
     status monitoring_status DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_scan_at TIMESTAMP WITH TIME ZONE,
-    scan_frequency_minutes INTEGER DEFAULT 60, -- How often to scan this competitor
-    
+    scan_frequency_minutes INTEGER DEFAULT 60, -- How often to scan this competitor  
     -- Constraints
     CONSTRAINT unique_user_competitor UNIQUE(user_id, name),
     CONSTRAINT valid_scan_frequency CHECK (scan_frequency_minutes >= 15) -- Minimum 15 minutes
@@ -230,25 +230,9 @@ CREATE TABLE user_preferences (
     CONSTRAINT fk_user_preferences_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE
 );
 
--- My competitors table - stores user's competitor information
-CREATE TABLE my_competitors (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id VARCHAR(255) NOT NULL, -- Clerk user ID
-    competitor_name VARCHAR(255) NOT NULL,
-    website_url VARCHAR(500),
-    active_platforms TEXT[] NOT NULL, -- Array of platforms they're active on
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- Constraints
-    CONSTRAINT valid_platforms CHECK (array_length(active_platforms, 1) > 0),
-    
-    -- Foreign key reference to users table
-    CONSTRAINT fk_my_competitors_user_id FOREIGN KEY (user_id) REFERENCES users(clerk_id) ON DELETE CASCADE,
-    
-    -- Unique constraint: one user can't have duplicate competitor names
-    CONSTRAINT unique_user_competitor_name UNIQUE(user_id, competitor_name)
-);
+-- My competitors table - REMOVED (consolidated into competitors table)
+-- This table has been removed to eliminate duplication
+-- All competitor data is now stored in the competitors table
 
 -- ============================================================================
 -- NEW TABLES FOR SOCIAL MEDIA CONTENT UPLOAD
@@ -332,9 +316,7 @@ CREATE TABLE content_templates (
 CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id);
 CREATE INDEX idx_user_preferences_industry ON user_preferences(industry);
 CREATE INDEX idx_user_preferences_company_size ON user_preferences(company_size);
-CREATE INDEX idx_my_competitors_user_id ON my_competitors(user_id);
-CREATE INDEX idx_my_competitors_competitor_name ON my_competitors(competitor_name);
-CREATE INDEX idx_my_competitors_platforms ON my_competitors USING gin(active_platforms);
+-- my_competitors indexes removed (consolidated into competitors table)
 
 -- Social media content indexes
 CREATE INDEX idx_social_media_accounts_user_id ON social_media_accounts(user_id);
@@ -353,8 +335,7 @@ CREATE INDEX idx_content_templates_tags ON content_templates USING gin(tags);
 CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_my_competitors_updated_at BEFORE UPDATE ON my_competitors
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- my_competitors trigger removed (consolidated into competitors table)
 
 CREATE TRIGGER update_social_media_accounts_updated_at BEFORE UPDATE ON social_media_accounts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

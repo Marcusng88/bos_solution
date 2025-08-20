@@ -147,45 +147,49 @@ export class ApiClient {
     });
   }
 
-  // My Competitors endpoints
+  // Competitors endpoints (consolidated from my-competitors)
   async saveCompetitor(userId: string, competitor: {
     name: string
     website: string
     platforms: string[]
+    description?: string
   }) {
-    return this.request('/my-competitors', {
+    return this.request('/competitors', {
       userId,
       method: 'POST',
       body: JSON.stringify({
-        competitor_name: competitor.name,
-        website_url: competitor.website,
-        active_platforms: competitor.platforms
+        name: competitor.name,
+        website: competitor.website,
+        platforms: competitor.platforms,
+        description: competitor.description
       }),
     });
   }
 
   async getUserCompetitors(userId: string) {
-    return this.request('/my-competitors', { userId });
+    return this.request('/competitors', { userId });
   }
 
   async updateCompetitor(userId: string, competitorId: string, competitor: {
     name: string
     website: string
     platforms: string[]
+    description?: string
   }) {
-    return this.request(`/my-competitors/${competitorId}`, {
+    return this.request(`/competitors/${competitorId}`, {
       userId,
       method: 'PUT',
       body: JSON.stringify({
-        competitor_name: competitor.name,
-        website_url: competitor.website,
-        active_platforms: competitor.platforms
+        name: competitor.name,
+        website: competitor.website,
+        platforms: competitor.platforms,
+        description: competitor.description
       }),
     });
   }
 
   async deleteCompetitor(userId: string, competitorId: string) {
-    return this.request(`/my-competitors/${competitorId}`, {
+    return this.request(`/competitors/${competitorId}`, {
       userId,
       method: 'DELETE',
     });

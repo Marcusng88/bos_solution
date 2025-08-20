@@ -5,7 +5,7 @@ from .competitor import Competitor
 from .monitoring import MonitoringData, MonitoringAlert
 from .user_settings import UserMonitoringSettings
 from .user_preferences import UserPreferences
-from .my_competitor import MyCompetitor
+# MyCompetitor model removed - consolidated into Competitor model
 
 __all__ = [
     "User",
@@ -13,6 +13,5 @@ __all__ = [
     "MonitoringData", 
     "MonitoringAlert",
     "UserMonitoringSettings",
-    "UserPreferences",
-    "MyCompetitor"
+    "UserPreferences"
 ]

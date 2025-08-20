@@ -2,7 +2,7 @@
 Competitor model for database
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Integer, Enum
+from sqlalchemy import Column, String, Text, DateTime, Integer, Enum, ARRAY
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -21,6 +21,7 @@ class Competitor(Base):
     description = Column(Text)
     website_url = Column(String(500))
     social_media_handles = Column(DatabaseJSON)  # Store platform:handle mappings
+    platforms = Column(ARRAY(String))  # Array of platforms to monitor
     industry = Column(String(100))
     status = Column(Enum('active', 'paused', 'error', name='monitoring_status'), default='active')
     created_at = Column(DateTime(timezone=True), server_default=func.now())

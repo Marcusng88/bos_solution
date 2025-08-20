@@ -94,6 +94,7 @@ export function SettingsWizard() {
             id: comp.id, // Include the database ID for updates
             name: comp.competitor_name,
             website: comp.website_url || "",
+            description: comp.description || "",
             platforms: comp.active_platforms || []
           })),
           connectedAccounts: data.connectedAccounts, // Keep existing connected accounts
@@ -158,16 +159,18 @@ export function SettingsWizard() {
       for (const competitor of data.competitors) {
         if (competitor.id) {
           // Update existing competitor
-          await apiClient.updateCompetitor(user.id, competitor.id, {
+          await apiClient.updateCompetitor(user.externalId || user.id, competitor.id, {
             name: competitor.name,
             website: competitor.website,
+            description: competitor.description,
             platforms: competitor.platforms
           })
         } else {
           // Create new competitor
-          await apiClient.saveCompetitor(user.id, {
+          await apiClient.saveCompetitor(user.externalId || user.id, {
             name: competitor.name,
             website: competitor.website,
+            description: competitor.description,
             platforms: competitor.platforms
           })
         }
