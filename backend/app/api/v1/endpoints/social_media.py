@@ -23,9 +23,9 @@ router = APIRouter()
 # SOCIAL MEDIA POSTING FUNCTIONS
 # ============================================================================
 
-async def post_to_social_media(upload_data: dict, account_data: dict) -> dict:
-    """Post content to actual social media platforms"""
-    platform = upload_data.get("platform")
+async def post_to_social_media(upload_data: dict, account_data: dict, user_id: Optional[str] = None) -> dict:
+    """Post content to the appropriate social media platform"""
+    platform = account_data.get("platform", "").lower()
     
     if platform == "facebook":
         return await post_to_facebook(upload_data, account_data)
@@ -36,7 +36,7 @@ async def post_to_social_media(upload_data: dict, account_data: dict) -> dict:
     elif platform == "linkedin":
         return await post_to_linkedin(upload_data, account_data)
     elif platform == "youtube":
-        return await post_to_youtube(upload_data, account_data)
+        return await post_to_youtube(upload_data, account_data, user_id)
     else:
         raise Exception(f"Platform {platform} not yet implemented")
 
@@ -266,7 +266,7 @@ async def post_to_linkedin(upload_data: dict, account_data: dict) -> dict:
     except Exception as e:
         raise Exception(f"Failed to post to LinkedIn: {str(e)}")
 
-async def post_to_youtube(upload_data: dict, account_data: dict) -> dict:
+async def post_to_youtube(upload_data: dict, account_data: dict, user_id: Optional[str] = None) -> dict:
     """Post video to YouTube using YouTube Data API"""
     try:
         access_token = account_data.get("access_token")
@@ -300,7 +300,8 @@ async def post_to_youtube(upload_data: dict, account_data: dict) -> dict:
                 title=title,
                 description=description,
                 tags=tags,
-                privacy_status=privacy_status
+                privacy_status=privacy_status,
+                user_id=user_id
             )
         else:
             # For direct file uploads, we would need the file content
@@ -512,7 +513,7 @@ async def post_content_now(
         
         # Post to actual social media platform
         try:
-            post_result = await post_to_social_media(upload, account)
+            post_result = await post_to_social_media(upload, account, current_user_id)
             update_data = {
                 "status": "posted",
                 "post_id": post_result.get("post_id"),
@@ -738,7 +739,8 @@ async def upload_youtube_video_file(
             description=description,
             tags=video_tags,
             privacy_status=privacy_status,
-            content_type=video_file.content_type
+            content_type=video_file.content_type,
+            user_id=current_user_id
         )
         
         if result.get("success"):

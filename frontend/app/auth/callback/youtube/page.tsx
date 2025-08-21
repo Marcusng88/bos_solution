@@ -34,7 +34,7 @@ function YouTubeCallbackContent() {
     }
 
     handleYouTubeCallback(code)
-  }, [searchParams])
+  }, [searchParams, handleCallback, getROIAnalytics])
 
   const handleYouTubeCallback = async (code: string) => {
     try {

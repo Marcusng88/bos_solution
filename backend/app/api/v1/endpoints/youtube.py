@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.core.config import settings
+from app.services.youtube_service import youtube_service
+from app.core.auth_utils import get_user_id_from_header
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -59,6 +61,7 @@ async def get_youtube_auth_url():
     """Generate YouTube OAuth authorization URL"""
     logger.info(f"Google Client ID: {GOOGLE_CLIENT_ID}")
     logger.info(f"Google Client Secret: {'*' * len(GOOGLE_CLIENT_SECRET) if GOOGLE_CLIENT_SECRET else 'Not set'}")
+    logger.info(f"Redirect URI: {REDIRECT_URI}")
     
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google Client ID not configured")
@@ -73,6 +76,7 @@ async def get_youtube_auth_url():
     }
     
     auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
+    logger.info(f"Generated OAuth URL: {auth_url}")
     return {"auth_url": auth_url}
 
 @router.post("/auth/callback")
@@ -186,7 +190,8 @@ async def upload_video_file(
     title: str = Form(...),
     description: str = Form(...),
     privacy_status: str = Form(default="private"),
-    tags: Optional[str] = Form(default=None)
+    tags: Optional[str] = Form(default=None),
+    current_user_id: str = Depends(get_user_id_from_header)
 ):
     """Upload video file to YouTube"""
     if not access_token:
@@ -208,70 +213,29 @@ async def upload_video_file(
         # Read file content
         file_content = await video_file.read()
         
-        # Create video metadata
-        video_metadata = {
-            "snippet": {
-                "title": title,
-                "description": description,
-                "tags": video_tags,
-                "categoryId": "22"  # People & Blogs category
-            },
-            "status": {
-                "privacyStatus": privacy_status,
-                "selfDeclaredMadeForKids": False
-            }
-        }
+        # Upload to YouTube using the service with user_id for database recording
+        result = await youtube_service.upload_video_from_file(
+            access_token=access_token,
+            video_content=file_content,
+            title=title,
+            description=description,
+            tags=video_tags,
+            privacy_status=privacy_status,
+            content_type=video_file.content_type,
+            user_id=current_user_id
+        )
         
-        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for large uploads
-            # Create multipart boundary
-            boundary = "----formdata-fastapi-" + os.urandom(16).hex()
-            
-            # Build multipart body manually for YouTube API
-            multipart_body = []
-            
-            # Add metadata part
-            multipart_body.append(f'--{boundary}'.encode())
-            multipart_body.append(b'Content-Type: application/json; charset=UTF-8')
-            multipart_body.append(b'')
-            multipart_body.append(json.dumps(video_metadata).encode())
-            
-            # Add media part
-            multipart_body.append(f'--{boundary}'.encode())
-            multipart_body.append(f'Content-Type: {video_file.content_type}'.encode())
-            multipart_body.append(b'')
-            multipart_body.append(file_content)
-            multipart_body.append(f'--{boundary}--'.encode())
-            
-            body = b'\r\n'.join(multipart_body)
-            
-            upload_response = await client.post(
-                "https://www.googleapis.com/upload/youtube/v3/videos",
-                params={
-                    "part": "snippet,status",
-                    "uploadType": "multipart"
-                },
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": f"multipart/related; boundary={boundary}"
-                },
-                content=body
-            )
-            
-            if upload_response.status_code not in [200, 201]:
-                error_detail = upload_response.text
-                logger.error(f"YouTube video upload failed: {error_detail}")
-                raise HTTPException(status_code=400, detail=f"Failed to upload video to YouTube: {error_detail}")
-            
-            upload_data = upload_response.json()
-            
+        if result.get("success"):
             return {
                 "status": "success",
-                "video_id": upload_data.get("id"),
-                "title": upload_data.get("snippet", {}).get("title"),
-                "video_url": f"https://www.youtube.com/watch?v={upload_data.get('id')}",
-                "upload_status": upload_data.get("status", {}).get("uploadStatus"),
-                "privacy_status": upload_data.get("status", {}).get("privacyStatus")
+                "video_id": result.get("video_id"),
+                "title": result.get("title"),
+                "video_url": result.get("video_url"),
+                "upload_status": result.get("upload_status"),
+                "privacy_status": result.get("privacy_status")
             }
+        else:
+            raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
         
     except HTTPException:
         raise

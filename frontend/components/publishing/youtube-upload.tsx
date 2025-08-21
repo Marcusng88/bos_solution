@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { useUser } from "@clerk/nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,6 +42,7 @@ interface UploadedVideo {
 }
 
 export function YouTubeUpload() {
+  const { user } = useUser()
   const { isConnected, connectionStatus, uploadVideoFile, connect, getUserVideos } = useYouTubeStore()
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
@@ -150,6 +152,15 @@ export function YouTubeUpload() {
       return
     }
 
+    if (!user?.id) {
+      toast({
+        title: "User not authenticated",
+        description: "Please log in to upload videos.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsUploading(true)
     setUploadProgress(0)
 
@@ -179,7 +190,7 @@ export function YouTubeUpload() {
         })
       }, 500)
 
-      const result = await uploadVideoFile(uploadData)
+      const result = await uploadVideoFile(uploadData, user.id)
       
       clearInterval(progressInterval)
       setUploadProgress(100)
