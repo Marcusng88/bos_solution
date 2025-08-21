@@ -23,21 +23,11 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
     },
     {
       competitor: "Adidas",
-      platform: "Twitter",
+      platform: "Facebook",
       content: "Impossible is Nothing. Our sustainable future starts now with 100% recycled materials in our new line.",
       timestamp: "4 hours ago",
       engagement: { likes: 8930, comments: 445, shares: 567 },
       performance: "Medium",
-      url: "#",
-    },
-    {
-      competitor: "Under Armour",
-      platform: "LinkedIn",
-      content:
-        "The future of athletic performance is here. Introducing smart fabric technology that adapts to your workout.",
-      timestamp: "6 hours ago",
-      engagement: { likes: 2340, comments: 156, shares: 89 },
-      performance: "Low",
       url: "#",
     },
     {
@@ -53,9 +43,9 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
 
   const platformMetrics = [
     { platform: "Instagram", posts: 156, avgEngagement: 4.2, topPerformer: "Nike" },
-    { platform: "Twitter", posts: 234, avgEngagement: 2.8, topPerformer: "Adidas" },
+    { platform: "Facebook", posts: 198, avgEngagement: 3.1, topPerformer: "Adidas" },
     { platform: "TikTok", posts: 89, avgEngagement: 8.7, topPerformer: "Nike" },
-    { platform: "LinkedIn", posts: 67, avgEngagement: 1.9, topPerformer: "Under Armour" },
+    { platform: "YouTube", posts: 45, avgEngagement: 6.2, topPerformer: "Under Armour" },
   ]
 
   const getPerformanceBadge = (performance: string) => {

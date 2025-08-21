@@ -1,161 +1,81 @@
 """
-Competitors endpoints for managing competitor intelligence
+Competitors endpoints for managing competitor monitoring
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from app.core.database import get_db
-from app.core.auth_utils import get_user_id_from_header, get_db_user_id
-from app.services.competitor.competitor_service import CompetitorService
-from app.schemas.competitor import (
-    CompetitorCreate, CompetitorResponse, CompetitorUpdate
-)
+from app.core.auth_utils import get_user_id_from_header
+from app.schemas.competitor import CompetitorCreate, CompetitorUpdate, CompetitorResponse
+from app.core.supabase_client import SupabaseClient
 import logging
-import asyncio
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
-
-# Supervisor agent removed - using simplified monitoring service instead
-
 router = APIRouter()
 
-
-@router.get("/", response_model=list[CompetitorResponse])
+@router.get("/", response_model=List[CompetitorResponse])
 async def get_competitors(
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
-    """Get all competitors for a user"""
+    """Get all competitors for the authenticated user"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
-        
-        competitor_service = CompetitorService(db)
-        competitors = await competitor_service.get_competitors(db_user_id)
-        
-        # Convert UUID fields to strings for proper serialization
-        serialized_competitors = []
-        for competitor in competitors:
-            competitor_dict = {
-                "id": str(competitor.id),
-                "name": competitor.name,
-                "description": competitor.description,
-                "website_url": competitor.website_url,
-                "social_media_handles": competitor.social_media_handles,
-                "platforms": competitor.platforms or [],
-                "industry": competitor.industry,
-                "status": competitor.status,
-                "created_at": competitor.created_at,
-                "updated_at": competitor.updated_at,
-                "last_scan_at": competitor.last_scan_at,
-                "scan_frequency_minutes": competitor.scan_frequency_minutes,
-                "user_id": str(competitor.user_id)
-            }
-            serialized_competitors.append(competitor_dict)
-        
-        return serialized_competitors
+        competitors = await db.get_competitors_by_user(user_id)
+        return [CompetitorResponse.model_validate(comp) for comp in competitors]
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch competitors"
-        )
-
-
-@router.post("/", response_model=CompetitorResponse)
-async def create_competitor(
-    competitor_data: CompetitorCreate,
-    user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create a new competitor"""
-    try:
-        logger.info(f"Creating competitor for user: {user_id}")
-        logger.info(f"Competitor data: {competitor_data}")
-        
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
-        logger.info(f"Converted user ID to database UUID: {db_user_id}")
-        
-        competitor_service = CompetitorService(db)
-        competitor = await competitor_service.create_competitor(competitor_data, db_user_id)
-        
-        # Ensure the competitor object is properly serializable
-        await db.refresh(competitor)
-        
-        # Convert UUID fields to strings for proper serialization
-        competitor_dict = {
-            "id": str(competitor.id),
-            "name": competitor.name,
-            "description": competitor.description,
-            "website_url": competitor.website_url,
-            "social_media_handles": competitor.social_media_handles,
-            "platforms": competitor.platforms or [],
-            "industry": competitor.industry,
-            "status": competitor.status,
-            "created_at": competitor.created_at,
-            "updated_at": competitor.updated_at,
-            "last_scan_at": competitor.last_scan_at,
-            "scan_frequency_minutes": competitor.scan_frequency_minutes,
-            "user_id": str(competitor.user_id)
-        }
-        
-        return competitor_dict
-    except Exception as e:
-        import traceback
-        logger.error(f"Error creating competitor: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        
-        # Provide more specific error messages
-        if "duplicate key" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Competitor with this name already exists"
-            )
-        elif "foreign key" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid user ID or user not found"
-            )
-        elif "not null" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Required field is missing"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create competitor: {str(e)}"
-            )
+        logger.error(f"Error getting competitors: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get competitors: {str(e)}")
 
 
 @router.get("/{competitor_id}", response_model=CompetitorResponse)
 async def get_competitor(
     competitor_id: str,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
-    """Get a specific competitor"""
+    """Get a specific competitor by ID"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
-        
-        competitor_service = CompetitorService(db)
-        competitor = await competitor_service.get_competitor(competitor_id, db_user_id)
+        competitor = await db.get_competitor_by_id(competitor_id)
         
         if not competitor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Competitor not found"
-            )
-        return competitor
+            raise HTTPException(status_code=404, detail="Competitor not found")
+        
+        # Verify the competitor belongs to the authenticated user
+        if competitor.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        return CompetitorResponse.model_validate(competitor)
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch competitor"
-        )
+        logger.error(f"Error getting competitor: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get competitor: {str(e)}")
+
+
+@router.post("/", response_model=CompetitorResponse)
+async def create_competitor(
+    competitor_data: CompetitorCreate,
+    user_id: str = Depends(get_user_id_from_header),
+    db: SupabaseClient = Depends(get_db)
+):
+    """Create a new competitor"""
+    try:
+        # Add user_id to competitor data
+        competitor_dict = competitor_data.model_dump()
+        competitor_dict["user_id"] = user_id
+        
+        result = await db.create_competitor(competitor_dict)
+        
+        if result:
+            return CompetitorResponse.model_validate(result)
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create competitor")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating competitor: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create competitor: {str(e)}")
 
 
 @router.put("/{competitor_id}", response_model=CompetitorResponse)
@@ -163,324 +83,266 @@ async def update_competitor(
     competitor_id: str,
     competitor_data: CompetitorUpdate,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
-    """Update a competitor"""
+    """Update an existing competitor"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        # Verify the competitor exists and belongs to the user
+        existing_competitor = await db.get_competitor_by_id(competitor_id)
         
-        competitor_service = CompetitorService(db)
-        competitor = await competitor_service.update_competitor(competitor_id, competitor_data, db_user_id)
+        if not existing_competitor:
+            raise HTTPException(status_code=404, detail="Competitor not found")
         
-        if not competitor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Competitor not found"
-            )
-        return competitor
+        if existing_competitor.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Update competitor data
+        update_data = competitor_data.model_dump(exclude_unset=True)
+        result = await db.update_competitor(competitor_id, update_data)
+        
+        if result:
+            return CompetitorResponse.model_validate(result)
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update competitor")
+            
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update competitor"
-        )
+        logger.error(f"Error updating competitor: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update competitor: {str(e)}")
 
 
 @router.delete("/{competitor_id}")
 async def delete_competitor(
     competitor_id: str,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
     """Delete a competitor"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        # Verify the competitor exists and belongs to the user
+        existing_competitor = await db.get_competitor_by_id(competitor_id)
         
-        competitor_service = CompetitorService(db)
-        success = await competitor_service.delete_competitor(competitor_id, db_user_id)
+        if not existing_competitor:
+            raise HTTPException(status_code=404, detail="Competitor not found")
         
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Competitor not found"
-            )
+        if existing_competitor.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
         
-        return {"message": "Competitor deleted successfully"}
+        # Delete competitor
+        success = await db.delete_competitor(competitor_id)
+        
+        if success:
+            return {"message": "Competitor deleted successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete competitor")
+            
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete competitor"
-        )
+        logger.error(f"Error deleting competitor: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete competitor: {str(e)}")
 
 
-@router.get("/stats/summary")
-async def get_competitor_stats(
+@router.post("/{competitor_id}/scan")
+async def trigger_competitor_scan(
+    competitor_id: str,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
-    """Get competitor statistics summary"""
+    """Trigger a manual scan for a competitor"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        # Verify the competitor exists and belongs to the user
+        existing_competitor = await db.get_competitor_by_id(competitor_id)
         
-        competitor_service = CompetitorService(db)
-        stats = await competitor_service.get_competitor_stats(db_user_id)
-        return stats
+        if not existing_competitor:
+            raise HTTPException(status_code=404, detail="Competitor not found")
+        
+        if existing_competitor.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Update scan time
+        success = await db.update_competitor_scan_time(competitor_id)
+        
+        if success:
+            return {"message": "Competitor scan triggered successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to trigger competitor scan")
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch competitor statistics"
-        )
+        logger.error(f"Error triggering competitor scan: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger competitor scan: {str(e)}")
 
-
-@router.post("/{competitor_id}/toggle-status", response_model=CompetitorResponse)
+@router.post("/{competitor_id}/toggle-status")
 async def toggle_competitor_status(
     competitor_id: str,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
     """Toggle competitor status between active and paused"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        # Verify the competitor exists and belongs to the user
+        existing_competitor = await db.get_competitor_by_id(competitor_id)
         
-        competitor_service = CompetitorService(db)
-        competitor = await competitor_service.toggle_competitor_status(competitor_id, db_user_id)
+        if not existing_competitor:
+            raise HTTPException(status_code=404, detail="Competitor not found")
         
-        if not competitor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Competitor not found"
-            )
-        return competitor
+        if existing_competitor.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Toggle status
+        current_status = existing_competitor.get("status", "active")
+        new_status = "paused" if current_status == "active" else "active"
+        
+        # Update competitor status
+        result = await db.update_competitor(competitor_id, {"status": new_status})
+        
+        if result:
+            return {"message": f"Competitor status updated to {new_status}", "status": new_status}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update competitor status")
+            
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to toggle competitor status"
-        )
-
+        logger.error(f"Error toggling competitor status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to toggle competitor status: {str(e)}")
 
 @router.put("/{competitor_id}/scan-frequency")
 async def update_scan_frequency(
     competitor_id: str,
-    frequency_minutes: int,
+    frequency_data: dict,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
     """Update scan frequency for a competitor"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        # Verify the competitor exists and belongs to the user
+        existing_competitor = await db.get_competitor_by_id(competitor_id)
         
-        competitor_service = CompetitorService(db)
-        competitor = await competitor_service.update_scan_frequency(competitor_id, frequency_minutes, db_user_id)
+        if not existing_competitor:
+            raise HTTPException(status_code=404, detail="Competitor not found")
         
-        if not competitor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Competitor not found"
-            )
-        return {"message": "Scan frequency updated successfully", "competitor": competitor}
+        if existing_competitor.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        frequency_minutes = frequency_data.get("frequency_minutes")
+        if not frequency_minutes or frequency_minutes < 15 or frequency_minutes > 1440:
+            raise HTTPException(status_code=400, detail="frequency_minutes must be between 15 and 1440")
+        
+        # Update scan frequency
+        result = await db.update_competitor(competitor_id, {"scan_frequency_minutes": frequency_minutes})
+        
+        if result:
+            return {"message": "Scan frequency updated successfully", "scan_frequency_minutes": frequency_minutes}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update scan frequency")
+            
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update scan frequency"
-        )
-
+        logger.error(f"Error updating scan frequency: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update scan frequency: {str(e)}")
 
 @router.post("/scan-all")
 async def scan_all_competitors(
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
-    """Trigger a scan for all active competitors of a user"""
+    """Scan all competitors for the authenticated user"""
     try:
-        logger.info(f"🚀 POST /scan-all endpoint called for user: {user_id}")
-        logger.info(f"📊 Request method: POST")
-        logger.info(f"🔑 User authentication successful for: {user_id}")
-        logger.info(f"Starting scan-all request for user: {user_id}")
-        
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
-        logger.info(f"Converted user ID {user_id} to database UUID: {db_user_id}")
-        
-        competitor_service = CompetitorService(db)
-        competitors = await competitor_service.get_competitors(db_user_id)
-        logger.info(f"Found {len(competitors)} total competitors for user {user_id}")
+        # Get all competitors for the user
+        competitors = await db.get_competitors_by_user(user_id)
         
         if not competitors:
-            logger.info(f"No competitors found for user {user_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No competitors found for this user"
-            )
+            return {"message": "No competitors found to scan", "scanned_count": 0}
         
-        # Filter active competitors
-        active_competitors = [c for c in competitors if c.status == 'active']
-        active_count = len(active_competitors)
-        logger.info(f"Found {active_count} active competitors out of {len(competitors)} total for user {user_id}")
+        # Update scan time for all competitors
+        scanned_count = 0
+        for competitor in competitors:
+            success = await db.update_competitor_scan_time(competitor["id"])
+            if success:
+                scanned_count += 1
         
-        if not active_competitors:
-            logger.info(f"No active competitors found for user {user_id}")
-            return {
-                "message": "No active competitors found to scan",
-                "competitors_scanned": 0,
-                "total_competitors": len(competitors),
-                "active_competitors": 0,
-                "scan_started_at": datetime.now(timezone.utc).isoformat(),
-                "user_id": user_id
-            }
-        
-        # Initialize simple monitoring service
-        from app.services.monitoring import SimpleMonitoringService
-        monitoring_service = SimpleMonitoringService()
-        logger.info(f"Initialized simple monitoring service for user {user_id}")
-        
-        # Trigger monitoring for all active competitors sequentially
-        current_time = datetime.now(timezone.utc)
-        
-        # Start scanning all active competitors sequentially
-        scan_results = []
-        for competitor in active_competitors:
-            logger.info(f"🔍 Starting scan for competitor {competitor.name} (ID: {competitor.id}) for user {user_id}")
-            logger.info(f"   📊 Social media handles: {competitor.social_media_handles}")
-            logger.info(f"   📱 Platforms: {competitor.platforms}")
-            try:
-                # Ensure we're in the right async context
-                # Pass competitor name since orchestrator no longer queries database
-                result = await monitoring_service.run_monitoring_for_competitor(
-                    str(competitor.id), 
-                    competitor.name
-                )
-                scan_results.append(result)
-                logger.info(f"✅ Scan completed for {competitor.name}")
-            except Exception as e:
-                logger.error(f"❌ Scan failed for {competitor.name}: {e}")
-                scan_results.append({"error": str(e)})
-        
-        logger.info(f"Completed {len(scan_results)} scan tasks for user {user_id}")
-        
-        # Process results
-        successful_scans = 0
-        failed_scans = 0
-        scan_details = []
-        
-        for i, result in enumerate(scan_results):
-            competitor = active_competitors[i]
-            if isinstance(result, Exception):
-                failed_scans += 1
-                logger.error(f"❌ Scan failed for competitor {competitor.name} (ID: {competitor.id}) for user {user_id}: {result}")
-                scan_details.append({
-                    "competitor_id": str(competitor.id),
-                    "competitor_name": competitor.name,
-                    "status": "failed",
-                    "error": str(result)
-                })
-            else:
-                logger.info(f"📊 Scan result for {competitor.name}: {result}")
-                if result.get("status") in ["completed", "completed_with_errors"]:
-                    successful_scans += 1
-                    logger.info(f"✅ Scan completed for competitor {competitor.name} (ID: {competitor.id}) for user {user_id}")
-                    logger.info(f"   📈 Posts found: {result.get('posts_found', 0)}")
-                    logger.info(f"   📱 Platforms analyzed: {result.get('platforms_analyzed', [])}")
-                else:
-                    failed_scans += 1
-                    logger.warning(f"⚠️  Scan failed for competitor {competitor.name} (ID: {competitor.id}) for user {user_id}: {result.get('status')}")
-                scan_details.append({
-                    "competitor_id": str(competitor.id),
-                    "competitor_name": competitor.name,
-                    "status": result.get("status", "unknown"),
-                    "posts_found": result.get("posts_found", 0),
-                    "platforms_analyzed": result.get("platforms_analyzed", []),
-                    "error": result.get("error")
-                })
-        
-        # Close the monitoring service properly
-        try:
-            await monitoring_service.close()
-            logger.info("✅ Monitoring service closed successfully")
-        except Exception as e:
-            logger.warning(f"⚠️  Warning: Could not close monitoring service: {e}")
-        
-        # Return comprehensive scan results
         return {
-            "message": f"Scan completed for {len(active_competitors)} active competitors",
-            "competitors_scanned": len(active_competitors),
-            "total_competitors": len(competitors),
-            "active_competitors": active_count,
-            "successful_scans": successful_scans,
-            "failed_scans": failed_scans,
-            "scan_started_at": current_time.isoformat(),
-            "scan_completed_at": datetime.now(timezone.utc).isoformat(),
-            "scan_details": scan_details,
-            "user_id": user_id
+            "message": f"Scan initiated for {scanned_count} competitors",
+            "scanned_count": scanned_count,
+            "total_competitors": len(competitors)
         }
         
     except Exception as e:
-        logger.error(f"❌ Error scanning all competitors for user {user_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete competitor scans"
-        )
+        logger.error(f"Error scanning all competitors: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to scan all competitors: {str(e)}")
 
-
-@router.post("/{competitor_id}/scan")
-async def scan_competitor(
-    competitor_id: str,
+@router.get("/stats/summary")
+async def get_competitor_stats_summary(
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
-    """Trigger a manual scan for a specific competitor"""
+    """Get competitor statistics summary for the authenticated user"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        # Get all competitors for the user
+        competitors = await db.get_competitors_by_user(user_id)
         
-        competitor_service = CompetitorService(db)
-        competitor = await competitor_service.get_competitor(competitor_id, db_user_id)
+        # Calculate summary statistics
+        total_competitors = len(competitors)
+        active_competitors = sum(1 for c in competitors if c.get("status") == "active")
+        paused_competitors = sum(1 for c in competitors if c.get("status") == "paused")
+        error_competitors = sum(1 for c in competitors if c.get("status") == "error")
         
-        if not competitor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Competitor not found"
-            )
+        # Calculate average scan frequency
+        scan_frequencies = [c.get("scan_frequency_minutes", 60) for c in competitors]
+        avg_scan_frequency = sum(scan_frequencies) / len(scan_frequencies) if scan_frequencies else 60
         
-        current_time = datetime.now(timezone.utc)
+        # Get platforms being monitored
+        all_platforms = set()
+        for competitor in competitors:
+            platforms = competitor.get("platforms", [])
+            if isinstance(platforms, list):
+                all_platforms.update(platforms)
         
-        # Initialize simple monitoring service and trigger analysis
-        from app.services.monitoring import SimpleMonitoringService
-        monitoring_service = SimpleMonitoringService()
+        # Get recent activity (competitors scanned in last 24 hours)
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        yesterday = now - timedelta(days=1)
         
-        # Start the competitor analysis
-        scan_result = await monitoring_service.run_monitoring_for_competitor(competitor_id)
+        recent_activity = 0
+        for competitor in competitors:
+            last_scan = competitor.get("last_scan_at")
+            if last_scan:
+                try:
+                    # Parse ISO format datetime
+                    if isinstance(last_scan, str):
+                        last_scan_dt = datetime.fromisoformat(last_scan.replace('Z', '+00:00'))
+                    else:
+                        last_scan_dt = last_scan
+                    
+                    if last_scan_dt.tzinfo is None:
+                        last_scan_dt = last_scan_dt.replace(tzinfo=timezone.utc)
+                    
+                    if last_scan_dt >= yesterday:
+                        recent_activity += 1
+                except (ValueError, TypeError):
+                    # Skip if date parsing fails
+                    continue
         
-        # Update last scan time
-        competitor.last_scan_at = current_time
-        await db.commit()
-        
-        return {
-            "message": "Competitor scan completed successfully",
-            "competitor_id": competitor_id,
-            "competitor_name": competitor.name,
-            "scan_status": scan_result.get("status", "unknown"),
-            "scan_started_at": current_time.isoformat(),
-            "posts_found": scan_result.get("posts_found", 0),
-            "platforms_analyzed": scan_result.get("platforms_analyzed", []),
-            "error": scan_result.get("error")
+        summary = {
+            "user_id": user_id,
+            "total_competitors": total_competitors,
+            "active_competitors": active_competitors,
+            "paused_competitors": paused_competitors,
+            "error_competitors": error_competitors,
+            "average_scan_frequency_minutes": round(avg_scan_frequency, 1),
+            "platforms_monitored": list(all_platforms),
+            "recent_activity_24h": recent_activity,
+            "last_updated": now.isoformat()
         }
-    except HTTPException:
-        raise
+        
+        logger.info(f"✅ Competitor stats summary retrieved for user {user_id}")
+        return summary
+        
     except Exception as e:
-        logger.error(f"Error scanning competitor {competitor_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete competitor scan"
-        )
+        logger.error(f"Error getting competitor stats summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get competitor stats: {str(e)}")

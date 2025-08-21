@@ -4,14 +4,21 @@ Business Operations System - Continuous Monitoring and Competitor Intelligence B
 
 ## Overview
 
-This backend provides a RESTful API for the BOS Solution platform, handling competitor intelligence, continuous monitoring, and user management. The backend is designed to work with a Clerk-authenticated frontend and stores all data in Supabase.
+This backend provides a RESTful API for the BOS Solution platform, handling competitor intelligence, continuous monitoring, and user management. The backend is designed to work with a Clerk-authenticated frontend and stores all data directly in Supabase using the REST API.
 
 ## Architecture
 
 - **FastAPI**: Modern, fast web framework for building APIs
-- **SQLAlchemy**: SQL toolkit and ORM for database operations
-- **Supabase**: PostgreSQL database with real-time capabilities
+- **Supabase**: Direct PostgreSQL database integration via REST API
 - **Authentication**: Header-based user identification (frontend handles Clerk auth)
+- **No Local Database**: All data operations go directly to Supabase
+
+## Key Changes (Latest Update)
+
+- **Removed SQLAlchemy**: No more local database models or ORM
+- **Direct Supabase Integration**: All database operations use Supabase REST API
+- **Simplified Architecture**: Cleaner, more maintainable codebase
+- **Better Performance**: No local database overhead
 
 ## Authentication
 
@@ -42,11 +49,15 @@ curl -H "X-User-ID: user_123" \
 Copy `env.example` to `.env` and configure:
 
 ```bash
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/bos_solution
+# Supabase Configuration
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# Application Settings
+HOST=0.0.0.0
+PORT=8000
+DEBUG=true
 
 # Social Media API Keys
 INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token_here
@@ -54,146 +65,125 @@ TWITTER_BEARER_TOKEN=your_twitter_bearer_token_here
 FACEBOOK_ACCESS_TOKEN=your_facebook_access_token_here
 LINKEDIN_ACCESS_TOKEN=your_linkedin_access_token_here
 
-# Monitoring Settings
-DEFAULT_SCAN_FREQUENCY=60
-MAX_CONCURRENT_SCANS=5
-
-# Redis (for background tasks)
-REDIS_URL=redis://localhost:6379
+# AI Service Keys
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
 
 ## Installation
 
-1. Create a virtual environment:
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd bos_solution/backend
+   ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+2. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. Set up environment variables:
-```bash
-cp env.example .env
-# Edit .env with your actual values
-```
+3. **Set up environment variables**
+   ```bash
+   cp env.example .env
+   # Edit .env with your configuration
+   ```
 
-4. Run the application:
-```bash
-python -m uvicorn app.main:app --reload
-```
+4. **Test the application**
+   ```bash
+   python test_app.py
+   ```
+
+5. **Run the application**
+   ```bash
+   python main.py
+   ```
 
 ## API Endpoints
 
 ### Authentication
-- `GET /api/v1/auth/verify` - Verify user ID from header
+- `GET /api/v1/auth/verify` - Verify user authentication
 - `GET /api/v1/auth/me` - Get current user information
+- `POST /api/v1/auth/sync` - Sync user data from Clerk
 
 ### Users
+- `GET /api/v1/users/profile` - Get user profile
 - `GET /api/v1/users/settings` - Get user monitoring settings
 - `PUT /api/v1/users/settings` - Update user monitoring settings
+- `GET /api/v1/users/preferences` - Get user preferences
+- `PUT /api/v1/users/preferences` - Update user preferences
 
 ### Competitors
 - `GET /api/v1/competitors/` - Get all competitors
-- `POST /api/v1/competitors/` - Create a new competitor
 - `GET /api/v1/competitors/{id}` - Get specific competitor
+- `POST /api/v1/competitors/` - Create new competitor
 - `PUT /api/v1/competitors/{id}` - Update competitor
 - `DELETE /api/v1/competitors/{id}` - Delete competitor
-- `GET /api/v1/competitors/{id}/analysis` - Get competitor analysis
-- `POST /api/v1/competitors/{id}/analysis` - Create competitor analysis
+- `POST /api/v1/competitors/{id}/scan` - Trigger competitor scan
 
 ### Monitoring
-- `GET /api/v1/monitoring/sessions` - Get monitoring sessions
-- `POST /api/v1/monitoring/sessions` - Create monitoring session
-- `GET /api/v1/monitoring/sessions/{id}` - Get specific session
-- `PUT /api/v1/monitoring/sessions/{id}` - Update session
-- `DELETE /api/v1/monitoring/sessions/{id}` - Delete session
+- `GET /api/v1/monitoring/data/{competitor_id}` - Get monitoring data
+- `POST /api/v1/monitoring/data` - Create monitoring data
 - `GET /api/v1/monitoring/alerts` - Get monitoring alerts
 - `POST /api/v1/monitoring/alerts` - Create monitoring alert
-- `PUT /api/v1/monitoring/alerts/{id}/read` - Mark alert as read
-
-## Frontend Integration
-
-### Setting User ID Header
-
-In your frontend application, after Clerk authentication:
-
-```typescript
-// After successful Clerk authentication
-const { user } = useUser();
-
-// Set up axios or fetch with default headers
-const api = axios.create({
-  baseURL: 'http://localhost:8000/api/v1',
-  headers: {
-    'X-User-ID': user?.id || '',
-    'Content-Type': 'application/json'
-  }
-});
-
-// Or for individual requests
-fetch('/api/v1/users/settings', {
-  headers: {
-    'X-User-ID': user.id,
-    'Content-Type': 'application/json'
-  }
-});
-```
-
-### Error Handling
-
-The backend will return `401 Unauthorized` if the `X-User-ID` header is missing or invalid. Handle this in your frontend:
-
-```typescript
-try {
-  const response = await api.get('/users/settings');
-  // Handle success
-} catch (error) {
-  if (error.response?.status === 401) {
-    // Redirect to login or refresh Clerk session
-    await signIn();
-  }
-}
-```
-
-## Development
-
-### Running Tests
-```bash
-pytest
-```
-
-### Code Formatting
-```bash
-black .
-isort .
-```
-
-### Linting
-```bash
-flake8
-```
+- `GET /api/v1/monitoring/stats/{competitor_id}` - Get monitoring statistics
 
 ## Database Schema
 
-The application uses SQLAlchemy models with automatic table creation. Key tables include:
+The application expects the following tables in Supabase:
 
-- `user_monitoring_settings` - User preferences and configuration
-- `competitors` - Competitor information and metadata
-- `competitor_analyses` - Analysis results for competitors
-- `monitoring_sessions` - Active monitoring sessions
-- `monitoring_alerts` - Generated alerts and notifications
+- `users` - User information synced from Clerk
+- `competitors` - Competitor monitoring targets
+- `monitoring_data` - Social media monitoring results
+- `monitoring_alerts` - Monitoring alerts and notifications
+- `user_monitoring_settings` - User monitoring preferences
+- `user_preferences` - User onboarding and preference data
 
-## Contributing
+## Development
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+### Testing
+```bash
+# Run the test script
+python test_app.py
+
+# Run the application
+python main.py
+```
+
+### Code Structure
+```
+backend/
+├── app/
+│   ├── api/           # API endpoints
+│   ├── core/          # Core configuration and utilities
+│   ├── schemas/       # Pydantic data models
+│   └── services/      # Business logic services
+├── main.py            # Application entry point
+├── requirements.txt   # Python dependencies
+└── test_app.py        # Test script
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Supabase Connection Failed**
+   - Check `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`
+   - Verify Supabase project is active and accessible
+
+2. **Enum Error for 'website' Platform**
+   - Run the enum fix script: `python fix_enum_issue.py`
+   - Or manually add the value in Supabase dashboard
+
+3. **Authentication Errors**
+   - Ensure `X-User-ID` header is sent with all requests
+   - Verify Clerk authentication is working on frontend
+
+### Getting Help
+
+- Check the logs for detailed error messages
+- Verify environment variables are set correctly
+- Test individual components with the test script
 
 ## License
 

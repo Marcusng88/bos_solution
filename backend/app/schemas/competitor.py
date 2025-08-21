@@ -50,7 +50,24 @@ class CompetitorUpdate(BaseModel):
 class CompetitorResponse(CompetitorBase):
     """Schema for competitor response"""
     id: UUID
-    user_id: UUID  # Change to UUID type
+    user_id: str  # Changed to str to match database VARCHAR field that references users.clerk_id
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    last_scan_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            UUID: str
+        }
+
+
+class Competitor(CompetitorBase):
+    """Schema for competitor data (matches database model)"""
+    id: UUID
+    user_id: str
     status: str
     created_at: datetime
     updated_at: datetime

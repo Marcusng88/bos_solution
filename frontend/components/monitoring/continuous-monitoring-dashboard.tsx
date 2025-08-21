@@ -73,7 +73,7 @@ export function ContinuousMonitoringDashboard() {
       
       // Test network connectivity first
       try {
-        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/health`);
+        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/health`);
         console.log('🌐 Network test response:', testResponse.status, testResponse.statusText);
       } catch (networkError) {
         console.error('❌ Network test failed:', networkError);

@@ -40,34 +40,6 @@ const allCampaigns = [
     endDate: "2024-01-25",
   },
   {
-    id: 3,
-    name: "B2B Lead Generation",
-    platform: "LinkedIn",
-    status: "paused",
-    budget: 4000,
-    spent: 1567,
-    clicks: 3456,
-    conversions: 189,
-    ctr: 1.9,
-    conversionRate: 5.5,
-    startDate: "2023-12-15",
-    endDate: "2024-01-15",
-  },
-  {
-    id: 4,
-    name: "Brand Awareness Drive",
-    platform: "Twitter",
-    status: "active",
-    budget: 2000,
-    spent: 1890,
-    clicks: 5678,
-    conversions: 123,
-    ctr: 2.1,
-    conversionRate: 2.2,
-    startDate: "2024-01-10",
-    endDate: "2024-02-10",
-  },
-  {
     id: 5,
     name: "Holiday Promotion",
     platform: "Facebook",
@@ -169,8 +141,6 @@ export function CampaignList() {
               <SelectItem value="all">All Platforms</SelectItem>
               <SelectItem value="Facebook">Facebook</SelectItem>
               <SelectItem value="Instagram">Instagram</SelectItem>
-              <SelectItem value="LinkedIn">LinkedIn</SelectItem>
-              <SelectItem value="Twitter">Twitter</SelectItem>
             </SelectContent>
           </Select>
         </div>

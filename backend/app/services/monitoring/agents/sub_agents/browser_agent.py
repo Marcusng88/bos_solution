@@ -88,12 +88,12 @@ class BrowserAgent:
             logger.info(f"🌐 Starting intelligent web analysis for {competitor_name}")
             
             if not self.tavily_client:
-                return {
-                    "platform": "web", 
+                                return {
+                    "platform": "browser",
                     "competitor_id": competitor_id,
                     "competitor_name": competitor_name,
                     "status": "completed",
-                    "posts": [], 
+                    "posts": [],
                     "error": "Tavily client not available"
                 }
 
@@ -108,7 +108,7 @@ class BrowserAgent:
             if not all_content:
                 logger.info(f"ℹ️  No recent web content found for {competitor_name}")
                 return {
-                    "platform": "web",
+                    "platform": "browser",
                     "competitor_id": competitor_id,
                     "competitor_name": competitor_name,
                     "status": "completed",
@@ -160,7 +160,7 @@ class BrowserAgent:
             logger.info(f"   🚨 Created {alerts_created} alerts")
             
             return {
-                "platform": "web",
+                "platform": "browser",
                 "competitor_id": competitor_id,
                 "competitor_name": competitor_name,
                 "status": "completed",
@@ -177,7 +177,7 @@ class BrowserAgent:
         except Exception as e:
             logger.error(f"❌ Error in intelligent web analysis for competitor {competitor_id}: {e}")
             return {
-                "platform": "web",
+                "platform": "browser",
                 "competitor_id": competitor_id,
                 "competitor_name": competitor_name,
                 "status": "failed",
@@ -466,7 +466,7 @@ Be selective with alerts - only flag truly significant competitive intelligence.
         
         return {
             'competitor_id': str(competitor_id),
-            'platform': 'web',
+            'platform': 'browser',
             'post_id': content_hash,  # Use content hash as unique ID
             'post_url': content_item.get('url', ''),
             'content_text': content_text,
@@ -503,7 +503,7 @@ Be selective with alerts - only flag truly significant competitive intelligence.
                 'title': f"Web Intelligence Alert: {content_item.get('title', 'Significant Content')[:100]}",
                 'message': analysis_result.get('alert_reason', 'AI detected significant web activity'),
                 'alert_metadata': {
-                    'platform': 'web',
+                    'platform': 'browser',
                     'content_url': content_item.get('url', ''),
                     'source': content_item.get('source', ''),
                     'relevance_score': content_item.get('score', 0),

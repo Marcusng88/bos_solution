@@ -1,83 +1,178 @@
 """
-Users endpoints for managing user settings and preferences
+Users endpoints for managing users and user settings
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from app.core.database import get_db
-from app.core.auth_utils import get_user_id_from_header, get_db_user_id
-from app.models.user_settings import UserMonitoringSettings
+from app.core.auth_utils import get_user_id_from_header
+from app.schemas.user import UserResponse, ClerkUserData
 from app.schemas.user_settings import UserMonitoringSettingsResponse, UserMonitoringSettingsUpdate
+from app.core.supabase_client import SupabaseClient
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
+@router.post("/sync", response_model=dict)
+async def sync_user_from_clerk(
+    clerk_data: ClerkUserData,
+    db: SupabaseClient = Depends(get_db)
+):
+    """
+    Create or update user from Clerk authentication data
+    This endpoint should be called after successful Clerk authentication
+    """
+    try:
+        primary_email = clerk_data.get_primary_email()
+        
+        # Prepare user data for Supabase
+        user_data = {
+            "clerk_id": clerk_data.id,
+            "email": primary_email,
+            "first_name": clerk_data.first_name,
+            "last_name": clerk_data.last_name,
+            "profile_image_url": clerk_data.image_url,
+            "is_active": True
+        }
+        
+        # Use Supabase REST API to create/update user
+        result = await db.upsert_user(user_data)
+        
+        if result:
+            return {
+                "success": True,
+                "message": "User synced successfully",
+                "user": result
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to sync user data to Supabase"
+            )
+        
+    except Exception as e:
+        logger.error(f"Error syncing user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync user data: {str(e)}"
+        )
 
-@router.get("/settings", response_model=UserMonitoringSettingsResponse)
-async def get_user_settings(
+
+@router.get("/profile")
+async def get_user_profile(
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
+):
+    """Get user profile information"""
+    try:
+        user = await db.get_user_by_clerk_id(user_id)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return UserResponse.model_validate(user)
+        
+    except Exception as e:
+        logger.error(f"Error getting user profile: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user profile: {str(e)}")
+
+
+@router.get("/settings")
+async def get_user_monitoring_settings(
+    user_id: str = Depends(get_user_id_from_header),
+    db: SupabaseClient = Depends(get_db)
 ):
     """Get user monitoring settings"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        settings = await db.get_user_monitoring_settings(user_id)
         
-        result = await db.execute(
-            select(UserMonitoringSettings).where(UserMonitoringSettings.user_id == db_user_id)
-        )
-        
-        settings = result.scalar_one_or_none()
         if not settings:
-            # Create default settings if none exist
-            settings = UserMonitoringSettings(user_id=db_user_id)
-            db.add(settings)
-            await db.commit()
-            await db.refresh(settings)
+            # Return default settings if none exist
+            return UserMonitoringSettingsResponse(
+                user_id=user_id,
+                global_monitoring_enabled=True,
+                default_scan_frequency_minutes=60,
+                alert_preferences={
+                    "email_alerts": True,
+                    "push_notifications": True,
+                    "new_posts": True,
+                    "content_changes": True,
+                    "engagement_spikes": True,
+                    "sentiment_changes": True
+                },
+                notification_schedule={
+                    "quiet_hours_start": "22:00",
+                    "quiet_hours_end": "08:00",
+                    "timezone": "UTC"
+                }
+            )
         
         return UserMonitoringSettingsResponse.model_validate(settings)
         
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch user settings"
-        )
+        logger.error(f"Error getting user settings: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user settings: {str(e)}")
 
 
-@router.put("/settings", response_model=UserMonitoringSettingsResponse)
-async def update_user_settings(
-    settings_data: UserMonitoringSettingsUpdate,
+@router.put("/settings")
+async def update_user_monitoring_settings(
+    settings_update: UserMonitoringSettingsUpdate,
     user_id: str = Depends(get_user_id_from_header),
-    db: AsyncSession = Depends(get_db)
+    db: SupabaseClient = Depends(get_db)
 ):
     """Update user monitoring settings"""
     try:
-        # Convert Clerk user ID to database UUID
-        db_user_id = await get_db_user_id(user_id, db)
+        settings_data = settings_update.model_dump()
+        settings_data["user_id"] = user_id
         
-        result = await db.execute(
-            select(UserMonitoringSettings).where(UserMonitoringSettings.user_id == db_user_id)
-        )
+        result = await db.upsert_user_monitoring_settings(settings_data)
         
-        settings = result.scalar_one_or_none()
-        if not settings:
-            # Create settings if none exist
-            settings = UserMonitoringSettings(user_id=db_user_id)
-            db.add(settings)
+        if result:
+            return UserMonitoringSettingsResponse.model_validate(result)
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update user settings")
+            
+    except Exception as e:
+        logger.error(f"Error updating user settings: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update user settings: {str(e)}")
+
+
+@router.get("/preferences")
+async def get_user_preferences(
+    user_id: str = Depends(get_user_id_from_header),
+    db: SupabaseClient = Depends(get_db)
+):
+    """Get user preferences"""
+    try:
+        preferences = await db.get_user_preferences(user_id)
         
-        # Update fields
-        update_data = settings_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(settings, field, value)
+        if not preferences:
+            raise HTTPException(status_code=404, detail="User preferences not found")
         
-        await db.commit()
-        await db.refresh(settings)
-        return UserMonitoringSettingsResponse.model_validate(settings)
+        return preferences
         
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update user settings"
-        )
+        logger.error(f"Error getting user preferences: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user preferences: {str(e)}")
+
+
+@router.put("/preferences")
+async def update_user_preferences(
+    preferences_data: dict,
+    user_id: str = Depends(get_user_id_from_header),
+    db: SupabaseClient = Depends(get_db)
+):
+    """Update user preferences"""
+    try:
+        preferences_data["user_id"] = user_id
+        
+        result = await db.upsert_user_preferences(preferences_data)
+        
+        if result:
+            return result
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update user preferences")
+            
+    except Exception as e:
+        logger.error(f"Error updating user preferences: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update user preferences: {str(e)}")

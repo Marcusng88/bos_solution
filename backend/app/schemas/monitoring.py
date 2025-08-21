@@ -9,56 +9,9 @@ from uuid import UUID
 from decimal import Decimal
 
 
-class UserMonitoringSettingsBase(BaseModel):
-    """Base user monitoring settings schema"""
-    global_monitoring_enabled: bool = True
-    default_scan_frequency_minutes: int = Field(60, ge=15)
-    alert_preferences: Dict[str, Any] = Field(default={
-        "email_alerts": True,
-        "push_notifications": True,
-        "new_posts": True,
-        "content_changes": True,
-        "engagement_spikes": True,
-        "sentiment_changes": True
-    })
-    notification_schedule: Dict[str, Any] = Field(default={
-        "quiet_hours_start": "22:00",
-        "quiet_hours_end": "08:00",
-        "timezone": "UTC"
-    })
-
-
-class UserMonitoringSettingsCreate(UserMonitoringSettingsBase):
-    """Schema for creating user monitoring settings"""
-    user_id: UUID
-
-
-class UserMonitoringSettingsUpdate(BaseModel):
-    """Schema for updating user monitoring settings"""
-    global_monitoring_enabled: Optional[bool] = None
-    default_scan_frequency_minutes: Optional[int] = Field(None, ge=15)
-    alert_preferences: Optional[Dict[str, Any]] = None
-    notification_schedule: Optional[Dict[str, Any]] = None
-
-
-class UserMonitoringSettingsResponse(UserMonitoringSettingsBase):
-    """Schema for user monitoring settings response"""
-    id: UUID
-    user_id: UUID
-    created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: str
-        }
-
-
 class MonitoringDataBase(BaseModel):
     """Base monitoring data schema"""
-    platform: str = Field(..., pattern="^(instagram|facebook|twitter|linkedin|tiktok|youtube|other)$")
+    platform: str = Field(..., pattern="^(instagram|facebook|twitter|linkedin|tiktok|youtube|website|browser|other)$")
     post_id: Optional[str] = Field(None, max_length=255)
     post_url: Optional[HttpUrl] = None
     content_text: Optional[str] = None

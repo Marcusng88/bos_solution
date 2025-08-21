@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, Search, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube } from "lucide-react"
+import { Plus, X, Search, Globe, Facebook, Instagram, Youtube } from "lucide-react"
 import type { OnboardingData } from "../onboarding-wizard"
 
 interface CompetitorStepProps {
@@ -15,25 +15,22 @@ interface CompetitorStepProps {
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
 }
 
 const platformIcons = {
   facebook: Facebook,
   instagram: Instagram,
-  twitter: Twitter,
-  linkedin: Linkedin,
   youtube: Youtube,
 }
 
 const platformOptions = [
   { id: "facebook", name: "Facebook", icon: Facebook },
   { id: "instagram", name: "Instagram", icon: Instagram },
-  { id: "twitter", name: "Twitter/X", icon: Twitter },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin },
   { id: "youtube", name: "YouTube", icon: Youtube },
 ]
 
-export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorStepProps) {
+export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSettings = false }: CompetitorStepProps) {
   const [newCompetitor, setNewCompetitor] = useState({
     name: "",
     website: "",
@@ -193,7 +190,10 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
             Previous
           </Button>
           <Button onClick={onNext} disabled={!canProceed}>
-            {canProceed ? "Start AI Analysis" : "Add at least 1 competitor"}
+            {isFromSettings 
+              ? (canProceed ? "Next: Connections" : "Add at least 1 competitor")
+              : (canProceed ? "Start AI Analysis" : "Add at least 1 competitor")
+            }
           </Button>
         </div>
       </CardContent>

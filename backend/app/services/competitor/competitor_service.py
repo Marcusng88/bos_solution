@@ -1,121 +1,117 @@
 """
 Competitor service for business logic
+Updated for Supabase integration without SQLAlchemy
 """
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
-from app.models.competitor import Competitor
 from app.schemas.competitor import CompetitorCreate, CompetitorUpdate, CompetitorResponse
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 class CompetitorService:
-    """Service for competitor operations"""
+    """Service for competitor operations using Supabase"""
     
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, supabase_client):
+        self.db = supabase_client
     
-    async def get_competitors(self, user_id: str) -> List[Competitor]:
+    async def get_competitors(self, user_id: str) -> List[Dict[str, Any]]:
         """Get all competitors for a user"""
         try:
-            result = await self.db.execute(
-                select(Competitor).where(Competitor.user_id == user_id)
-            )
-            return result.scalars().all()
+            competitors = await self.db.get_competitors_by_user(user_id)
+            return competitors
         except Exception as e:
             logger.error(f"Error fetching competitors for user {user_id}: {e}")
             raise
     
-    async def get_competitor(self, competitor_id: str, user_id: str) -> Optional[Competitor]:
+    async def get_competitor(self, competitor_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific competitor for a user"""
         try:
-            result = await self.db.execute(
-                select(Competitor).where(
-                    and_(
-                        Competitor.id == competitor_id,
-                        Competitor.user_id == user_id
-                    )
-                )
-            )
-            return result.scalar_one_or_none()
+            competitor = await self.db.get_competitor_by_id(competitor_id)
+            
+            if not competitor:
+                return None
+            
+            # Verify the competitor belongs to the user
+            if competitor.get("user_id") != user_id:
+                logger.warning(f"Competitor {competitor_id} does not belong to user {user_id}")
+                return None
+            
+            return competitor
         except Exception as e:
             logger.error(f"Error fetching competitor {competitor_id} for user {user_id}: {e}")
             raise
     
-    async def create_competitor(self, competitor_data: CompetitorCreate, user_id: str) -> Competitor:
+    async def create_competitor(self, competitor_data: CompetitorCreate, user_id: str) -> Optional[Dict[str, Any]]:
         """Create a new competitor for a user"""
         try:
-            logger.info(f"Creating competitor for user {user_id} with data: {competitor_data}")
+            # Prepare competitor data
+            competitor_dict = competitor_data.model_dump()
+            competitor_dict["user_id"] = user_id
+            competitor_dict["status"] = "active"
             
-            # Validate required fields
-            if not competitor_data.name or not competitor_data.name.strip():
-                raise ValueError("Competitor name is required")
+            # Create competitor using Supabase client
+            result = await self.db.create_competitor(competitor_dict)
             
-            if not user_id:
-                raise ValueError("User ID is required")
-            
-            # Create competitor data dict and ensure all values are properly set
-            competitor_dict = competitor_data.dict()
-            competitor_dict['user_id'] = user_id
-            
-            # Ensure scan_frequency_minutes has a default value
-            if not competitor_dict.get('scan_frequency_minutes'):
-                competitor_dict['scan_frequency_minutes'] = 60
-            
-            competitor = Competitor(**competitor_dict)
-            
-            logger.info(f"Adding competitor to database: {competitor}")
-            self.db.add(competitor)
-            await self.db.commit()
-            await self.db.refresh(competitor)
-            
-            # Ensure all attributes are loaded
-            await self.db.refresh(competitor, ['user_id'])
-            
-            logger.info(f"Successfully created competitor with ID: {competitor.id}")
-            return competitor
+            if result:
+                logger.info(f"✅ Competitor created successfully: {result.get('name')}")
+                return result
+            else:
+                logger.error("❌ Failed to create competitor")
+                return None
+                
         except Exception as e:
-            logger.error(f"Error creating competitor for user {user_id}: {e}")
-            await self.db.rollback()
+            logger.error(f"Error creating competitor: {e}")
             raise
     
-    async def update_competitor(self, competitor_id: str, competitor_data: CompetitorUpdate, user_id: str) -> Optional[Competitor]:
-        """Update a competitor for a user"""
+    async def update_competitor(self, competitor_id: str, competitor_data: CompetitorUpdate, user_id: str) -> Optional[Dict[str, Any]]:
+        """Update an existing competitor"""
         try:
-            competitor = await self.get_competitor(competitor_id, user_id)
-            if not competitor:
+            # Verify the competitor exists and belongs to the user
+            existing_competitor = await self.get_competitor(competitor_id, user_id)
+            if not existing_competitor:
+                logger.warning(f"Competitor {competitor_id} not found or access denied for user {user_id}")
                 return None
             
-            # Update fields
-            for field, value in competitor_data.dict(exclude_unset=True).items():
-                setattr(competitor, field, value)
+            # Prepare update data
+            update_data = competitor_data.model_dump(exclude_unset=True)
             
-            competitor.updated_at = datetime.now(timezone.utc)
-            await self.db.commit()
-            await self.db.refresh(competitor)
-            return competitor
+            # Update competitor using Supabase client
+            result = await self.db.update_competitor(competitor_id, update_data)
+            
+            if result:
+                logger.info(f"✅ Competitor updated successfully: {result.get('name')}")
+                return result
+            else:
+                logger.error("❌ Failed to update competitor")
+                return None
+                
         except Exception as e:
-            logger.error(f"Error updating competitor {competitor_id} for user {user_id}: {e}")
-            await self.db.rollback()
+            logger.error(f"Error updating competitor: {e}")
             raise
     
     async def delete_competitor(self, competitor_id: str, user_id: str) -> bool:
-        """Delete a competitor for a user"""
+        """Delete a competitor"""
         try:
-            competitor = await self.get_competitor(competitor_id, user_id)
-            if not competitor:
+            # Verify the competitor exists and belongs to the user
+            existing_competitor = await self.get_competitor(competitor_id, user_id)
+            if not existing_competitor:
+                logger.warning(f"Competitor {competitor_id} not found or access denied for user {user_id}")
                 return False
             
-            await self.db.delete(competitor)
-            await self.db.commit()
-            return True
+            # Delete competitor using Supabase client
+            success = await self.db.delete_competitor(competitor_id)
+            
+            if success:
+                logger.info(f"✅ Competitor deleted successfully: {existing_competitor.get('name')}")
+                return True
+            else:
+                logger.error("❌ Failed to delete competitor")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error deleting competitor {competitor_id} for user {user_id}: {e}")
-            await self.db.rollback()
+            logger.error(f"Error deleting competitor: {e}")
             raise
     
     async def get_competitor_stats(self, user_id: str) -> Dict[str, Any]:
@@ -124,69 +120,57 @@ class CompetitorService:
             competitors = await self.get_competitors(user_id)
             
             total_competitors = len(competitors)
-            active_competitors = len([c for c in competitors if c.status == 'active'])
-            paused_competitors = len([c for c in competitors if c.status == 'paused'])
-            error_competitors = len([c for c in competitors if c.status == 'error'])
+            active_competitors = sum(1 for c in competitors if c.get("status") == "active")
+            paused_competitors = sum(1 for c in competitors if c.get("status") == "paused")
+            error_competitors = sum(1 for c in competitors if c.get("status") == "error")
             
-            # Get competitors scanned recently (last 24 hours)
-            now = datetime.now(timezone.utc)
-            recent_scans = 0
-            for c in competitors:
-                if c.last_scan_at:
-                    # Ensure last_scan_at is timezone-aware
-                    last_scan = c.last_scan_at
-                    if last_scan.tzinfo is None:
-                        last_scan = last_scan.replace(tzinfo=timezone.utc)
-                    
-                    if (now - last_scan).total_seconds() < 86400:
-                        recent_scans += 1
+            # Calculate average scan frequency
+            scan_frequencies = [c.get("scan_frequency_minutes", 60) for c in competitors]
+            avg_scan_frequency = sum(scan_frequencies) / len(scan_frequencies) if scan_frequencies else 60
             
-            return {
+            # Get platforms being monitored
+            all_platforms = set()
+            for competitor in competitors:
+                platforms = competitor.get("platforms", [])
+                if isinstance(platforms, list):
+                    all_platforms.update(platforms)
+            
+            stats = {
                 "total_competitors": total_competitors,
                 "active_competitors": active_competitors,
                 "paused_competitors": paused_competitors,
                 "error_competitors": error_competitors,
-                "recent_scans_24h": recent_scans
+                "average_scan_frequency_minutes": round(avg_scan_frequency, 1),
+                "platforms_monitored": list(all_platforms),
+                "last_updated": datetime.now(timezone.utc).isoformat()
             }
+            
+            logger.info(f"✅ Competitor stats retrieved for user {user_id}: {stats}")
+            return stats
+            
         except Exception as e:
             logger.error(f"Error getting competitor stats for user {user_id}: {e}")
             raise
     
-    async def update_scan_frequency(self, competitor_id: str, frequency_minutes: int, user_id: str) -> Optional[Competitor]:
-        """Update scan frequency for a competitor"""
+    async def update_scan_time(self, competitor_id: str, user_id: str) -> bool:
+        """Update the last scan time for a competitor"""
         try:
-            competitor = await self.get_competitor(competitor_id, user_id)
-            if not competitor:
-                return None
+            # Verify the competitor exists and belongs to the user
+            existing_competitor = await self.get_competitor(competitor_id, user_id)
+            if not existing_competitor:
+                logger.warning(f"Competitor {competitor_id} not found or access denied for user {user_id}")
+                return False
             
-            competitor.scan_frequency_minutes = frequency_minutes
-            competitor.updated_at = datetime.now(timezone.utc)
+            # Update scan time using Supabase client
+            success = await self.db.update_competitor_scan_time(competitor_id)
             
-            await self.db.commit()
-            await self.db.refresh(competitor)
-            return competitor
-        except Exception as e:
-            logger.error(f"Error updating scan frequency for competitor {competitor_id}: {e}")
-            await self.db.rollback()
-            raise
-    
-    async def toggle_competitor_status(self, competitor_id: str, user_id: str) -> Optional[Competitor]:
-        """Toggle competitor status between active and paused"""
-        try:
-            competitor = await self.get_competitor(competitor_id, user_id)
-            if not competitor:
-                return None
-            
-            if competitor.status == 'active':
-                competitor.status = 'paused'
+            if success:
+                logger.info(f"✅ Scan time updated for competitor: {existing_competitor.get('name')}")
+                return True
             else:
-                competitor.status = 'active'
-            
-            competitor.updated_at = datetime.now(timezone.utc)
-            await self.db.commit()
-            await self.db.refresh(competitor)
-            return competitor
+                logger.error("❌ Failed to update scan time")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error toggling status for competitor {competitor_id}: {e}")
-            await self.db.rollback()
+            logger.error(f"Error updating scan time: {e}")
             raise

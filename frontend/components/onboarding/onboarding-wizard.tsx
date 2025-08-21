@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Progress } from "@/components/ui/progress"
 import { Brain } from "lucide-react"
 import { WelcomeStep } from "./steps/welcome-step"
@@ -16,11 +17,19 @@ export interface OnboardingData {
   companySize: string
   goals: string[]
   competitors: Array<{
+    id?: string // Optional ID for saved competitors
     name: string
     website: string
     platforms: string[]
   }>
-  connectedAccounts: string[]
+  connectedAccounts: Array<{
+    platform: string
+    username: string
+    displayName?: string
+    isConnected: boolean
+    permissions: string[]
+    connectedAt?: Date
+  }>
   budget: string
 }
 
@@ -33,7 +42,11 @@ const steps = [
   { id: 6, title: "Complete", description: "AI analysis starting!" },
 ]
 
+const ONBOARDING_STEP_KEY = 'onboarding_current_step'
+const ONBOARDING_DATA_KEY = 'onboarding_data'
+
 export function OnboardingWizard() {
+  const searchParams = useSearchParams()
   const [currentStep, setCurrentStep] = useState(1)
   const [data, setData] = useState<OnboardingData>({
     industry: "",
@@ -44,19 +57,126 @@ export function OnboardingWizard() {
     budget: "",
   })
 
+  // Restore current step and data from localStorage on component mount
+  useEffect(() => {
+    // Check URL parameters first (from YouTube callback)
+    const urlStep = searchParams.get('step')
+    const savedStep = localStorage.getItem(ONBOARDING_STEP_KEY)
+    const returnStep = sessionStorage.getItem('youtube_return_step')
+    const savedData = localStorage.getItem(ONBOARDING_DATA_KEY)
+
+    // Load saved data if it exists
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData)
+        setData(parsedData)
+      } catch (error) {
+        console.error('Failed to parse saved onboarding data:', error)
+      }
+    }
+
+    // Priority: URL step > Session storage > Local storage
+    if (urlStep) {
+      const step = parseInt(urlStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        setCurrentStep(step)
+        // Clean up session storage since we got it from URL
+        sessionStorage.removeItem('youtube_return_step')
+        return
+      }
+    }
+
+    if (returnStep) {
+      const step = parseInt(returnStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        setCurrentStep(step)
+      }
+      // Clear the return step from session storage
+      sessionStorage.removeItem('youtube_return_step')
+      return
+    }
+
+    // Otherwise use saved step
+    if (savedStep) {
+      const step = parseInt(savedStep, 10)
+      if (step >= 1 && step <= steps.length) {
+        // Don't allow going directly to completion step without completing required fields
+        if (step === 6) {
+          const hasIndustry = Boolean(data.industry && data.companySize)
+          const hasGoals = Boolean(data.goals.length > 0 && data.budget)
+          const hasCompetitors = Boolean(data.competitors.length > 0)
+          const hasConnections = Boolean(data.connectedAccounts.length > 0)
+          
+          if (!hasIndustry || !hasGoals || !hasCompetitors || !hasConnections) {
+            // Find the first incomplete step
+            if (!hasIndustry) setCurrentStep(2)
+            else if (!hasGoals) setCurrentStep(3)
+            else if (!hasCompetitors) setCurrentStep(4)
+            else if (!hasConnections) setCurrentStep(5)
+            else setCurrentStep(1)
+            return
+          }
+        }
+        setCurrentStep(step)
+      }
+    }
+  }, [searchParams])
+
+  // Save current step to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(ONBOARDING_STEP_KEY, currentStep.toString())
+  }, [currentStep])
+
+  // Save onboarding data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(ONBOARDING_DATA_KEY, JSON.stringify(data))
+  }, [data])
+
   const updateData = (updates: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...updates }))
   }
 
   const nextStep = () => {
     if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1)
+      // Validate current step before allowing next
+      let canProceed = true
+      
+      switch (currentStep) {
+        case 1: // Welcome step - always can proceed
+          canProceed = true
+          break
+        case 2: // Industry step
+          canProceed = Boolean(data.industry && data.companySize)
+          break
+        case 3: // Goals step
+          canProceed = Boolean(data.goals.length > 0 && data.budget)
+          break
+        case 4: // Competitors step
+          canProceed = Boolean(data.competitors.length > 0)
+          break
+        case 5: // Connections step
+          canProceed = Boolean(data.connectedAccounts.length > 0)
+          break
+        case 6: // Completion step - can't go next
+          canProceed = false
+          break
+      }
+      
+      if (canProceed) {
+        setCurrentStep(currentStep + 1)
+      }
     }
   }
 
   const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
+    }
+  }
+  
+  const goToStep = (step: number) => {
+    if (step >= 1 && step <= steps.length) {
+      setCurrentStep(step)
     }
   }
 
@@ -73,9 +193,9 @@ export function OnboardingWizard() {
       case 4:
         return <CompetitorStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />
       case 5:
-        return <ConnectionsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />
+        return <ConnectionsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} currentStep={currentStep} />
       case 6:
-        return <CompletionStep data={data} />
+        return <CompletionStep data={data} goToStep={goToStep} />
       default:
         return <WelcomeStep onNext={nextStep} />
     }

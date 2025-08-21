@@ -4,6 +4,7 @@ Configuration settings for the application
 
 import os
 from typing import Optional, List
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -15,22 +16,30 @@ class Settings(BaseSettings):
     """Application settings"""
     
     # Application
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: str = os.getenv("PORT", "8000")
-    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    APP_NAME: str = "BOS Solution"
+    APP_VERSION: str = "1.0.0"
+    HOST: str = Field(default="0.0.0.0", env="HOST")
+    PORT: int = Field(default=8000, env="PORT")
+    DEBUG: bool = Field(default=False, env="DEBUG")
+    
+    # CORS
+    ALLOWED_HOSTS: List[str] = Field(
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "https://308a8c214f1d.ngrok-free.app"],
+        env="ALLOWED_HOSTS"
+    )
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost/bos_db")
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://your-project.supabase.co")
-    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "your_supabase_anon_key_here")
-    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "your_supabase_service_role_key_here")
+    DATABASE_URL: str = Field(default="sqlite+aiosqlite:///./dev.db", env="DATABASE_URL")
+    SUPABASE_URL: str = Field(default="", env="SUPABASE_URL")
+    SUPABASE_ANON_KEY: str = Field(default="", env="SUPABASE_ANON_KEY")
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="", env="SUPABASE_SERVICE_ROLE_KEY")
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # CORS
+    # Additional CORS origins (backward compatibility)
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     
     # Social Media API Keys
@@ -49,6 +58,10 @@ class Settings(BaseSettings):
     
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    
+    # Google/YouTube API
+    GOOGLE_CLIENT_ID: str = Field(default="", env="GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str = Field(default="", env="GOOGLE_CLIENT_SECRET")
     
     # Monitoring settings
     DEFAULT_SCAN_FREQUENCY_MINUTES: int = int(os.getenv("DEFAULT_SCAN_FREQUENCY", "60"))

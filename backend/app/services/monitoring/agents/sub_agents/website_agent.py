@@ -15,8 +15,12 @@ from urllib.parse import urljoin, urlparse
 # Import Windows compatibility utilities
 from app.core.windows_compatibility import setup_windows_compatibility
 
-# Import isolated crawler
-from app.services.monitoring.agents.sub_agents.isolated_crawler import IsolatedCrawler, crawl_websites_isolated
+# Import multiprocessing crawler (solves NotImplementedError)
+from app.services.monitoring.agents.sub_agents.multiprocessing_crawler import (
+    MultiprocessingCrawler, 
+    crawl_websites_multiprocessing,
+    crawl_websites_multiprocessing_batched
+)
 
 # Import crawling dependencies conditionally (for fallback)
 try:
@@ -50,6 +54,11 @@ class WebsiteAgent:
         logger.info("🌐 Intelligent WebsiteAgent initializing...")
         self.crawl_count = 0
         self.crawl_limit = 10  # Limit for intelligent crawling
+        
+        # Crawling strategy configuration
+        self.crawling_strategy = "batch"  # Options: "batch", "sequential", "single"
+        self.batch_size = 2  # Number of URLs to process in each batch
+        self.delay_between_requests = 1.0  # Delay in seconds between requests for multiprocessing isolation
 
         # Initialize LLM for intelligent analysis
         self.llm = None
@@ -69,6 +78,26 @@ class WebsiteAgent:
             logger.warning("Crawl4AI not available - website analysis will be limited")
 
         logger.info("🌐 Intelligent WebsiteAgent initialization completed")
+
+    def configure_crawling_strategy(self, strategy: str = "batch", batch_size: int = 2, delay: float = 1.0):
+        """
+        Configure the crawling strategy and parameters
+        
+        Args:
+            strategy: Crawling strategy - "batch", "sequential", or "single"
+            batch_size: Number of URLs to process in each batch (for batch strategy)
+            delay: Delay in seconds between requests for isolation
+        """
+        valid_strategies = ["batch", "sequential", "single"]
+        if strategy not in valid_strategies:
+            logger.warning(f"Invalid strategy '{strategy}'. Using 'batch' instead.")
+            strategy = "batch"
+        
+        self.crawling_strategy = strategy
+        self.batch_size = max(1, batch_size)
+        self.delay_between_requests = max(0.1, delay)
+        
+        logger.info(f"🔧 Crawling strategy configured: {strategy}, batch_size: {self.batch_size}, delay: {self.delay_between_requests}s")
 
     async def analyze_competitor(self, competitor_id: str, competitor_name: str) -> Dict[str, Any]:
         """
@@ -305,12 +334,41 @@ https://www.{competitor_name.lower().replace(' ', '')}.com/products
         except:
             return False
 
-    async def _crawl_websites_intelligently(self, urls: List[str], competitor_name: str) -> List[Dict[str, Any]]:
-        """Crawl websites using isolated intelligent extraction"""
+    async def _crawl_single_url_multiprocessing(self, url: str, extraction_config: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Crawl a single URL using multiprocessing crawler for maximum isolation"""
         try:
-            logger.info(f"🔒 Using isolated crawler for {len(urls)} URLs")
+            logger.info(f"🕷️ Crawling single URL with multiprocessing: {url}")
             
-            # Prepare extraction configuration for isolated crawler
+            # Use the multiprocessing crawler for single URL
+            results = crawl_websites_multiprocessing(
+                urls=[url],
+                extraction_config=extraction_config,
+                max_workers=1
+            )
+            
+            if results and len(results) > 0:
+                return results[0]
+            else:
+                return {
+                    'url': url,
+                    'status': 'failed',
+                    'error': 'No results returned from multiprocessing crawler'
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error crawling single URL {url}: {e}")
+            return {
+                'url': url,
+                'status': 'error',
+                'error': str(e)
+            }
+
+    async def _crawl_urls_sequentially(self, urls: List[str], competitor_name: str) -> List[Dict[str, Any]]:
+        """Crawl URLs one by one for maximum isolation and control"""
+        try:
+            logger.info(f"🔄 Starting sequential crawling for {len(urls)} URLs")
+            
+            # Prepare extraction configuration
             extraction_config = None
             if self.llm and LANGCHAIN_AVAILABLE:
                 extraction_config = {
@@ -328,49 +386,141 @@ https://www.{competitor_name.lower().replace(' ', '')}.com/products
                     }
                 }
             
-            # Use isolated crawler
+            all_content = []
+            
+            # Crawl each URL individually
+            for i, url in enumerate(urls):
+                if self.crawl_count >= self.crawl_limit:
+                    logger.info(f"🛑 Reached crawl limit ({self.crawl_limit}), stopping")
+                    break
+                
+                logger.info(f"🔄 Crawling URL {i+1}/{len(urls)}: {url}")
+                
+                # Crawl single URL with multiprocessing
+                result = await self._crawl_single_url_multiprocessing(url, extraction_config)
+                
+                # Process result immediately
+                if result.get('status') == 'success':
+                    content_item = {
+                        'url': result['url'],
+                        'title': result.get('title', ''),
+                        'content': result.get('content', ''),
+                        'extracted_data': result.get('extracted_data', {}),
+                        'crawled_at': result.get('crawled_at', datetime.now(timezone.utc).isoformat()),
+                        'content_hash': result.get('content_hash', '')
+                    }
+                    
+                    # Only include if there's meaningful content
+                    if len(content_item['content']) > 100:
+                        all_content.append(content_item)
+                        self.crawl_count += 1
+                        logger.info(f"   ✅ Extracted content from {url}")
+                    else:
+                        logger.info(f"   ⚠️  Insufficient content from {url}")
+                else:
+                    logger.warning(f"   ❌ Failed to crawl {url}: {result.get('error', 'Unknown error')}")
+                
+                # Small delay between URLs for isolation
+                if i < len(urls) - 1:
+                    await asyncio.sleep(1.0)
+            
+            logger.info(f"📊 Sequential crawling completed: {len(all_content)} successful extractions")
+            return all_content
+            
+        except Exception as e:
+            logger.error(f"❌ Error in sequential crawling: {e}")
+            return []
+
+    async def _crawl_websites_intelligently(self, urls: List[str], competitor_name: str) -> List[Dict[str, Any]]:
+        """Crawl websites using isolated intelligent extraction with configurable orchestration strategy"""
+        try:
+            logger.info(f"🔒 Using multiprocessing crawler with {self.crawling_strategy} strategy for {len(urls)} URLs")
+            
+            # Prepare extraction configuration for multiprocessing crawler
+            extraction_config = None
+            if self.llm and LANGCHAIN_AVAILABLE:
+                extraction_config = {
+                    'use_llm': True,
+                    'api_key': settings.GOOGLE_API_KEY,
+                    'schema': {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "main_content": {"type": "string"},
+                            "key_announcements": {"type": "array", "items": {"type": "string"}},
+                            "product_updates": {"type": "array", "items": {"type": "string"}},
+                            "business_updates": {"type": "array", "items": {"type": "string"}}
+                        }
+                    }
+                }
+            
+            # Use configured crawling strategy
             all_content = []
             try:
                 # Limit URLs to crawl limit
                 urls_to_crawl = urls[:self.crawl_limit]
-                logger.info(f"🕷️ Starting isolated crawling for {len(urls_to_crawl)} URLs")
+                logger.info(f"🕷️ Starting {self.crawling_strategy} crawling for {len(urls_to_crawl)} URLs")
                 
-                # Crawl using isolated environment
-                results = await crawl_websites_isolated(
-                    urls=urls_to_crawl,
-                    extraction_config=extraction_config,
-                    max_concurrent=3
-                )
-                
-                # Process results
-                for result in results:
-                    if result.get('status') == 'success':
-                        content_item = {
-                            'url': result['url'],
-                            'title': result.get('title', ''),
-                            'content': result.get('content', ''),
-                            'extracted_data': result.get('extracted_data', {}),
-                            'crawled_at': result.get('crawled_at', datetime.now(timezone.utc).isoformat()),
-                            'content_hash': result.get('content_hash', '')
-                        }
+                if self.crawling_strategy == "single":
+                    # Crawl URLs one by one for maximum isolation
+                    all_content = await self._crawl_urls_sequentially(urls_to_crawl, competitor_name)
+                    
+                elif self.crawling_strategy == "sequential":
+                    # Crawl URLs one by one with delays
+                    all_content = await self._crawl_urls_sequentially(urls_to_crawl, competitor_name)
+                    
+                elif self.crawling_strategy == "batch":
+                    # Process URLs in configurable batches
+                    for i in range(0, len(urls_to_crawl), self.batch_size):
+                        batch_urls = urls_to_crawl[i:i + self.batch_size]
+                        logger.info(f"🔄 Processing batch {i//self.batch_size + 1}: {len(batch_urls)} URLs")
                         
-                        # Only include if there's meaningful content
-                        if len(content_item['content']) > 100:  # At least 100 characters
-                            all_content.append(content_item)
-                            self.crawl_count += 1
-                            logger.info(f"   ✅ Extracted content from {result['url']}")
-                        else:
-                            logger.info(f"   ⚠️  Insufficient content from {result['url']}")
-                    else:
-                        logger.warning(f"   ❌ Failed to crawl {result['url']}: {result.get('error', 'Unknown error')}")
+                        # Call multiprocessing crawler for this batch
+                        batch_results = crawl_websites_multiprocessing_batched(
+                            urls=batch_urls,
+                            extraction_config=extraction_config,
+                            max_workers=1,  # Single worker per batch for isolation
+                            batch_size=len(batch_urls)
+                        )
+                        
+                        # Process batch results immediately
+                        for result in batch_results:
+                            if result.get('status') == 'success':
+                                content_item = {
+                                    'url': result['url'],
+                                    'title': result.get('title', ''),
+                                    'content': result.get('content', ''),
+                                    'extracted_data': result.get('extracted_data', {}),
+                                    'crawled_at': result.get('crawled_at', datetime.now(timezone.utc).isoformat()),
+                                    'content_hash': result.get('content_hash', '')
+                                }
+                                
+                                # Only include if there's meaningful content
+                                if len(content_item['content']) > 100:  # At least 100 characters
+                                    all_content.append(content_item)
+                                    self.crawl_count += 1
+                                    logger.info(f"   ✅ Extracted content from {result['url']}")
+                                else:
+                                    logger.info(f"   ⚠️  Insufficient content from {result['url']}")
+                            else:
+                                logger.warning(f"   ❌ Failed to crawl {result['url']}: {result.get('error', 'Unknown error')}")
+                        
+                        # Delay between batches to ensure isolation
+                        if i + self.batch_size < len(urls_to_crawl):
+                            await asyncio.sleep(self.delay_between_requests)
                 
-                logger.info(f"📊 Successfully crawled {len(all_content)} websites using isolated crawler")
+                logger.info(f"📊 Successfully crawled {len(all_content)} websites using {self.crawling_strategy} strategy")
                 
             except Exception as e:
-                logger.error(f"❌ Error with isolated crawler: {e}")
-                # Fallback to direct crawling if isolated crawler fails
-                logger.info("🔄 Falling back to direct crawling...")
-                all_content = await self._fallback_direct_crawling(urls[:self.crawl_limit])
+                logger.error(f"❌ Error with {self.crawling_strategy} crawler: {e}")
+                # Fallback to sequential crawling if configured strategy fails
+                logger.info("🔄 Falling back to sequential crawling...")
+                all_content = await self._crawl_urls_sequentially(urls[:self.crawl_limit], competitor_name)
+                
+                # If sequential crawling also fails, try multiprocessing fallback
+                if not all_content:
+                    logger.info("🔄 Falling back to multiprocessing fallback...")
+                    all_content = await self._fallback_multiprocessing_crawling(urls[:self.crawl_limit])
             
             return all_content
             
@@ -378,61 +528,50 @@ https://www.{competitor_name.lower().replace(' ', '')}.com/products
             logger.error(f"❌ Error in intelligent website crawling: {e}")
             return []
 
-    async def _fallback_direct_crawling(self, urls: List[str]) -> List[Dict[str, Any]]:
-        """Fallback method for direct crawling when isolated crawler fails"""
+    async def _fallback_multiprocessing_crawling(self, urls: List[str]) -> List[Dict[str, Any]]:
+        """Fallback method using multiprocessing when other methods fail"""
         try:
-            logger.info("🔄 Using fallback direct crawling method")
-            all_content = []
+            logger.info("🔄 Using multiprocessing fallback crawling method")
             
             if not CRAWL4AI_AVAILABLE:
                 logger.warning("⚠️  Crawl4AI not available for fallback")
                 return []
             
-            async with AsyncWebCrawler(verbose=False) as crawler:
-                for url in urls:
-                    if self.crawl_count >= self.crawl_limit:
-                        break
-                        
-                    try:
-                        logger.info(f"🕷️ Fallback crawling: {url}")
-                        
-                        # Simple crawling without LLM extraction
-                        result = await crawler.arun(
-                            url=url,
-                            bypass_cache=True,
-                            user_agent="Mozilla/5.0 (compatible; CompetitorBot/1.0)"
-                        )
-                        
-                        self.crawl_count += 1
-                        
-                        if result.success:
-                            content_item = {
-                                'url': url,
-                                'title': result.title or '',
-                                'content': result.markdown[:2000] if result.markdown else '',
-                                'extracted_data': {},
-                                'crawled_at': datetime.now(timezone.utc).isoformat(),
-                                'content_hash': hashlib.md5((result.markdown or '').encode()).hexdigest()
-                            }
-                            
-                            # Only include if there's meaningful content
-                            if len(content_item['content']) > 100:
-                                all_content.append(content_item)
-                                logger.info(f"   ✅ Fallback extracted content from {url}")
-                            else:
-                                logger.info(f"   ⚠️  Insufficient content from {url}")
-                        else:
-                            logger.warning(f"   ❌ Fallback failed to crawl {url}: {result.error_message}")
+            # Use multiprocessing crawler as fallback
+            all_content = crawl_websites_multiprocessing(
+                urls=urls[:self.crawl_limit],
+                extraction_config=None,  # No LLM extraction for fallback
+                max_workers=2  # Use 2 workers for fallback
+            )
+            
+            # Process results
+            processed_content = []
+            for result in all_content:
+                if result.get('status') == 'success':
+                    content_item = {
+                        'url': result['url'],
+                        'title': result.get('title', ''),
+                        'content': result.get('content', ''),
+                        'extracted_data': result.get('extracted_data', {}),
+                        'crawled_at': result.get('crawled_at', datetime.now(timezone.utc).isoformat()),
+                        'content_hash': result.get('content_hash', '')
+                    }
                     
-                    except Exception as e:
-                        logger.error(f"❌ Error in fallback crawling {url}: {e}")
-                        continue
+                    # Only include if there's meaningful content
+                    if len(content_item['content']) > 100:
+                        processed_content.append(content_item)
+                        self.crawl_count += 1
+                        logger.info(f"   ✅ Fallback extracted content from {result['url']}")
+                    else:
+                        logger.info(f"   ⚠️  Insufficient content from {result['url']}")
+                else:
+                    logger.warning(f"   ❌ Fallback failed to crawl {result['url']}: {result.get('error', 'Unknown error')}")
 
-            logger.info(f"📊 Fallback crawling completed: {len(all_content)} websites")
-            return all_content
+            logger.info(f"📊 Multiprocessing fallback crawling completed: {len(processed_content)} websites")
+            return processed_content
             
         except Exception as e:
-            logger.error(f"❌ Error in fallback direct crawling: {e}")
+            logger.error(f"❌ Error in multiprocessing fallback crawling: {e}")
             return []
 
     async def _analyze_content_intelligence(self, content_item: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:

@@ -71,6 +71,12 @@ class YouTubeAgent:
         elif not hasattr(settings, 'youtube_api_key') or not settings.youtube_api_key:
             logger.warning("⚠️  No YouTube API key configured - YouTube analysis will be limited")
         
+        # Log the final status
+        if self.youtube_api:
+            logger.info("🎬 YouTube API client is ready for analysis")
+        else:
+            logger.warning("⚠️  YouTube API client is not available - will return empty results")
+        
         logger.info("🎬 Intelligent YouTubeAgent initialization completed")
     
     async def analyze_competitor(self, competitor_id: str, competitor_name: str = None) -> Dict[str, Any]:
@@ -88,11 +94,27 @@ class YouTubeAgent:
             logger.info(f"🎬 Starting intelligent YouTube analysis for competitor {competitor_id}")
             
             # Use provided competitor name or fallback
-            if not competitor_name:
+            if not competitor_name or not isinstance(competitor_name, str) or competitor_name.strip() == "":
                 logger.warning(f"⚠️  No competitor name available for {competitor_id}")
                 competitor_name = f"Competitor_{competitor_id}"
+            else:
+                # Clean the competitor name
+                competitor_name = competitor_name.strip()
             
             logger.info(f"🎯 Analyzing YouTube content for: {competitor_name}")
+            
+            # Check if we have a valid competitor name to search for
+            if not competitor_name or competitor_name.strip() == "":
+                logger.warning("⚠️  Invalid competitor name - returning empty analysis")
+                return {
+                    "platform": "youtube",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name or "Unknown",
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": "Invalid competitor name provided",
+                    "error": "Competitor name is empty or invalid"
+                }
             
             if not self.youtube_api:
                 logger.warning("⚠️  YouTube API not available - returning empty analysis")
@@ -106,9 +128,24 @@ class YouTubeAgent:
                     "error": "YouTube API client not initialized"
                 }
             
+
+            
             # Step 1: Generate intelligent search queries
             search_queries = await self._generate_intelligent_search_queries(competitor_name)
             logger.info(f"🔍 Generated {len(search_queries)} intelligent search queries")
+            
+            # Validate search queries
+            if not search_queries or len(search_queries) == 0:
+                logger.warning("⚠️  No valid search queries generated")
+                return {
+                    "platform": "youtube",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": f"No valid search queries could be generated for '{competitor_name}'",
+                    "error": "Failed to generate search queries"
+                }
             
             # Step 2: Search for videos from today only
             today_videos = await self._search_todays_videos(search_queries)
@@ -125,11 +162,33 @@ class YouTubeAgent:
                     "analysis_summary": f"No YouTube videos found from today for {competitor_name}"
                 }
             
+            # Step 2.5: Filter videos for relevance to competitor
+            relevant_videos = await self._filter_relevant_videos(today_videos, competitor_name)
+            logger.info(f"🎯 Filtered to {len(relevant_videos)} relevant videos for {competitor_name}")
+            
+            if not relevant_videos:
+                logger.info(f"ℹ️  No relevant videos found for {competitor_name}")
+                return {
+                    "platform": "youtube",
+                    "competitor_id": competitor_id,
+                    "competitor_name": competitor_name,
+                    "status": "completed",
+                    "posts": [],
+                    "analysis_summary": f"No relevant YouTube videos found from today for {competitor_name} (found {len(today_videos)} total videos but none met relevance criteria)",
+                    "insights": {
+                        "total_videos_found": len(today_videos),
+                        "relevant_videos_analyzed": 0,
+                        "relevance_filtering_applied": True,
+                        "search_queries_used": len(search_queries),
+                        "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            
             # Step 3: Analyze each video and determine significance
             processed_posts = []
             alerts_created = 0
             
-            for video in today_videos:
+            for video in relevant_videos:
                 try:
                     # Get detailed video information
                     video_details = await self._get_video_details(video['video_id'])
@@ -179,11 +238,13 @@ class YouTubeAgent:
                 "competitor_name": competitor_name,
                 "status": "completed",
                 "posts": processed_posts,
-                "analysis_summary": f"Intelligently analyzed {len(processed_posts)} YouTube videos from today for {competitor_name}. Created {alerts_created} alerts for significant content.",
+                "analysis_summary": f"Intelligently analyzed {len(processed_posts)} relevant YouTube videos from today for {competitor_name} (filtered from {len(today_videos)} total videos). Created {alerts_created} alerts for significant content.",
                 "insights": {
-                    "total_videos_analyzed": len(processed_posts),
+                    "total_videos_found": len(today_videos),
+                    "relevant_videos_analyzed": len(processed_posts),
                     "alerts_created": alerts_created,
                     "search_queries_used": len(search_queries),
+                    "relevance_filtering_applied": True,
                     "analysis_timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
@@ -202,27 +263,34 @@ class YouTubeAgent:
     async def _generate_intelligent_search_queries(self, competitor_name: str) -> List[str]:
         """Generate intelligent search queries using AI or heuristics"""
         try:
+            # Validate competitor name
+            if not competitor_name or not isinstance(competitor_name, str) or competitor_name.strip() == "":
+                logger.error(f"❌ Invalid competitor name: {competitor_name}")
+                return []
+            
+            competitor_name = competitor_name.strip()
+            
             if self.llm:
                 # Use AI to generate intelligent search queries
                 prompt = f"""
-Generate 5-7 intelligent YouTube search queries to find videos about the competitor "{competitor_name}" that were published today.
+Generate 5-7 highly specific YouTube search queries to find videos DIRECTLY about the company "{competitor_name}" that were published today.
 
-The queries should be designed to find:
-1. Official company content
-2. News and announcements about the company
-3. Product launches or updates
-4. Reviews or mentions by others
-5. Industry discussions involving the company
+The queries MUST be designed to find ONLY content that is directly related to {competitor_name}:
+1. Official company announcements and news
+2. Product launches and updates from {competitor_name}
+3. Reviews of {competitor_name} products
+4. Company earnings, partnerships, or business news
+5. Official {competitor_name} channel content
 
-Return the queries as a simple list, one per line, without numbers or bullets.
-Make the queries specific and likely to return relevant results.
+IMPORTANT: Make queries VERY specific to avoid unrelated results. Use quotes and exact company names.
+Focus on finding content that is clearly about {competitor_name}, not just mentioning similar words.
 
 Example format:
-{competitor_name} official
-{competitor_name} announcement today
-{competitor_name} product launch
-{competitor_name} news
-{competitor_name} review
+"{competitor_name}" official
+"{competitor_name}" company news today
+"{competitor_name}" product announcement
+"{competitor_name}" earnings report
+"{competitor_name}" partnership
 """
                 
                 response = await self.llm.ainvoke(prompt)
@@ -237,7 +305,13 @@ Example format:
             
             # Fallback to heuristic queries
             logger.info("🔍 Using heuristic search queries")
-            return self._generate_heuristic_queries(competitor_name)
+            heuristic_queries = self._generate_heuristic_queries(competitor_name)
+            
+            if not heuristic_queries:
+                logger.error("❌ Failed to generate heuristic queries")
+                return []
+            
+            return heuristic_queries
             
         except Exception as e:
             logger.error(f"❌ Error generating search queries: {e}")
@@ -245,19 +319,35 @@ Example format:
     
     def _generate_heuristic_queries(self, competitor_name: str) -> List[str]:
         """Generate search queries using heuristics"""
-        return [
-            f"{competitor_name}",
-            f"{competitor_name} official",
-            f"{competitor_name} announcement",
-            f"{competitor_name} news",
-            f"{competitor_name} update",
-            f"{competitor_name} launch",
-            f"{competitor_name} review"
+        # Validate competitor name
+        if not competitor_name or not isinstance(competitor_name, str) or competitor_name.strip() == "":
+            logger.error(f"❌ Invalid competitor name for heuristic queries: {competitor_name}")
+            return []
+        
+        competitor_name = competitor_name.strip()
+        
+        # Generate highly specific queries to avoid unrelated results
+        queries = [
+            f'"{competitor_name}" official',
+            f'"{competitor_name}" company news',
+            f'"{competitor_name}" announcement',
+            f'"{competitor_name}" product launch',
+            f'"{competitor_name}" earnings',
+            f'"{competitor_name}" partnership',
+            f'"{competitor_name}" business update'
         ]
+        
+        logger.info(f"🔍 Generated {len(queries)} heuristic search queries for '{competitor_name}'")
+        return queries
     
     async def _search_todays_videos(self, search_queries: List[str]) -> List[Dict[str, Any]]:
         """Search for videos published today using the generated queries"""
         try:
+            # Validate search queries
+            if not search_queries or not isinstance(search_queries, list) or len(search_queries) == 0:
+                logger.warning("⚠️  No search queries provided for video search")
+                return []
+            
             # Calculate today's date range
             today = datetime.now(timezone.utc)
             today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -305,6 +395,81 @@ Example format:
         except Exception as e:
             logger.error(f"❌ Error searching today's videos: {e}")
             return []
+    
+    async def _filter_relevant_videos(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[Dict[str, Any]]:
+        """Filter videos to only include those relevant to the competitor"""
+        try:
+            if not videos:
+                return []
+            
+            relevant_videos = []
+            competitor_name_lower = competitor_name.lower()
+            
+            for video in videos:
+                try:
+                    snippet = video.get('snippet', {})
+                    title = snippet.get('title', '').lower()
+                    description = snippet.get('description', '').lower()
+                    channel_title = snippet.get('channelTitle', '').lower()
+                    
+                    # Check if video is relevant to the competitor
+                    is_relevant = self._is_video_relevant_to_competitor(
+                        title, description, channel_title, competitor_name_lower
+                    )
+                    
+                    if is_relevant:
+                        relevant_videos.append(video)
+                        logger.info(f"   ✅ Relevant: {snippet.get('title', 'Unknown')[:50]}...")
+                    else:
+                        logger.info(f"   ❌ Irrelevant: {snippet.get('title', 'Unknown')[:50]}...")
+                        
+                except Exception as e:
+                    logger.error(f"   ❌ Error filtering video: {e}")
+                    continue
+            
+            logger.info(f"🎯 Filtered {len(videos)} videos to {len(relevant_videos)} relevant ones")
+            return relevant_videos
+            
+        except Exception as e:
+            logger.error(f"❌ Error filtering relevant videos: {e}")
+            return videos  # Return all videos if filtering fails
+    
+    def _is_video_relevant_to_competitor(self, title: str, description: str, channel_title: str, competitor_name: str) -> bool:
+        """Determine if a video is relevant to the competitor"""
+        try:
+            # Must contain competitor name in title or description
+            if competitor_name not in title and competitor_name not in description:
+                return False
+            
+            # Check for official company indicators
+            official_indicators = [
+                'official', 'company', 'corporate', 'business', 'news', 'announcement',
+                'earnings', 'quarterly', 'annual', 'report', 'update', 'launch'
+            ]
+            
+            # Check for product-related indicators
+            product_indicators = [
+                'product', 'launch', 'release', 'new', 'announcement', 'update',
+                'review', 'unboxing', 'test', 'comparison'
+            ]
+            
+            # Check for business indicators
+            business_indicators = [
+                'earnings', 'revenue', 'profit', 'partnership', 'acquisition',
+                'merger', 'investment', 'funding', 'ipo', 'stock'
+            ]
+            
+            # Video must contain at least one relevant indicator
+            has_official = any(indicator in title or indicator in description for indicator in official_indicators)
+            has_product = any(indicator in title or indicator in description for indicator in product_indicators)
+            has_business = any(indicator in title or indicator in description for indicator in business_indicators)
+            
+            # Must have at least one relevant indicator to be considered relevant
+            return has_official or has_product or has_business
+            
+        except Exception as e:
+            logger.error(f"❌ Error checking video relevance: {e}")
+            return False
     
     async def _get_video_details(self, video_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a specific video"""
@@ -377,13 +542,15 @@ Your analysis should determine:
 2. What are the key insights about the competitor?
 3. What marketing/business strategies can be observed?
 
+IMPORTANT: Only analyze videos that are DIRECTLY about the competitor company. If the video is not clearly about the company, mark it as not alert-worthy.
+
 ALERT-WORTHY criteria:
-- Major product launches or announcements
-- Significant company news or changes
-- High engagement suggesting viral/trending content
-- Strategic partnerships or collaborations
-- Crisis management or negative coverage
-- Competitive moves or market positioning
+- Major product launches or announcements from the company
+- Significant company news or changes (earnings, partnerships, etc.)
+- High engagement suggesting viral/trending company content
+- Strategic partnerships or collaborations involving the company
+- Crisis management or negative coverage about the company
+- Competitive moves or market positioning by the company
 
 Provide your response in this JSON format:
 {{
@@ -457,12 +624,17 @@ Be selective with alerts - only flag truly significant competitive intelligence.
         # Check for alert keywords in title/description
         has_alert_keywords = any(keyword in title or keyword in description for keyword in alert_keywords)
         
-        # Determine if alert-worthy
+        # Determine if alert-worthy - must be clearly about the competitor
         is_alert_worthy = False
         alert_reason = None
         significance_score = 1
         
-        if is_official_channel and has_alert_keywords:
+        # Must contain competitor name to be considered
+        if competitor_name.lower() not in title and competitor_name.lower() not in description:
+            is_alert_worthy = False
+            alert_reason = "Video does not contain competitor name"
+            significance_score = 1
+        elif is_official_channel and has_alert_keywords:
             is_alert_worthy = True
             alert_reason = "Official channel with announcement keywords"
             significance_score = 8
@@ -470,10 +642,6 @@ Be selective with alerts - only flag truly significant competitive intelligence.
             is_alert_worthy = True
             alert_reason = f"High engagement ({views} views) with significant keywords"
             significance_score = 7
-        elif views > 50000:
-            is_alert_worthy = True
-            alert_reason = f"Very high views ({views}) suggesting viral content"
-            significance_score = 6
         elif is_official_channel and views > 5000:
             is_alert_worthy = True
             alert_reason = "Official channel content with decent reach"
@@ -483,6 +651,8 @@ Be selective with alerts - only flag truly significant competitive intelligence.
         summary = f"Video analysis for {competitor_name}: '{video_details.get('title', 'Unknown')}' by {channel}. "
         summary += f"Engagement: {views:,} views, {likes:,} likes. "
         
+        if competitor_name.lower() not in title and competitor_name.lower() not in description:
+            summary += "WARNING: Video may not be directly about the competitor. "
         if is_official_channel:
             summary += "Official channel content. "
         if has_alert_keywords:
@@ -499,10 +669,12 @@ Be selective with alerts - only flag truly significant competitive intelligence.
                 f"Published by: {channel}",
                 f"Engagement: {views:,} views, {likes:,} likes",
                 f"Official channel: {is_official_channel}",
-                f"Contains announcements: {has_alert_keywords}"
+                f"Contains announcements: {has_alert_keywords}",
+                f"Relevance to competitor: {'High' if competitor_name.lower() in title or competitor_name.lower() in description else 'Low'}"
             ],
             "content_type": "official" if is_official_channel else "external",
-            "competitive_impact": "high" if significance_score >= 7 else ("medium" if significance_score >= 5 else "low")
+            "competitive_impact": "high" if significance_score >= 7 else ("medium" if significance_score >= 5 else "low"),
+            "relevance_score": 10 if competitor_name.lower() in title and competitor_name.lower() in description else (5 if competitor_name.lower() in title or competitor_name.lower() in description else 1)
         }
     
     def _create_monitoring_data(self, video_details: Dict[str, Any], analysis_result: Dict[str, Any], competitor_id: str) -> Dict[str, Any]:

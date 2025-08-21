@@ -13,6 +13,7 @@ interface IndustryStepProps {
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
 }
 
 const industries = [
@@ -29,7 +30,7 @@ const industries = [
   "Other",
 ]
 
-export function IndustryStep({ data, updateData, onNext, onPrev }: IndustryStepProps) {
+export function IndustryStep({ data, updateData, onNext, onPrev, isFromSettings = false }: IndustryStepProps) {
   const canProceed = data.industry && data.companySize
 
   return (
@@ -87,7 +88,7 @@ export function IndustryStep({ data, updateData, onNext, onPrev }: IndustryStepP
             Back
           </Button>
           <Button onClick={onNext} disabled={!canProceed}>
-            Next
+            {isFromSettings ? "Next: Goals" : "Next"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

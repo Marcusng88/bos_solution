@@ -21,6 +21,7 @@ import {
   X,
   Search,
   Eye,
+  Settings,
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -35,44 +36,100 @@ const navigation = [
   { name: "Optimization", href: "/dashboard/optimization", icon: Lightbulb },
   { name: "ROI Dashboard", href: "/dashboard/roi", icon: DollarSign },
   { name: "Continuous Monitoring", href: "/dashboard/monitoring", icon: Eye },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true)
   const pathname = usePathname()
 
   useEffect(() => {
-    if (!isLoaded) return
+    if (!isLoaded || !user) return
+
+    const checkOnboardingStatus = async () => {
+      try {
+        setIsCheckingOnboarding(true)
+        
+        // Check multiple sources for onboarding completion
+        const sources = {
+          // 1. Clerk metadata (existing)
+          clerkMetadata: (user?.publicMetadata as any)?.onboardingComplete === true || 
+                        (user?.unsafeMetadata as any)?.onboardingComplete === true,
+          
+          // 2. Local storage (more persistent)
+          localStorage: typeof window !== "undefined" && localStorage.getItem("onboardingComplete") === "true",
+          
+          // 3. Session storage (temporary override)
+          sessionStorage: typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
+        }
+
+        // If any source indicates completion, consider it complete
+        const isComplete = Object.values(sources).some(Boolean)
+        
+        if (isComplete) {
+          setOnboardingComplete(true)
+          return
+        }
+
+        // 4. Check database status (most reliable)
+        try {
+          const apiClient = new (await import('@/lib/api-client')).ApiClient()
+          const dbStatus = await apiClient.getUserOnboardingStatus(user.id)
+          if (dbStatus?.onboarding_complete) {
+            setOnboardingComplete(true)
+            // Update local storage for future checks
+            if (typeof window !== "undefined") {
+              localStorage.setItem("onboardingComplete", "true")
+            }
+            return
+          }
+        } catch (dbError) {
+          console.warn('Failed to check database onboarding status:', dbError)
+          // Continue with other checks
+        }
+
+        // If we get here, onboarding is not complete
+        setOnboardingComplete(false)
+        
+      } catch (error) {
+        console.error('Error checking onboarding status:', error)
+        setOnboardingComplete(false)
+      } finally {
+        setIsCheckingOnboarding(false)
+      }
+    }
+
+    checkOnboardingStatus()
+  }, [isLoaded, user])
+
+  useEffect(() => {
+    if (!isLoaded || onboardingComplete === null || isCheckingOnboarding) return
+    
     // If user hasn't completed onboarding and no temporary override, send to onboarding
-    const skipGuard = typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
-    const onboardingComplete = (
-      (user?.publicMetadata as any)?.onboardingComplete === true ||
-      (user?.unsafeMetadata as any)?.onboardingComplete === true
-    )
-    if (user && !onboardingComplete && !skipGuard) {
+    if (!onboardingComplete) {
       router.replace("/onboarding")
     }
-  }, [isLoaded, user, router])
+  }, [isLoaded, onboardingComplete, isCheckingOnboarding, router])
 
-  if (!isLoaded) {
+  if (!isLoaded || isCheckingOnboarding) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-lg text-muted-foreground">
+            {!isLoaded ? 'Loading...' : 'Checking your setup...'}
+          </p>
         </div>
       </div>
     )
   }
 
-  const skipGuard = typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
-  const onboardingComplete = (
-    (user?.publicMetadata as any)?.onboardingComplete === true ||
-    (user?.unsafeMetadata as any)?.onboardingComplete === true
-  )
-  if (user && !onboardingComplete && !skipGuard) {
+  // If onboarding is not complete, don't render the dashboard
+  if (!onboardingComplete) {
     return null
   }
 

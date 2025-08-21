@@ -1,6 +1,6 @@
 """
-Isolated Crawler Service for Website Intelligence
-Runs crawl4ai in a separate isolated environment to avoid conflicts with FastAPI
+Simple Isolated Crawler Service for Website Intelligence
+Runs crawl4ai in a separate asyncio event loop to avoid conflicts with FastAPI
 """
 
 import asyncio
@@ -9,151 +9,24 @@ import json
 import hashlib
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
-import subprocess
-import tempfile
 import os
 import sys
-from pathlib import Path
+import concurrent.futures
+import threading
 
 logger = logging.getLogger(__name__)
 
 
-class IsolatedCrawler:
-    """Isolated crawler that runs crawl4ai in a separate Python process"""
+class SimpleIsolatedCrawler:
+    """Simple isolated crawler that runs crawl4ai in a separate asyncio event loop"""
     
-    def __init__(self, python_executable: str = None):
-        """
-        Initialize the isolated crawler
-        
-        Args:
-            python_executable: Path to Python executable to use for isolated environment
-        """
-        self.python_executable = python_executable or sys.executable
-        self.crawler_script_path = self._create_crawler_script()
-        logger.info(f"🔒 Isolated crawler initialized with Python: {self.python_executable}")
-    
-    def _create_crawler_script(self) -> str:
-        """Create the isolated crawler script file"""
-        script_content = '''
-import asyncio
-import json
-import sys
-import traceback
-from datetime import datetime, timezone
-import hashlib
-
-async def crawl_website(url, extraction_config=None):
-    """Crawl a single website using crawl4ai"""
-    try:
-        # Import crawl4ai in isolated environment
-        from crawl4ai import AsyncWebCrawler
-        from crawl4ai.extraction_strategy import LLMExtractionStrategy
-        
-        async with AsyncWebCrawler(verbose=False) as crawler:
-            # Set up extraction strategy if provided
-            extraction_strategy = None
-            if extraction_config and extraction_config.get('use_llm'):
-                try:
-                    extraction_strategy = LLMExtractionStrategy(
-                        provider="google",
-                        api_token=extraction_config.get('api_key'),
-                        schema=extraction_config.get('schema'),
-                        extraction_type="schema"
-                    )
-                except Exception as e:
-                    print(f"Failed to create LLM extraction strategy: {e}", file=sys.stderr)
-            
-            # Crawl the website
-            result = await crawler.arun(
-                url=url,
-                extraction_strategy=extraction_strategy,
-                bypass_cache=True,
-                user_agent="Mozilla/5.0 (compatible; CompetitorBot/1.0)"
-            )
-            
-            if result.success:
-                content_item = {
-                    'url': url,
-                    'title': result.extracted_content.get('title', '') if result.extracted_content else '',
-                    'content': result.markdown[:2000] if result.markdown else '',
-                    'extracted_data': result.extracted_content if result.extracted_content else {},
-                    'crawled_at': datetime.now(timezone.utc).isoformat(),
-                    'content_hash': hashlib.md5((result.markdown or '').encode()).hexdigest(),
-                    'status': 'success'
-                }
-                return content_item
-            else:
-                return {
-                    'url': url,
-                    'status': 'failed',
-                    'error': result.error_message
-                }
-                
-    except Exception as e:
-        return {
-            'url': url,
-            'status': 'error',
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }
-
-async def crawl_multiple_websites(urls, extraction_config=None):
-    """Crawl multiple websites"""
-    results = []
-    for url in urls:
-        try:
-            result = await crawl_website(url, extraction_config)
-            results.append(result)
-        except Exception as e:
-            results.append({
-                'url': url,
-                'status': 'error',
-                'error': str(e)
-            })
-    return results
-
-def main():
-    """Main entry point for isolated crawler"""
-    try:
-        # Read input from stdin
-        input_data = json.loads(sys.stdin.read())
-        urls = input_data.get('urls', [])
-        extraction_config = input_data.get('extraction_config')
-        
-        # Run crawling
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        results = loop.run_until_complete(crawl_multiple_websites(urls, extraction_config))
-        loop.close()
-        
-        # Output results to stdout
-        print(json.dumps(results, default=str))
-        
-    except Exception as e:
-        error_result = {
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }
-        print(json.dumps(error_result, default=str))
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
-'''
-        
-        # Create temporary script file
-        script_dir = Path(__file__).parent
-        script_path = script_dir / "isolated_crawler_script.py"
-        
-        with open(script_path, 'w', encoding='utf-8') as f:
-            f.write(script_content)
-        
-        logger.info(f"📝 Created isolated crawler script at: {script_path}")
-        return str(script_path)
+    def __init__(self):
+        """Initialize the simple isolated crawler"""
+        logger.info("🔒 Simple isolated crawler initialized")
     
     async def crawl_websites(self, urls: List[str], extraction_config: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
-        Crawl websites using isolated Python process
+        Crawl websites using isolated asyncio event loop
         
         Args:
             urls: List of URLs to crawl
@@ -163,53 +36,129 @@ if __name__ == "__main__":
             List of crawling results
         """
         try:
-            logger.info(f"🔒 Starting isolated crawling for {len(urls)} URLs")
+            logger.info(f"🔒 Starting simple isolated crawling for {len(urls)} URLs")
             
-            # Prepare input data
-            input_data = {
-                'urls': urls,
-                'extraction_config': extraction_config
-            }
-            
-            # Convert to JSON string
-            input_json = json.dumps(input_data)
-            
-            # Run isolated crawler process
-            process = await asyncio.create_subprocess_exec(
-                self.python_executable,
-                self.crawler_script_path,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            # Send input and get output
-            stdout, stderr = await process.communicate(input=input_json.encode())
-            
-            if process.returncode != 0:
-                logger.error(f"❌ Isolated crawler failed with return code: {process.returncode}")
-                if stderr:
-                    logger.error(f"Stderr: {stderr.decode()}")
-                return []
-            
-            # Parse results
-            try:
-                results = json.loads(stdout.decode())
-                logger.info(f"✅ Isolated crawling completed successfully")
-                return results
-            except json.JSONDecodeError as e:
-                logger.error(f"❌ Failed to parse crawler results: {e}")
-                if stdout:
-                    logger.error(f"Raw stdout: {stdout.decode()}")
-                return []
+            # Use asyncio.create_task to run in isolated context
+            results = await self._crawl_in_isolated_context(urls, extraction_config)
+            logger.info(f"✅ Simple isolated crawling completed successfully with {len(results)} results")
+            return results
                 
         except Exception as e:
-            logger.error(f"❌ Error in isolated crawling: {e}")
+            logger.error(f"❌ Error in simple isolated crawling: {e}")
+            import traceback
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return []
+    
+    async def _crawl_in_isolated_context(self, urls: List[str], extraction_config: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Crawl websites in an isolated context"""
+        try:
+            # Import crawl4ai in the isolated environment
+            try:
+                from crawl4ai import AsyncWebCrawler
+                from crawl4ai.extraction_strategy import LLMExtractionStrategy
+                from crawl4ai import LLMConfig
+                logger.info("✅ Successfully imported crawl4ai in isolated context")
+            except ImportError as e:
+                logger.error(f"❌ Failed to import crawl4ai: {e}")
+                return [{
+                    'url': url,
+                    'status': 'error',
+                    'error': f'crawl4ai import failed: {e}'
+                } for url in urls]
+            
+            results = []
+            for url in urls:
+                try:
+                    logger.info(f"🕷️ Crawling: {url}")
+                    
+                    # Create a new crawler instance for each URL to ensure isolation
+                    async with AsyncWebCrawler(verbose=False) as crawler:
+                        # Set up extraction strategy if provided
+                        extraction_strategy = None
+                        if extraction_config and extraction_config.get('use_llm'):
+                            try:
+                                # Create LLM extraction strategy with enhanced configuration
+                                # Allow customization through extraction_config
+                                provider = extraction_config.get('provider', 'google')
+                                temperature = extraction_config.get('temperature', 0.1)
+                                max_tokens = extraction_config.get('max_tokens', 1000)
+                                chunk_threshold = extraction_config.get('chunk_token_threshold', 1200)
+                                overlap = extraction_config.get('overlap_rate', 0.1)
+                                input_fmt = extraction_config.get('input_format', 'markdown')
+                                
+                                extraction_strategy = LLMExtractionStrategy(
+                                    llm_config=LLMConfig(
+                                        provider=provider,
+                                        api_token=extraction_config.get('api_key')
+                                    ),
+                                    schema=extraction_config.get('schema'),
+                                    extraction_type="schema",
+                                    instruction=extraction_config.get('instruction', "Extract structured information from the website content"),
+                                    chunk_token_threshold=chunk_threshold,
+                                    overlap_rate=overlap,
+                                    apply_chunking=extraction_config.get('apply_chunking', True),
+                                    input_format=input_fmt,
+                                    verbose=extraction_config.get('verbose', True),
+                                    extra_args={
+                                        "temperature": temperature,
+                                        "max_tokens": max_tokens
+                                    }
+                                )
+                                logger.info(f"✅ Successfully created LLM extraction strategy for {url} using {provider}")
+                            except Exception as e:
+                                logger.warning(f"❌ Failed to create LLM extraction strategy: {e}")
+                                logger.warning(f"   Extraction config: {extraction_config}")
+                                extraction_strategy = None
+                        
+                        # Crawl the website
+                        result = await crawler.arun(
+                            url=url,
+                            extraction_strategy=extraction_strategy,
+                            bypass_cache=True,
+                            user_agent="Mozilla/5.0 (compatible; CompetitorBot/1.0)"
+                        )
+                        
+                        if result.success:
+                            content_item = {
+                                'url': url,
+                                'title': result.extracted_content.get('title', '') if result.extracted_content else '',
+                                'content': result.markdown[:2000] if result.markdown else '',
+                                'extracted_data': result.extracted_content if result.extracted_content else {},
+                                'crawled_at': datetime.now(timezone.utc).isoformat(),
+                                'content_hash': hashlib.md5((result.markdown or '').encode()).hexdigest(),
+                                'status': 'success'
+                            }
+                            results.append(content_item)
+                            logger.info(f"   ✅ Extracted content from {url}")
+                        else:
+                            results.append({
+                                'url': url,
+                                'status': 'failed',
+                                'error': result.error_message
+                            })
+                            logger.warning(f"   ❌ Failed to crawl {url}: {result.error_message}")
+                
+                except Exception as e:
+                    logger.error(f"❌ Error crawling {url}: {e}")
+                    results.append({
+                        'url': url,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Error in crawl loop: {e}")
+            return [{
+                'url': url,
+                'status': 'error',
+                'error': str(e)
+            } for url in urls]
     
     async def crawl_single_website(self, url: str, extraction_config: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Crawl a single website using isolated process
+        Crawl a single website using isolated context
         
         Args:
             url: URL to crawl
@@ -220,40 +169,27 @@ if __name__ == "__main__":
         """
         results = await self.crawl_websites([url], extraction_config)
         return results[0] if results else {'url': url, 'status': 'failed', 'error': 'No results returned'}
-    
-    def cleanup(self):
-        """Clean up temporary files"""
-        try:
-            if os.path.exists(self.crawler_script_path):
-                os.remove(self.crawler_script_path)
-                logger.info("🧹 Cleaned up isolated crawler script")
-        except Exception as e:
-            logger.warning(f"⚠️  Failed to cleanup crawler script: {e}")
 
 
-class IsolatedCrawlerManager:
-    """Manager for multiple isolated crawler instances"""
+class SimpleIsolatedCrawlerManager:
+    """Manager for multiple simple isolated crawler instances"""
     
     def __init__(self, max_concurrent: int = 3):
         """
         Initialize the crawler manager
         
         Args:
-            max_concurrent: Maximum number of concurrent crawler processes
+            max_concurrent: Maximum number of concurrent crawler instances
         """
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
-        self.crawlers = []
-        logger.info(f"🔒 Isolated crawler manager initialized with max {max_concurrent} concurrent processes")
+        logger.info(f"🔒 Simple isolated crawler manager initialized with max {max_concurrent} concurrent instances")
     
     async def crawl_with_semaphore(self, urls: List[str], extraction_config: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """Crawl websites with concurrency control"""
         async with self.semaphore:
-            crawler = IsolatedCrawler()
-            try:
-                return await crawler.crawl_websites(urls, extraction_config)
-            finally:
-                crawler.cleanup()
+            crawler = SimpleIsolatedCrawler()
+            return await crawler.crawl_websites(urls, extraction_config)
     
     async def crawl_multiple_batches(self, url_batches: List[List[str]], extraction_config: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
@@ -264,50 +200,44 @@ class IsolatedCrawlerManager:
             extraction_config: Configuration for LLM extraction if available
             
         Returns:
-            Combined results from all batches
+            Combined crawling results
         """
-        tasks = []
-        for batch in url_batches:
-            if batch:  # Only create tasks for non-empty batches
+        try:
+            logger.info(f"🔒 Starting batch crawling for {len(url_batches)} batches")
+            
+            # Create tasks for each batch
+            tasks = []
+            for batch in url_batches:
                 task = self.crawl_with_semaphore(batch, extraction_config)
                 tasks.append(task)
-        
-        if not tasks:
-            return []
-        
-        # Execute all batches concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Combine results and handle exceptions
-        combined_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(f"❌ Batch {i} failed: {result}")
-                # Add error results for failed batches
-                for url in url_batches[i]:
-                    combined_results.append({
+            
+            # Wait for all batches to complete
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Combine results and handle exceptions
+            all_results = []
+            for i, batch_result in enumerate(batch_results):
+                if isinstance(batch_result, Exception):
+                    logger.error(f"❌ Batch {i} failed: {batch_result}")
+                    # Create error results for this batch
+                    batch_urls = url_batches[i] if i < len(url_batches) else []
+                    error_results = [{
                         'url': url,
                         'status': 'error',
-                        'error': str(result)
-                    })
-            else:
-                combined_results.extend(result)
-        
-        logger.info(f"✅ Completed {len(url_batches)} batches with {len(combined_results)} total results")
-        return combined_results
-    
-    def cleanup(self):
-        """Clean up all crawler instances"""
-        for crawler in self.crawlers:
-            try:
-                crawler.cleanup()
-            except Exception as e:
-                logger.warning(f"⚠️  Failed to cleanup crawler: {e}")
-        self.crawlers.clear()
-        logger.info("🧹 Cleaned up all crawler instances")
+                        'error': f'Batch processing failed: {batch_result}'
+                    } for url in batch_urls]
+                    all_results.extend(error_results)
+                else:
+                    all_results.extend(batch_result)
+            
+            logger.info(f"✅ Completed {len(url_batches)} batches with {len(all_results)} total results")
+            return all_results
+            
+        except Exception as e:
+            logger.error(f"❌ Error in batch crawling: {e}")
+            return []
 
 
-# Convenience function for easy usage
 async def crawl_websites_isolated(urls: List[str], extraction_config: Dict[str, Any] = None, max_concurrent: int = 3) -> List[Dict[str, Any]]:
     """
     Convenience function to crawl websites in isolated environment
@@ -315,13 +245,23 @@ async def crawl_websites_isolated(urls: List[str], extraction_config: Dict[str, 
     Args:
         urls: List of URLs to crawl
         extraction_config: Configuration for LLM extraction if available
-        max_concurrent: Maximum number of concurrent crawler processes
+        max_concurrent: Maximum number of concurrent crawler instances
         
     Returns:
         List of crawling results
     """
-    manager = IsolatedCrawlerManager(max_concurrent)
     try:
-        return await manager.crawl_multiple_batches([urls], extraction_config)
-    finally:
-        manager.cleanup()
+        # Split URLs into batches for better concurrency control
+        batch_size = max(1, len(urls) // max_concurrent)
+        url_batches = [urls[i:i + batch_size] for i in range(0, len(urls), batch_size)]
+        
+        manager = SimpleIsolatedCrawlerManager(max_concurrent)
+        return await manager.crawl_multiple_batches(url_batches, extraction_config)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in isolated crawling: {e}")
+        return [{
+            'url': url,
+            'status': 'error',
+            'error': str(e)
+        } for url in urls]

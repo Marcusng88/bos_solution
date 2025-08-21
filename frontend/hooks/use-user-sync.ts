@@ -9,6 +9,11 @@ interface UserSyncState {
   user: any | null;
 }
 
+interface SyncUserResponse {
+  user?: any;
+  [key: string]: any;
+}
+
 export function useUserSync() {
   const { user, isSignedIn, isLoaded } = useUser();
   const [syncState, setSyncState] = useState<UserSyncState>({
@@ -24,19 +29,26 @@ export function useUserSync() {
     setSyncState(prev => ({ ...prev, isSyncing: true, error: null }));
 
     try {
-      const response = await apiClient.syncUserWithClerk({
-        userId: user.id,
-        email: user.emailAddresses[0]?.emailAddress,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        profileImageUrl: user.imageUrl,
-      });
+      // Transform Clerk user data to match backend schema expectations
+      const clerkData = {
+        id: user.id,
+        email_addresses: user.emailAddresses.map(email => ({
+          id: email.id,
+          email_address: email.emailAddress,
+        })),
+        first_name: user.firstName,
+        last_name: user.lastName,
+        image_url: user.imageUrl,
+        primary_email_address_id: user.primaryEmailAddressId,
+      };
+
+      const response = await apiClient.syncUserFromClerk(user.id, clerkData);
 
       setSyncState({
         isSyncing: false,
         isSynced: true,
         error: null,
-        user: response.user || response,
+        user: (response as SyncUserResponse).user || response,
       });
     } catch (error) {
       console.error('Failed to sync user:', error);

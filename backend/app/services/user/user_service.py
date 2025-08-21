@@ -1,23 +1,21 @@
 """
 User service for managing user operations
+Updated for Supabase integration without SQLAlchemy
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
-from typing import Optional
-from app.models.user_settings import User, UserMonitoringSettings
-from app.schemas.user_settings import UserCreate, UserUpdate, UserResponse
-from app.core.database import get_db
+from typing import Optional, Dict, Any
+from app.schemas.user import UserCreate, UserUpdate, UserResponse
+import logging
 
+logger = logging.getLogger(__name__)
 
 class UserService:
-    """Service class for user operations"""
+    """Service class for user operations using Supabase"""
     
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, supabase_client):
+        self.db = supabase_client
     
-    async def create_user(self, user_data: UserCreate) -> Optional[User]:
+    async def create_user(self, user_data: UserCreate) -> Optional[Dict[str, Any]]:
         """Create a new user in the database"""
         try:
             # Check if user already exists
@@ -25,117 +23,108 @@ class UserService:
             if existing_user:
                 return existing_user
             
-            # Create new user
-            db_user = User(
-                clerk_id=user_data.clerk_id,
-                email=user_data.email,
-                first_name=user_data.first_name,
-                last_name=user_data.last_name,
-                profile_image_url=user_data.profile_image_url
-            )
+            # Create new user using Supabase client
+            user_dict = user_data.model_dump()
+            result = await self.db.upsert_user(user_dict)
             
-            self.db.add(db_user)
-            await self.db.commit()
-            await self.db.refresh(db_user)
-            
-            return db_user
-            
-        except IntegrityError as e:
-            await self.db.rollback()
-            # Log the error (you might want to add proper logging)
-            print(f"Error creating user: {e}")
-            return None
-        except Exception as e:
-            await self.db.rollback()
-            print(f"Unexpected error creating user: {e}")
-            return None
-    
-    async def get_user_by_clerk_id(self, clerk_id: str) -> Optional[User]:
-        """Get user by Clerk ID"""
-        result = await self.db.execute(
-            select(User).where(User.clerk_id == clerk_id)
-        )
-        return result.scalar_one_or_none()
-    
-    async def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by database ID"""
-        result = await self.db.execute(
-            select(User).where(User.id == user_id)
-        )
-        return result.scalar_one_or_none()
-    
-    async def update_user(self, clerk_id: str, user_data: UserUpdate) -> Optional[User]:
-        """Update user information"""
-        try:
-            user = await self.get_user_by_clerk_id(clerk_id)
-            if not user:
+            if result:
+                logger.info(f"✅ User created successfully: {result.get('clerk_id')}")
+                return result
+            else:
+                logger.error("❌ Failed to create user")
                 return None
             
-            # Update only provided fields
-            update_data = user_data.dict(exclude_unset=True)
-            for field, value in update_data.items():
-                setattr(user, field, value)
-            
-            await self.db.commit()
-            await self.db.refresh(user)
-            return user
-            
         except Exception as e:
-            await self.db.rollback()
-            print(f"Error updating user: {e}")
+            logger.error(f"Error creating user: {e}")
             return None
     
-    async def deactivate_user(self, clerk_id: str) -> bool:
-        """Deactivate a user"""
+    async def get_user_by_clerk_id(self, clerk_id: str) -> Optional[Dict[str, Any]]:
+        """Get user by Clerk ID"""
+        try:
+            user = await self.db.get_user_by_clerk_id(clerk_id)
+            return user
+        except Exception as e:
+            logger.error(f"Error getting user by clerk_id: {e}")
+            return None
+    
+    async def update_user(self, clerk_id: str, user_data: UserUpdate) -> Optional[Dict[str, Any]]:
+        """Update user information"""
+        try:
+            # Get existing user first
+            existing_user = await self.get_user_by_clerk_id(clerk_id)
+            if not existing_user:
+                logger.warning(f"User not found for update: {clerk_id}")
+                return None
+            
+            # Update user data
+            update_data = user_data.model_dump(exclude_unset=True)
+            result = await self.db.upsert_user(update_data)
+            
+            if result:
+                logger.info(f"✅ User updated successfully: {clerk_id}")
+                return result
+            else:
+                logger.error("❌ Failed to update user")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error updating user: {e}")
+            return None
+    
+    async def delete_user(self, clerk_id: str) -> bool:
+        """Delete user (soft delete by setting is_active to False)"""
+        try:
+            update_data = {"is_active": False}
+            result = await self.db.upsert_user({"clerk_id": clerk_id, **update_data})
+            
+            if result:
+                logger.info(f"✅ User deactivated successfully: {clerk_id}")
+                return True
+            else:
+                logger.error("❌ Failed to deactivate user")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error deactivating user: {e}")
+            return False
+    
+    async def get_user_profile(self, clerk_id: str) -> Optional[Dict[str, Any]]:
+        """Get complete user profile"""
         try:
             user = await self.get_user_by_clerk_id(clerk_id)
-            if not user:
-                return False
-            
-            user.is_active = False
-            await self.db.commit()
-            return True
-            
+            if user and user.get("is_active", True):
+                return user
+            return None
         except Exception as e:
-            await self.db.rollback()
-            print(f"Error deactivating user: {e}")
+            logger.error(f"Error getting user profile: {e}")
             return None
     
-    async def get_or_create_user(self, clerk_id: str, email: str = None, 
-                          first_name: str = None, last_name: str = None,
-                          profile_image_url: str = None) -> Optional[User]:
-        """Get existing user or create new one if doesn't exist"""
-        user = await self.get_user_by_clerk_id(clerk_id)
-        
-        if user:
-            # Update user info if new data is provided
-            update_data = {}
-            if email and email != user.email:
-                update_data['email'] = email
-            if first_name and first_name != user.first_name:
-                update_data['first_name'] = first_name
-            if last_name and last_name != user.last_name:
-                update_data['last_name'] = last_name
-            if profile_image_url and profile_image_url != user.profile_image_url:
-                update_data['profile_image_url'] = profile_image_url
+    async def sync_user_from_clerk(self, clerk_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Sync user data from Clerk authentication"""
+        try:
+            # Prepare user data for Supabase
+            user_data = {
+                "clerk_id": clerk_data.get("id"),
+                "email": clerk_data.get("email"),
+                "first_name": clerk_data.get("first_name"),
+                "last_name": clerk_data.get("last_name"),
+                "profile_image_url": clerk_data.get("image_url"),
+                "is_active": True
+            }
             
-            if update_data:
-                user = await self.update_user(clerk_id, UserUpdate(**update_data))
-        else:
-            # Create new user
-            user_data = UserCreate(
-                clerk_id=clerk_id,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                profile_image_url=profile_image_url
-            )
-            user = await self.create_user(user_data)
-        
-        return user
-
-
-async def get_user_service() -> UserService:
-    """Dependency to get user service"""
-    async for db in get_db():
-        return UserService(db)
+            # Remove None values
+            user_data = {k: v for k, v in user_data.items() if v is not None}
+            
+            # Use Supabase client to upsert user
+            result = await self.db.upsert_user(user_data)
+            
+            if result:
+                logger.info(f"✅ User synced successfully: {user_data.get('clerk_id')}")
+                return result
+            else:
+                logger.error("❌ Failed to sync user data")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error syncing user from Clerk: {e}")
+            return None

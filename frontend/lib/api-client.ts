@@ -100,38 +100,47 @@ export class ApiClient {
         throw new Error('Authentication failed. Please log in again.');
       }
       
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `API request failed: ${response.statusText}`);
+      // Try to parse error body as JSON; if not JSON, fall back to text
+      let message = `API request failed: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData?.detail) message = errorData.detail;
+      } catch (_) {
+        try {
+          const text = await response.text();
+          if (text) message = text;
+        } catch (_) {}
+      }
+      throw new Error(message);
     }
 
-    const responseData = await response.json();
-    console.log(`✅ Response data:`, responseData);
-    return responseData;
+    // 204 No Content or empty body: return null
+    if (response.status === 204) return null as unknown as T;
+    const text = await response.text();
+    if (!text) return null as unknown as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch (_) {
+      // If backend returned non-JSON (shouldn't happen), return as any
+      return text as unknown as T;
+    }
   }
 
-  // User synchronization
-  async syncUserWithClerk(userData: {
-    userId: string;
-    email?: string;
-    firstName?: string;
-    lastName?: string;
-    profileImageUrl?: string;
-  }): Promise<any> {
-    const headers: Record<string, string> = {};
-    if (userData.email) headers['X-User-Email'] = userData.email;
-    if (userData.firstName) headers['X-User-First-Name'] = userData.firstName;
-    if (userData.lastName) headers['X-User-Last-Name'] = userData.lastName;
-    if (userData.profileImageUrl) headers['X-User-Profile-Image'] = userData.profileImageUrl;
-
-    return this.request('/auth/sync', {
-      userId: userData.userId,
+  // User endpoints
+  async syncUserFromClerk(userId: string, clerkUserData: any) {
+    return this.request('/users/sync', {
+      userId,
       method: 'POST',
-      headers,
+      body: JSON.stringify(clerkUserData),
     });
   }
 
-  async getCurrentUser(userId: string): Promise<any> {
-    return this.request(`/auth/me`, { userId });
+  async getUserProfile(userId: string) {
+    return this.request('/users/profile', { userId });
+  }
+
+  async getUserSettings(userId: string) {
+    return this.request('/users/settings', { userId });
   }
 
   async updateUserProfile(
@@ -150,28 +159,104 @@ export class ApiClient {
     });
   }
 
-  // Competitor endpoints
-  async getCompetitors(userId: string) {
-    return this.request('/competitors/', { userId });
-  }
-
-  async createCompetitor(userId: string, competitorData: any) {
-    return this.request('/competitors/', {
+  /**
+   * Update user onboarding completion status
+   */
+  async updateUserOnboardingStatus(userId: string, isComplete: boolean): Promise<any> {
+    return this.request(`/users/${userId}/onboarding-status`, {
+      method: 'PATCH',
       userId,
-      method: 'POST',
-      body: JSON.stringify(competitorData),
+      body: JSON.stringify({ onboarding_complete: isComplete }),
     });
   }
 
-  async getCompetitor(userId: string, competitorId: string) {
-    return this.request(`/competitors/${competitorId}`, { userId });
+  /**
+   * Get user onboarding completion status
+   */
+  async getUserOnboardingStatus(userId: string): Promise<any> {
+    return this.request(`/users/${userId}/onboarding-status`, {
+      method: 'GET',
+      userId,
+    });
   }
 
-  async updateCompetitor(userId: string, competitorId: string, competitorData: any) {
+  /**
+   * Save user preferences to database
+   */
+  async saveUserPreferences(userId: string, preferences: {
+    industry: string
+    companySize: string
+    goals: string[]
+    budget: string
+  }) {
+    return this.request('/user-preferences', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({
+        industry: preferences.industry,
+        company_size: preferences.companySize,
+        marketing_goals: preferences.goals,
+        monthly_budget: preferences.budget
+      }),
+    });
+  }
+
+  async getUserPreferences(userId: string) {
+    return this.request('/user-preferences', { userId });
+  }
+
+  async updateUserPreferences(userId: string, preferences: {
+    industry: string
+    companySize: string
+    goals: string[]
+    budget: string
+  }) {
+    return this.request('/user-preferences', {
+      userId,
+      method: 'PUT',
+      body: JSON.stringify({
+        industry: preferences.industry,
+        company_size: preferences.companySize,
+        marketing_goals: preferences.goals,
+        monthly_budget: preferences.budget
+      }),
+    });
+  }
+
+  // Competitor endpoints
+  async saveCompetitor(userId: string, competitor: {
+    name: string
+    website: string
+    platforms: string[]
+  }) {
+    return this.request('/competitors', {
+      userId,
+      method: 'POST',
+      body: JSON.stringify({
+        name: competitor.name,
+        website_url: competitor.website, // Backend expects website_url
+        platforms: competitor.platforms
+      }),
+    });
+  }
+
+  async getUserCompetitors(userId: string) {
+    return this.request('/competitors', { userId });
+  }
+
+  async updateCompetitor(userId: string, competitorId: string, competitor: {
+    name: string
+    website: string
+    platforms: string[]
+  }) {
     return this.request(`/competitors/${competitorId}`, {
       userId,
       method: 'PUT',
-      body: JSON.stringify(competitorData),
+      body: JSON.stringify({
+        name: competitor.name,
+        website_url: competitor.website, // Backend expects website_url
+        platforms: competitor.platforms
+      }),
     });
   }
 
@@ -181,6 +266,23 @@ export class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Legacy competitor methods - keeping for compatibility but marked as deprecated
+  async getCompetitors(userId: string) {
+    console.warn('getCompetitors is deprecated, use getUserCompetitors instead');
+    return this.getUserCompetitors(userId);
+  }
+
+  async createCompetitor(userId: string, competitorData: any) {
+    console.warn('createCompetitor is deprecated, use saveCompetitor instead');
+    return this.saveCompetitor(userId, competitorData);
+  }
+
+  async getCompetitor(userId: string, competitorId: string) {
+    return this.request(`/competitors/${competitorId}`, { userId });
+  }
+
+  // Note: updateCompetitor and deleteCompetitor are handled by the my-competitors endpoints above
 
   // Monitoring endpoints
   async getMonitoringSettings(userId: string) {
@@ -206,75 +308,39 @@ export class ApiClient {
     });
   }
 
+  // Additional monitoring methods for continuous monitoring dashboard
+  async getMonitoringStatus(userId: string) {
+    return this.request('/monitoring/status', { userId });
+  }
+
+  async getMonitoringStats(userId: string) {
+    return this.request('/monitoring/stats', { userId });
+  }
+
   async startContinuousMonitoring(userId: string) {
-    return this.request('/monitoring/start-continuous-monitoring', {
+    return this.request('/monitoring/start', {
       userId,
       method: 'POST',
     });
   }
 
   async stopContinuousMonitoring(userId: string) {
-    return this.request('/monitoring/stop-continuous-monitoring', {
-      userId,
-      method: 'POST',
-    });
-  }
-
-  async getMonitoringStatus(userId: string) {
-    return this.request('/monitoring/monitoring-status', { userId });
-  }
-
-  async getMonitoringStats(userId: string) {
-    return this.request('/monitoring/monitoring-stats', { userId });
-  }
-
-  async runMonitoringForCompetitor(userId: string, competitorId: string) {
-    return this.request(`/monitoring/run-monitoring/${competitorId}`, {
+    return this.request('/monitoring/stop', {
       userId,
       method: 'POST',
     });
   }
 
   async runMonitoringForAllCompetitors(userId: string) {
-    return this.request('/monitoring/run-monitoring-all', {
+    return this.request('/monitoring/scan-all', {
       userId,
       method: 'POST',
     });
   }
 
-  // Monitoring data
-  async getMonitoringData(userId: string, competitorId?: string): Promise<any> {
-    const endpoint = competitorId 
-      ? `/monitoring/competitors/${competitorId}/data`
-      : '/monitoring/data';
-    
-    return this.request(endpoint, { userId });
-  }
-
-  // Get scanning progress
-  async getScanningProgress(userId: string): Promise<any> {
-    return this.request('/monitoring/scanning-progress', { userId });
-  }
-
-  // User settings
-  async getUserSettings(userId: string) {
-    return this.request(`/users/settings`, { userId });
-  }
-
-  async updateUserSettings(
-    userId: string,
-    settings: {
-      globalMonitoringEnabled?: boolean;
-      defaultScanFrequencyMinutes?: number;
-      alertPreferences?: Record<string, boolean>;
-      notificationSchedule?: Record<string, string>;
-    }
-  ) {
-    return this.request(`/users/settings`, {
-      userId,
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    });
+  // User sync methods
+  async getCurrentUser(userId: string) {
+    return this.request('/users/profile', { userId });
   }
 }
 

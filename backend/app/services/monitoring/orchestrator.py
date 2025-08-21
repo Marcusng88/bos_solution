@@ -43,7 +43,7 @@ class SimpleMonitoringService:
             
         try:
             self.agents['browser'] = BrowserAgent()
-            logger.info("✅ Browser agent created")
+            logger.info("✅ Browser agent created (Tavily search)")
         except Exception as e:
             logger.error(f"❌ Failed to create Browser agent: {e}")
             self.agents['browser'] = None
@@ -83,7 +83,21 @@ class SimpleMonitoringService:
             # Use competitor details from database
             competitor_name = competitor_details.get('name', competitor_name)
             website_url = competitor_details.get('website_url')
-            social_media_handles = competitor_details.get('social_media_handles', {})
+            social_media_handles = competitor_details.get('social_media_handles')
+            
+            # Validate competitor data
+            if not competitor_name or competitor_name.strip() == "":
+                logger.error(f"❌ Invalid competitor name for {competitor_id}: '{competitor_name}'")
+                return {
+                    "competitor_id": competitor_id,
+                    "status": "failed",
+                    "error": "Invalid competitor name"
+                }
+            
+            # Ensure social_media_handles is a dict, not None
+            if social_media_handles is None:
+                social_media_handles = {}
+                logger.info(f"   📱 No social media handles found, using empty dict")
             
             logger.info(f"✅ Retrieved competitor details: {competitor_name} (ID: {competitor_id})")
             logger.info(f"   🌐 Website: {website_url}")
@@ -106,22 +120,32 @@ class SimpleMonitoringService:
                         
                         # Prepare platform-specific parameters
                         if platform == 'youtube':
-                            # Get YouTube handle from social media handles
-                            youtube_handle = social_media_handles.get('youtube') or competitor_name
+                            # Get YouTube handle from social media handles, handle null case
+                            youtube_handle = None
+                            if social_media_handles and isinstance(social_media_handles, dict):
+                                youtube_handle = social_media_handles.get('youtube')
+                            youtube_handle = youtube_handle or competitor_name
                             result = await agent.analyze_competitor(competitor_id, youtube_handle)
                         elif platform == 'website':
                             # Use actual website URL from database
                             target_url = website_url or f"https://{competitor_name.lower().replace(' ', '')}.com"
                             result = await agent.analyze_competitor(competitor_id, target_url)
                         elif platform == 'browser':
+                            # Browser agent uses Tavily search for web content discovery
                             result = await agent.analyze_competitor(competitor_id, competitor_name)
                         elif platform == 'instagram':
-                            # Get Instagram handle from social media handles
-                            instagram_handle = social_media_handles.get('instagram') or competitor_name
+                            # Get Instagram handle from social media handles, handle null case
+                            instagram_handle = None
+                            if social_media_handles and isinstance(social_media_handles, dict):
+                                instagram_handle = social_media_handles.get('instagram')
+                            instagram_handle = instagram_handle or competitor_name
                             result = await agent.analyze_competitor(competitor_id, instagram_handle)
                         elif platform == 'twitter':
-                            # Get Twitter handle from social media handles
-                            twitter_handle = social_media_handles.get('twitter') or competitor_name
+                            # Get Twitter handle from social media handles, handle null case
+                            twitter_handle = None
+                            if social_media_handles and isinstance(social_media_handles, dict):
+                                twitter_handle = social_media_handles.get('twitter')
+                            twitter_handle = twitter_handle or competitor_name
                             result = await agent.analyze_competitor(competitor_id, twitter_handle)
                         
                         # Process and save monitoring data
@@ -135,8 +159,15 @@ class SimpleMonitoringService:
                     except Exception as e:
                         error_msg = f"Error in {platform} agent: {str(e)}"
                         logger.error(f"❌ {error_msg}")
+                        logger.error(f"   🔍 Error type: {type(e).__name__}")
+                        logger.error(f"   📍 Platform: {platform}, Competitor: {competitor_name}")
                         errors.append(error_msg)
-                        results[platform] = {"error": str(e)}
+                        results[platform] = {
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "platform": platform,
+                            "competitor_name": competitor_name
+                        }
                 elif platform in self.agents and self.agents[platform] is None:
                     error_msg = f"{platform} agent not initialized"
                     logger.warning(f"⚠️ {error_msg}")
@@ -197,6 +228,15 @@ class SimpleMonitoringService:
             
             # Extract platform-specific result
             platform_result = result.get('platform_results', {}).get(platform, {})
+            
+            # If the platform failed, return the error directly
+            if platform in result.get('errors', []):
+                return {
+                    "platform": platform,
+                    "competitor_id": competitor_id,
+                    "status": "failed",
+                    "error": f"Platform {platform} failed: {result.get('errors', [])}"
+                }
             
             return {
                 "platform": platform,
