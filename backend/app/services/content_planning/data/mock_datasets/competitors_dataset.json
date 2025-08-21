@@ -1,0 +1,184 @@
+{
+  "dataset_meta": {
+    "version": "1.0.0",
+    "created_date": "2025-08-21",
+    "total_competitors": 80,
+    "total_posts": 500,
+    "industries_covered": 10
+  },
+  "competitors": [
+    {
+      "competitor_id": "comp_tech_001",
+      "company_name": "TechFlow Solutions",
+      "industry_sector": "technology",
+      "brand_description": "AI-powered business automation platform",
+      "follower_count": 125000,
+      "engagement_rate": 4.2,
+      "posting_frequency": "daily",
+      "posts": [
+        {
+          "post_id": "post_tech_001",
+          "post_content": "🚀 Revolutionizing workflow automation with AI! Our new feature reduces manual tasks by 80%. Ready to transform your business? Book a demo today! #AI #Automation #TechInnovation #ProductivityHack #BusinessGrowth #DigitalTransformation #WorkflowOptimization #TechNews #StartupLife #Innovation",
+          "image_description": "Modern office space with multiple monitors displaying colorful dashboards, team collaborating around a conference table, natural lighting, professional atmosphere with plants and modern furniture",
+          "hashtags": ["#AI", "#Automation", "#TechInnovation", "#ProductivityHack", "#BusinessGrowth", "#DigitalTransformation", "#WorkflowOptimization", "#TechNews", "#StartupLife", "#Innovation"],
+          "platform": "linkedin",
+          "post_type": "product_announcement",
+          "engagement_metrics": {
+            "likes": 1250,
+            "shares": 89,
+            "comments": 34,
+            "engagement_rate": 4.2
+          },
+          "posting_time": "2025-08-20T09:00:00Z",
+          "tone": "professional_enthusiastic",
+          "call_to_action": "Book a demo today",
+          "target_audience": "business_professionals",
+          "content_length": 280,
+          "emoji_count": 1,
+          "hashtag_count": 10
+        },
+        {
+          "post_id": "post_tech_002",
+          "post_content": "💡 Behind the scenes: How our engineering team built the fastest deployment pipeline in the industry. From idea to production in under 10 minutes! #DevOps #CloudComputing #TechLeadership #Engineering #CI/CD #CloudNative #TechStack #Innovation #Performance #DevLife",
+          "image_description": "Software engineers working at standing desks with multiple monitors showing code and deployment pipelines, modern tech office with exposed brick walls and neon lighting",
+          "hashtags": ["#DevOps", "#CloudComputing", "#TechLeadership", "#Engineering", "#CI/CD", "#CloudNative", "#TechStack", "#Innovation", "#Performance", "#DevLife"],
+          "platform": "linkedin",
+          "post_type": "behind_the_scenes",
+          "engagement_metrics": {
+            "likes": 890,
+            "shares": 156,
+            "comments": 67,
+            "engagement_rate": 5.1
+          },
+          "posting_time": "2025-08-19T14:30:00Z",
+          "tone": "educational",
+          "call_to_action": "Learn more about our tech stack",
+          "target_audience": "developers",
+          "content_length": 245,
+          "emoji_count": 1,
+          "hashtag_count": 10
+        }
+      ]
+    },
+    {
+      "competitor_id": "comp_fashion_001",
+      "company_name": "EcoStyle Collective",
+      "industry_sector": "fashion_beauty",
+      "brand_description": "Sustainable fashion brand promoting eco-friendly lifestyle",
+      "follower_count": 89000,
+      "engagement_rate": 6.8,
+      "posting_frequency": "twice_daily",
+      "posts": [
+        {
+          "post_id": "post_fashion_001",
+          "post_content": "🌱 Introducing our Earth-Conscious Collection! Every piece crafted from 100% recycled materials without compromising style. Fashion that feels good and does good. 🌍✨ Shop now and get 20% off! #SustainableFashion #EcoFriendly #ConsciousStyle #RecycledMaterials #EthicalFashion #GreenLiving #SustainableStyle #ZeroWaste #EcoLuxury #FashionRevolution",
+          "image_description": "Beautiful natural outdoor setting with model wearing flowing sustainable clothing, surrounded by lush greenery, soft natural lighting, earthy tones, organic textures visible in fabric details",
+          "hashtags": ["#SustainableFashion", "#EcoFriendly", "#ConsciousStyle", "#RecycledMaterials", "#EthicalFashion", "#GreenLiving", "#SustainableStyle", "#ZeroWaste", "#EcoLuxury", "#FashionRevolution"],
+          "platform": "instagram",
+          "post_type": "product_announcement",
+          "engagement_metrics": {
+            "likes": 2340,
+            "shares": 234,
+            "comments": 128,
+            "engagement_rate": 6.8
+          },
+          "posting_time": "2025-08-20T18:00:00Z",
+          "tone": "inspirational",
+          "call_to_action": "Shop now and get 20% off",
+          "target_audience": "eco_conscious_consumers",
+          "content_length": 298,
+          "emoji_count": 3,
+          "hashtag_count": 10
+        }
+      ]
+    },
+    {
+      "competitor_id": "comp_food_001",
+      "company_name": "FreshHarvest Kitchen",
+      "industry_sector": "food_beverage",
+      "brand_description": "Farm-to-table restaurant chain focusing on organic ingredients",
+      "follower_count": 156000,
+      "engagement_rate": 5.4,
+      "posting_frequency": "daily",
+      "posts": [
+        {
+          "post_id": "post_food_001",
+          "post_content": "🥗 Farm Fresh Friday! Today's special features ingredients harvested just this morning from our partner farms. Taste the difference that 0-mile ingredients make! Book your table for weekend brunch. #FarmToTable #Organic #FreshIngredients #LocalFarms #HealthyEating #Sustainable #FoodLove #BrunchSpecial #WeekendVibes #FreshHarvest",
+          "image_description": "Vibrant colorful salad bowl with fresh organic vegetables, rustic wooden table setting, natural lighting streaming through windows, farm-fresh ingredients artfully arranged",
+          "hashtags": ["#FarmToTable", "#Organic", "#FreshIngredients", "#LocalFarms", "#HealthyEating", "#Sustainable", "#FoodLove", "#BrunchSpecial", "#WeekendVibes", "#FreshHarvest"],
+          "platform": "instagram",
+          "post_type": "promotional",
+          "engagement_metrics": {
+            "likes": 1890,
+            "shares": 145,
+            "comments": 89,
+            "engagement_rate": 5.4
+          },
+          "posting_time": "2025-08-20T11:00:00Z",
+          "tone": "friendly",
+          "call_to_action": "Book your table for weekend brunch",
+          "target_audience": "food_enthusiasts",
+          "content_length": 267,
+          "emoji_count": 1,
+          "hashtag_count": 10
+        }
+      ]
+    },
+    {
+      "competitor_id": "comp_finance_001",
+      "company_name": "WealthWise Financial",
+      "industry_sector": "finance_fintech",
+      "brand_description": "Digital investment platform for millennial investors",
+      "follower_count": 78000,
+      "engagement_rate": 3.9,
+      "posting_frequency": "weekdays",
+      "posts": [
+        {
+          "post_id": "post_finance_001",
+          "post_content": "💰 Investment Tip Tuesday: Dollar-cost averaging isn't just a strategy—it's your shield against market volatility. Start with just $50/month and watch compound interest work its magic over time. 📈 Ready to build wealth? Start your investment journey today! #Investing #PersonalFinance #WealthBuilding #DollarCostAveraging #FinancialLiteracy #Investment #Money #FinTech #CompoundInterest #FinancialPlanning",
+          "image_description": "Clean minimalist design showing upward trending graph on tablet screen, modern workspace with calculator and financial documents, professional lighting, blue and green color scheme",
+          "hashtags": ["#Investing", "#PersonalFinance", "#WealthBuilding", "#DollarCostAveraging", "#FinancialLiteracy", "#Investment", "#Money", "#FinTech", "#CompoundInterest", "#FinancialPlanning"],
+          "platform": "linkedin",
+          "post_type": "educational",
+          "engagement_metrics": {
+            "likes": 567,
+            "shares": 89,
+            "comments": 45,
+            "engagement_rate": 3.9
+          },
+          "posting_time": "2025-08-20T08:00:00Z",
+          "tone": "educational",
+          "call_to_action": "Start your investment journey today",
+          "target_audience": "young_professionals",
+          "content_length": 285,
+          "emoji_count": 2,
+          "hashtag_count": 10
+        }
+      ]
+    }
+  ],
+  "trending_hashtags": {
+    "technology": ["#AI", "#CloudComputing", "#Cybersecurity", "#TechInnovation", "#DigitalTransformation"],
+    "fashion_beauty": ["#SustainableFashion", "#EcoFriendly", "#OOTD", "#BeautyTips", "#FashionWeek"],
+    "food_beverage": ["#FarmToTable", "#HealthyEating", "#Organic", "#FoodLove", "#PlantBased"],
+    "finance_fintech": ["#FinTech", "#Cryptocurrency", "#Investing", "#PersonalFinance", "#WealthBuilding"]
+  },
+  "content_insights": {
+    "optimal_posting_times": {
+      "linkedin": ["Tuesday-Thursday, 8-10 AM", "Monday-Wednesday, 5-7 PM"],
+      "instagram": ["Wednesday-Friday, 6-8 PM", "Saturday-Sunday, 11 AM-1 PM"],
+      "twitter": ["Monday-Friday, 12-3 PM", "Tuesday-Thursday, 5-6 PM"]
+    },
+    "top_performing_content_types": [
+      {"type": "behind_the_scenes", "avg_engagement": 5.2},
+      {"type": "educational", "avg_engagement": 4.8},
+      {"type": "product_announcement", "avg_engagement": 4.5},
+      {"type": "user_generated", "avg_engagement": 4.3}
+    ],
+    "hashtag_performance": {
+      "high_reach_low_competition": ["#TechForGood", "#SustainableTech", "#EthicalAI"],
+      "trending_emerging": ["#CreatorEconomy", "#Web3", "#ClimateAction"],
+      "evergreen_high_engagement": ["#Innovation", "#Leadership", "#Inspiration"]
+    }
+  }
+}
