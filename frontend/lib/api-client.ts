@@ -8,7 +8,8 @@ import { Competitor, CompetitorCreate, CompetitorUpdate, CompetitorStats } from 
 import { useMemo } from 'react';
 
 // API base URL - adjust based on your backend configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_VERSION_PREFIX = '/api/v1';
 
 /**
  * Create API headers with user authentication
@@ -82,7 +83,9 @@ export class ApiClient {
       throw new Error('User ID is required for API requests');
     }
 
-    const url = `${this.baseUrl}${endpoint}`;
+    // Add API version prefix if not already present
+    const fullEndpoint = endpoint.startsWith('/api/v1') ? endpoint : `${API_VERSION_PREFIX}${endpoint}`;
+    const url = `${this.baseUrl}${fullEndpoint}`;
     const headers = createApiHeaders(userId, requestOptions.headers as Record<string, string>);
 
     console.log(`🌐 API Request: ${url}`);
@@ -228,14 +231,16 @@ export class ApiClient {
     name: string
     website: string
     platforms: string[]
+    description?: string
   }) {
     return this.request('/competitors', {
       userId,
       method: 'POST',
       body: JSON.stringify({
         name: competitor.name,
-        website_url: competitor.website, // Backend expects website_url
-        platforms: competitor.platforms
+        website: competitor.website,
+        platforms: competitor.platforms,
+        description: competitor.description
       }),
     });
   }
@@ -248,14 +253,16 @@ export class ApiClient {
     name: string
     website: string
     platforms: string[]
+    description?: string
   }) {
     return this.request(`/competitors/${competitorId}`, {
       userId,
       method: 'PUT',
       body: JSON.stringify({
         name: competitor.name,
-        website_url: competitor.website, // Backend expects website_url
-        platforms: competitor.platforms
+        website: competitor.website,
+        platforms: competitor.platforms,
+        description: competitor.description
       }),
     });
   }

@@ -20,6 +20,7 @@ export interface OnboardingData {
     id?: string // Optional ID for saved competitors
     name: string
     website: string
+    description?: string
     platforms: string[]
   }>
   connectedAccounts: Array<{

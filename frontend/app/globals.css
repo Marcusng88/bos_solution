@@ -246,3 +246,15 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Ensure no content escapes containers */
+.content-container {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.content-container * {
+  position: relative;
+  z-index: 1;
+}

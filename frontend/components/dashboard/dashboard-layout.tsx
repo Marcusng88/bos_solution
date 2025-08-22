@@ -235,8 +235,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
 
         {/* Page content */}
-        <main className="py-6">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
+        <main className="py-6 overflow-hidden relative">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 overflow-hidden relative">{children}</div>
         </main>
       </div>
     </div>

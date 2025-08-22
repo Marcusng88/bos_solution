@@ -48,7 +48,7 @@ class SupabaseClient:
                 if method.upper() == "GET":
                     response = await client.get(url, headers=self.headers, params=params)
                 elif method.upper() == "POST":
-                    response = await client.post(url, headers=self.headers, json=data)
+                    response = await client.post(url, headers=self.headers, json=data, params=params)
                 elif method.upper() == "PATCH":
                     response = await client.patch(url, headers=self.headers, json=data, params=params)
                 elif method.upper() == "DELETE":
@@ -113,7 +113,9 @@ class SupabaseClient:
         try:
             response = await self._make_request("GET", "competitors", params={"user_id": f"eq.{user_id}"})
             if response.status_code == 200:
-                return response.json()
+                competitors = response.json()
+                # Transform data back to frontend format
+                return [self._transform_competitor_response(comp) for comp in competitors]
             return []
         except Exception as e:
             logger.error(f"Error getting competitors: {e}")

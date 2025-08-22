@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { handleOAuthCallback } from "@/lib/oauth"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
 
-export default function FacebookCallbackPage() {
+function FacebookCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -188,6 +188,25 @@ export default function FacebookCallbackPage() {
   }
 
   return null
+}
+
+export default function FacebookCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-8 max-w-md">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <p>Processing Facebook connection...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <FacebookCallbackContent />
+    </Suspense>
+  )
 }
 
 

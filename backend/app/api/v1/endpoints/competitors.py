@@ -2,6 +2,7 @@
 Competitors endpoints for managing competitor monitoring
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from app.core.database import get_db

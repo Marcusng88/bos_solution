@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Loader2, CheckCircle, XCircle, Instagram } from "lucide-react"
 import { handleOAuthCallback } from "@/lib/oauth"
 import { useToast } from "@/hooks/use-toast"
 
-export default function InstagramCallbackPage() {
+function InstagramCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -168,5 +168,24 @@ export default function InstagramCallbackPage() {
   }
 
   return null
+}
+
+export default function InstagramCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-8 max-w-md">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+              <p>Processing Instagram connection...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <InstagramCallbackContent />
+    </Suspense>
+  )
 }
 

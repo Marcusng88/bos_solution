@@ -115,10 +115,10 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
       // Save competitors to database (one by one)
       console.log(`👥 Saving ${data.competitors.length} competitors...`)
       for (const competitor of data.competitors) {
-        console.log('💾 Saving competitor:', competitor)
-        await apiClient.saveCompetitor(user.id, {
+        await apiClient.saveCompetitor(user.externalId || user.id, {
           name: competitor.name,
           website: competitor.website,
+          description: competitor.description,
           platforms: competitor.platforms
         })
       }

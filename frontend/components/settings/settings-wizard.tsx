@@ -92,9 +92,10 @@ export function SettingsWizard() {
           goals: (preferences as any)?.marketing_goals || ["Brand Awareness", "Lead Generation"],
           competitors: (competitors as any[]).map((comp: any) => ({
             id: comp.id, // Include the database ID for updates
-            name: comp.name, // Use 'name' instead of 'competitor_name'
-            website: comp.website_url || "", // Use 'website_url' instead of 'website'
-            platforms: comp.platforms || [] // Use 'platforms' instead of 'active_platforms'
+            name: comp.competitor_name,
+            website: comp.website_url || "",
+            description: comp.description || "",
+            platforms: comp.active_platforms || []
           })),
           connectedAccounts: data.connectedAccounts, // Keep existing connected accounts
           budget: transformBudgetFromDB((preferences as any)?.monthly_budget) || "5000-10000"
@@ -158,16 +159,18 @@ export function SettingsWizard() {
       for (const competitor of data.competitors) {
         if (competitor.id) {
           // Update existing competitor
-          await apiClient.updateCompetitor(user.id, competitor.id, {
+          await apiClient.updateCompetitor(user.externalId || user.id, competitor.id, {
             name: competitor.name,
             website: competitor.website,
+            description: competitor.description,
             platforms: competitor.platforms
           })
         } else {
           // Create new competitor
-          await apiClient.saveCompetitor(user.id, {
+          await apiClient.saveCompetitor(user.externalId || user.id, {
             name: competitor.name,
             website: competitor.website,
+            description: competitor.description,
             platforms: competitor.platforms
           })
         }
