@@ -377,12 +377,56 @@ https://www.{competitor_name.lower().replace(' ', '')}.com/products
                     'schema': {
                         "type": "object",
                         "properties": {
-                            "title": {"type": "string"},
-                            "main_content": {"type": "string"},
-                            "key_announcements": {"type": "array", "items": {"type": "string"}},
-                            "product_updates": {"type": "array", "items": {"type": "string"}},
-                            "business_updates": {"type": "array", "items": {"type": "string"}}
-                        }
+                            "title": {"type": "string", "description": "Page title"},
+                            "main_content": {"type": "string", "description": "Main page content"},
+                            "page_type": {"type": "string", "description": "Type of page (homepage, product, news, about, etc.)"},
+                            "key_announcements": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Important company announcements or news"
+                            },
+                            "product_updates": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "New products, features, or product updates"
+                            },
+                            "business_updates": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Business news, partnerships, acquisitions, financial updates"
+                            },
+                            "layout_changes": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Significant website design or layout changes"
+                            },
+                            "website_insights": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Key insights about the website structure, user experience, or business strategy"
+                            },
+                            "competitive_positioning": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "How the company positions itself against competitors"
+                            },
+                            "target_audience": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Target customer segments or audience indicators"
+                            },
+                            "pricing_strategy": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Pricing information or strategy indicators"
+                            },
+                            "technology_stack": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Technology or platform indicators"
+                            }
+                        },
+                        "required": ["title", "main_content"]
                     }
                 }
             
@@ -445,12 +489,56 @@ https://www.{competitor_name.lower().replace(' ', '')}.com/products
                     'schema': {
                         "type": "object",
                         "properties": {
-                            "title": {"type": "string"},
-                            "main_content": {"type": "string"},
-                            "key_announcements": {"type": "array", "items": {"type": "string"}},
-                            "product_updates": {"type": "array", "items": {"type": "string"}},
-                            "business_updates": {"type": "array", "items": {"type": "string"}}
-                        }
+                            "title": {"type": "string", "description": "Page title"},
+                            "main_content": {"type": "string", "description": "Main page content"},
+                            "page_type": {"type": "string", "description": "Type of page (homepage, product, news, about, etc.)"},
+                            "key_announcements": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Important company announcements or news"
+                            },
+                            "product_updates": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "New products, features, or product updates"
+                            },
+                            "business_updates": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Business news, partnerships, acquisitions, financial updates"
+                            },
+                            "layout_changes": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Significant website design or layout changes"
+                            },
+                            "website_insights": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Key insights about the website structure, user experience, or business strategy"
+                            },
+                            "competitive_positioning": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "How the company positions itself against competitors"
+                            },
+                            "target_audience": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Target customer segments or audience indicators"
+                            },
+                            "pricing_strategy": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Pricing information or strategy indicators"
+                            },
+                            "technology_stack": {
+                                "type": "array", 
+                                "items": {"type": "string"},
+                                "description": "Technology or platform indicators"
+                            }
+                        },
+                        "required": ["title", "main_content"]
                     }
                 }
             
@@ -600,12 +688,13 @@ Analyze this website content for competitive intelligence about "{competitor_nam
 URL: {url}
 TITLE: {title}
 CONTENT: {content}
-EXTRACTED DATA: {json.dumps(extracted_data, default=str)[:500]}
+EXTRACTED DATA: {json.dumps(extracted_data, default=str)}
 
 Your analysis should determine:
 1. Is this content ALERT-WORTHY for competitive intelligence?
 2. What are the key business insights about the competitor?
 3. What strategic implications does this have?
+4. What does this reveal about their website strategy and user experience?
 
 ALERT-WORTHY criteria for website content:
 - New product launches or major updates
@@ -616,6 +705,17 @@ ALERT-WORTHY criteria for website content:
 - Leadership announcements or company pivots
 - Crisis communications or negative developments
 - Regulatory compliance or legal updates
+- Significant layout or user experience changes
+- New target audience or market positioning
+
+WEBSITE INTELLIGENCE ANALYSIS:
+Focus on extracting insights about:
+- Website structure and user experience strategy
+- Business positioning and target audience
+- Technology stack and platform choices
+- Competitive differentiation strategies
+- Content strategy and messaging
+- User engagement patterns
 
 Provide your response in this JSON format:
 {{
@@ -627,7 +727,10 @@ Provide your response in this JSON format:
     "content_type": "homepage/product/news/blog/about/other",
     "competitive_impact": "high/medium/low",
     "urgency": "immediate/high/medium/low",
-    "changes_detected": ["change1", "change2"] or []
+    "changes_detected": ["change1", "change2"] or [],
+    "website_strategy_insights": ["strategy1", "strategy2"],
+    "user_experience_analysis": "Brief analysis of UX strategy",
+    "business_positioning": "Brief analysis of market positioning"
 }}
 
 Be selective with alerts - only flag truly significant competitive intelligence.
@@ -748,24 +851,72 @@ Be selective with alerts - only flag truly significant competitive intelligence.
             "content_type": content_type,
             "competitive_impact": "high" if significance_score >= 7 else ("medium" if significance_score >= 5 else "low"),
             "urgency": "high" if significance_score >= 8 else ("medium" if significance_score >= 6 else "low"),
-            "changes_detected": list(extracted_data.get('key_announcements', [])) + list(extracted_data.get('product_updates', []))
+            "changes_detected": list(extracted_data.get('key_announcements', [])) + list(extracted_data.get('product_updates', [])),
+            "website_strategy_insights": [
+                f"Page type: {content_type}",
+                f"Content focus: {'Business updates' if has_extracted_updates else 'General content'}",
+                f"Update frequency: {'High' if has_alert_keywords else 'Standard'}"
+            ],
+            "user_experience_analysis": f"Website appears to focus on {content_type} content with {'significant business updates' if has_extracted_updates else 'standard informational content'}",
+            "business_positioning": f"Company website shows {'active business development' if has_extracted_updates else 'stable business presence'} with focus on {content_type} content"
         }
 
     def _create_monitoring_data(self, content_item: Dict[str, Any], analysis_result: Dict[str, Any], competitor_id: str) -> Dict[str, Any]:
-        """Create monitoring data structure for Supabase"""
-        content_text = f"{content_item.get('title', '')}\n\n{content_item.get('content', '')[:1000]}"
+        """Create monitoring data structure for Supabase with full content"""
+        # Combine all available content without truncation
+        content_parts = [content_item.get('title', '')]
+        
+        if content_item.get('content'):
+            content_parts.append(content_item.get('content'))
+        
+        if content_item.get('extracted_data'):
+            # Add structured business insights
+            extracted_data = content_item.get('extracted_data', {})
+            if extracted_data.get('key_announcements'):
+                content_parts.append(f"Key Announcements: {', '.join(extracted_data['key_announcements'])}")
+            if extracted_data.get('product_updates'):
+                content_parts.append(f"Product Updates: {', '.join(extracted_data['product_updates'])}")
+            if extracted_data.get('business_updates'):
+                content_parts.append(f"Business Updates: {', '.join(extracted_data['business_updates'])}")
+            if extracted_data.get('layout_changes'):
+                content_parts.append(f"Layout Changes: {', '.join(extracted_data['layout_changes'])}")
+            if extracted_data.get('website_insights'):
+                content_parts.append(f"Website Insights: {', '.join(extracted_data['website_insights'])}")
+            if extracted_data.get('competitive_positioning'):
+                content_parts.append(f"Competitive Positioning: {', '.join(extracted_data['competitive_positioning'])}")
+            if extracted_data.get('target_audience'):
+                content_parts.append(f"Target Audience: {', '.join(extracted_data['target_audience'])}")
+            if extracted_data.get('pricing_strategy'):
+                content_parts.append(f"Pricing Strategy: {', '.join(extracted_data['pricing_strategy'])}")
+            if extracted_data.get('technology_stack'):
+                content_parts.append(f"Technology Stack: {', '.join(extracted_data['technology_stack'])}")
+        
+        # Add AI analysis insights if available
+        if analysis_result.get('website_strategy_insights'):
+            content_parts.append(f"Website Strategy: {', '.join(analysis_result['website_strategy_insights'])}")
+        if analysis_result.get('user_experience_analysis'):
+            content_parts.append(f"UX Analysis: {analysis_result['user_experience_analysis']}")
+        if analysis_result.get('business_positioning'):
+            content_parts.append(f"Business Positioning: {analysis_result['business_positioning']}")
+        
+        content_text = '\n\n'.join(content_parts)
         
         return {
             'competitor_id': str(competitor_id),
             'platform': 'website',
             'post_id': content_item.get('content_hash', ''),
             'post_url': content_item.get('url', ''),
-            'content_text': content_text,
+            'content_text': content_text,  # Full content without truncation
             'content_hash': content_item.get('content_hash', ''),
             'media_urls': [],  # Website content typically doesn't have direct media URLs
             'engagement_metrics': {
                 'significance_score': analysis_result.get('significance_score', 0),
-                'content_length': len(content_item.get('content', ''))
+                'content_length': len(content_item.get('content', '')),
+                'extracted_insights_count': len(content_item.get('extracted_data', {})),
+                'website_strategy_insights_count': len(analysis_result.get('website_strategy_insights', [])),
+                'business_insights_count': len(content_item.get('extracted_data', {}).get('business_updates', [])),
+                'product_updates_count': len(content_item.get('extracted_data', {}).get('product_updates', [])),
+                'layout_changes_count': len(content_item.get('extracted_data', {}).get('layout_changes', []))
             },
             'author_username': 'website',
             'author_display_name': 'Official Website',

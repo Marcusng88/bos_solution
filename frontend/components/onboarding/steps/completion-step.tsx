@@ -9,7 +9,6 @@ import type { OnboardingData } from "../onboarding-wizard"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import { ApiClient } from "@/lib/api-client"
 
 interface CompletionStepProps {
   data: OnboardingData
@@ -20,59 +19,10 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
   const { user } = useUser()
   const router = useRouter()
   const { toast } = useToast()
-  const [isSaving, setIsSaving] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   
-  // Check if required fields are missing and determine which step to go back to
-  const getMissingFields = () => {
-    const missing = []
-    if (!data.industry || !data.companySize) missing.push('business')
-    if (!data.goals?.length || !data.budget) missing.push('goals')
-    if (!data.competitors?.length) missing.push('competitors')
-    if (!data.connectedAccounts?.length) missing.push('connections')
-    return missing
-  }
-  
-  const getStepNumber = (stepName: string) => {
-    const stepMap: Record<string, number> = {
-      'business': 2,
-      'goals': 3,
-      'competitors': 4,
-      'connections': 5
-    }
-    return stepMap[stepName] || 1
-  }
-  
-  const goToIncompleteStep = () => {
-    const missingFields = getMissingFields()
-    if (missingFields.length > 0) {
-      const stepToGo = getStepNumber(missingFields[0])
-      goToStep(stepToGo)
-    }
-  }
-  
-  const handleGetStarted = async () => {
-    console.log('🎯 Go to Dashboard button clicked')
-    console.log('📊 Onboarding data:', data)
-    console.log('👤 User:', user)
-
-    // Validate required fields before save
-    if (!data.budget || (data.goals?.length ?? 0) === 0 || !data.industry || !data.companySize) {
-      console.error('❌ Validation failed - missing required fields:', {
-        budget: data.budget,
-        goalsCount: data.goals?.length ?? 0,
-        industry: data.industry,
-        companySize: data.companySize
-      })
-      toast({
-        title: "Incomplete",
-        description: "Please complete all steps (industry, company size, goals, and budget) before continuing.",
-        variant: "destructive",
-      })
-      return
-    }
-
+  const handleGoToDashboard = async () => {
     if (!user?.id) {
-      console.error('❌ User not authenticated:', user)
       toast({
         title: "Error",
         description: "User not authenticated. Please log in again.",
@@ -81,158 +31,33 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
       return
     }
 
-    console.log('✅ Validation passed, starting save process')
-    setIsSaving(true)
+    setIsRedirecting(true)
     try {
-      const apiClient = new ApiClient()
-      console.log('🔗 API Client created')
-
-      // First, sync user to ensure they exist in the users table
-      console.log('👤 Syncing user to database...')
-      await apiClient.syncUserFromClerk(user.id, {
-        id: user.id,
-        email_addresses: user.emailAddresses.map(email => ({
-          id: email.id,
-          email_address: email.emailAddress,
-        })),
-        first_name: user.firstName,
-        last_name: user.lastName,
-        image_url: user.imageUrl,
-        primary_email_address_id: user.primaryEmailAddressId,
-      })
-      console.log('✅ User synced to database')
-
-      // Save user preferences to database
-      console.log('💾 Saving user preferences...')
-      await apiClient.saveUserPreferences(user.id, {
-        industry: data.industry,
-        companySize: data.companySize,
-        goals: data.goals,
-        budget: data.budget
-      })
-      console.log('✅ User preferences saved')
-
-      // Save competitors to database (one by one)
-      console.log(`👥 Saving ${data.competitors.length} competitors...`)
-      for (const competitor of data.competitors) {
-        await apiClient.saveCompetitor(user.externalId || user.id, {
-          name: competitor.name,
-          website: competitor.website,
-          description: competitor.description,
-          platforms: competitor.platforms
-        })
-      }
-      console.log('✅ Competitors saved')
-
-      // Update Clerk metadata
-      console.log('🔐 Updating Clerk metadata...')
+      // Update Clerk metadata to mark onboarding as complete
       await user?.update({ unsafeMetadata: { onboardingComplete: true } as any })
-      console.log('✅ Clerk metadata updated')
-
-      // Also update the database to mark onboarding as complete
-      console.log('💾 Updating database onboarding status...')
-      try {
-        await apiClient.updateUserOnboardingStatus(user.id, true)
-        console.log('✅ Database onboarding status updated')
-      } catch (dbError) {
-        console.warn('⚠️ Failed to update database onboarding status:', dbError)
-        // Don't fail the whole process if this fails
-      }
-
-      // Show success message
-      toast({
-        title: "Onboarding Complete!",
-        description: "Your preferences have been saved successfully.",
-      })
-
-      // Clear localStorage and redirect
-      console.log('🧹 Clearing localStorage and redirecting...')
+      
+      // Also update local storage for immediate effect
       if (typeof window !== "undefined") {
-        localStorage.removeItem("onboarding_current_step")
-        localStorage.removeItem("onboarding_data")
-        sessionStorage.setItem("skipOnboardingGuard", "true")
-        // Also set a more permanent flag
         localStorage.setItem("onboardingComplete", "true")
       }
-
-      console.log('🚀 Redirecting to dashboard...')
-      router.replace("/dashboard")
-      console.log('✅ Redirect completed')
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const errorDetails = error instanceof Error ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      } : { message: 'Unknown error', stack: undefined, name: 'Unknown' }
-
-      console.error('❌ Failed to save onboarding data:', error)
-      console.error('❌ Error details:', errorDetails)
-
+      
       toast({
-        title: "Save Failed",
-        description: `Failed to save your preferences: ${errorMessage}. Please try again.`,
-        variant: "destructive",
+        title: "Welcome to Dashboard!",
+        description: "Your onboarding is complete. Enjoy using MarketingAI Pro!",
       })
-    } finally {
-      setIsSaving(false)
-      console.log('🏁 Save process completed')
-    }
-  }
 
-  // Check if all required fields are completed
-  const missingFields = getMissingFields()
-  const isComplete = missingFields.length === 0
-  
-  if (!isComplete) {
-    return (
-      <Card>
-        <CardHeader className="text-center">
-          <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mb-4">
-            <div className="h-8 w-8 text-yellow-600 text-2xl font-bold">!</div>
-          </div>
-          <CardTitle className="text-2xl">Almost there!</CardTitle>
-          <CardDescription>
-            Please complete the following steps before continuing:
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            {!data.industry || !data.companySize ? (
-              <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <span className="font-medium">Business Information</span>
-                <Badge variant="outline" className="text-yellow-700 bg-yellow-100">Incomplete</Badge>
-              </div>
-            ) : null}
-            {!data.goals?.length || !data.budget ? (
-              <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <span className="font-medium">Goals & Budget</span>
-                <Badge variant="outline" className="text-yellow-700 bg-yellow-100">Incomplete</Badge>
-              </div>
-            ) : null}
-            {!data.competitors?.length ? (
-              <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <span className="font-medium">Competitor Analysis</span>
-                <Badge variant="outline" className="text-yellow-700 bg-yellow-100">Incomplete</Badge>
-              </div>
-            ) : null}
-            {!data.connectedAccounts?.length ? (
-              <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <span className="font-medium">Account Connections</span>
-                <Badge variant="outline" className="text-yellow-700 bg-yellow-100">Incomplete</Badge>
-              </div>
-            ) : null}
-          </div>
-          
-          <div className="text-center">
-            <Button onClick={goToIncompleteStep} className="w-full">
-              Complete Missing Steps
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
+      // Redirect to dashboard
+      router.push("/dashboard")
+    } catch (error) {
+      console.error('Failed to update onboarding status:', error)
+      // Still mark as complete in local storage and redirect
+      if (typeof window !== "undefined") {
+        localStorage.setItem("onboardingComplete", "true")
+      }
+      router.push("/dashboard")
+    } finally {
+      setIsRedirecting(false)
+    }
   }
 
   return (
@@ -272,6 +97,10 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
             </div>
           </div>
           <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <span className="font-medium">Competitors</span>
+            <Badge variant="secondary">{data.competitors.length} added</Badge>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
             <span className="font-medium">Connected Accounts</span>
             <Badge variant="secondary">{data.connectedAccounts.length} connected</Badge>
           </div>
@@ -291,11 +120,11 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
         </div>
 
         <div className="text-center pt-4">
-          <Button onClick={handleGetStarted} size="lg" className="px-8" disabled={isSaving}>
-            {isSaving ? (
+          <Button onClick={handleGoToDashboard} size="lg" className="px-8" disabled={isRedirecting}>
+            {isRedirecting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                Redirecting...
               </>
             ) : (
               <>

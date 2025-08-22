@@ -176,3 +176,53 @@ async def update_user_preferences(
     except Exception as e:
         logger.error(f"Error updating user preferences: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update user preferences: {str(e)}")
+
+
+@router.get("/{user_id}/onboarding-status")
+async def get_user_onboarding_status(
+    user_id: str,
+    db: SupabaseClient = Depends(get_db)
+):
+    """Get user onboarding completion status"""
+    try:
+        # Check if user exists
+        user = await db.get_user_by_clerk_id(user_id)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user has completed onboarding by looking for user preferences
+        preferences = await db.get_user_preferences(user_id)
+        
+        # Check if user has competitors (another indicator of onboarding completion)
+        competitors = await db.get_competitors_by_user(user_id)
+        
+        # Consider onboarding complete if user has:
+        # 1. User preferences (industry, goals, etc.)
+        # 2. OR has set up competitors
+        # 3. OR has monitoring settings
+        has_preferences = bool(preferences and preferences.get("industry") and preferences.get("marketing_goals"))
+        has_competitors = bool(competitors and len(competitors) > 0)
+        
+        # Try to get monitoring settings as well
+        try:
+            monitoring_settings = await db.get_user_monitoring_settings(user_id)
+            has_monitoring_settings = bool(monitoring_settings)
+        except:
+            has_monitoring_settings = False
+        
+        onboarding_complete = has_preferences or has_competitors or has_monitoring_settings
+        
+        return {
+            "user_id": user_id,
+            "onboarding_complete": onboarding_complete,
+            "has_preferences": has_preferences,
+            "has_competitors": has_competitors,
+            "has_monitoring_settings": has_monitoring_settings,
+            "preferences": preferences,
+            "competitor_count": len(competitors) if competitors else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting user onboarding status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user onboarding status: {str(e)}")

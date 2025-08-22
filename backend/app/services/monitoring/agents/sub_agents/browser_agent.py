@@ -460,8 +460,14 @@ Be selective with alerts - only flag truly significant competitive intelligence.
         }
 
     def _create_monitoring_data(self, content_item: Dict[str, Any], analysis_result: Dict[str, Any], competitor_id: str) -> Dict[str, Any]:
-        """Create monitoring data structure for Supabase"""
-        content_text = f"{content_item.get('title', '')}\n\n{content_item.get('content', '')[:500]}"
+        """Create monitoring data structure for Supabase with full content"""
+        # Combine all available content without truncation
+        content_parts = [content_item.get('title', '')]
+        
+        if content_item.get('content'):
+            content_parts.append(content_item.get('content'))
+        
+        content_text = '\n\n'.join(content_parts)
         content_hash = hashlib.md5(content_text.encode()).hexdigest()
         
         return {
@@ -469,7 +475,7 @@ Be selective with alerts - only flag truly significant competitive intelligence.
             'platform': 'browser',
             'post_id': content_hash,  # Use content hash as unique ID
             'post_url': content_item.get('url', ''),
-            'content_text': content_text,
+            'content_text': content_text,  # Full content without truncation
             'content_hash': content_hash,
             'media_urls': [],  # Web content typically doesn't have direct media URLs
             'engagement_metrics': {

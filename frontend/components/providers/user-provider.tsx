@@ -6,14 +6,20 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { useUserSync, UserProfile, UserSettings } from '../../hooks/use-user-sync';
+import { useUserSync } from '../../hooks/use-user-sync';
 
 interface UserContextType {
-  isLoading: boolean;
-  isError: boolean;
-  error?: string;
+  isSyncing: boolean;
   isSynced: boolean;
+  error: string | null;
+  user: any | null;
   syncUser: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  retrySync: () => void;
+  retryCount: number;
+  maxRetries: number;
+  isAuthenticated: boolean | undefined;
+  clerkUser: any;
 }
 
 const UserContext = createContext<UserContextType | null>(null);
@@ -38,13 +44,13 @@ export function useUserContext() {
 
 // Loading component for user sync
 export function UserSyncStatus() {
-  const { isLoading, isError, error, isSynced } = useUserContext();
+  const { isSyncing, error, isSynced } = useUserContext();
 
-  if (!isLoading && !isError && isSynced) {
+  if (!isSyncing && !error && isSynced) {
     return null; // Don't show anything when sync is complete
   }
 
-  if (isLoading) {
+  if (isSyncing) {
     return (
       <div className="fixed top-0 left-0 right-0 bg-blue-500 text-white p-2 text-center text-sm z-50">
         Syncing user data...
@@ -52,7 +58,7 @@ export function UserSyncStatus() {
     );
   }
 
-  if (isError) {
+  if (error) {
     return (
       <div className="fixed top-0 left-0 right-0 bg-red-500 text-white p-2 text-center text-sm z-50">
         Error syncing user data: {error}

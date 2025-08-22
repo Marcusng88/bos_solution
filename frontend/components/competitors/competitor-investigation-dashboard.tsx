@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,291 +13,285 @@ import { SocialMediaMonitoring } from "./social-media-monitoring"
 import { CompetitorPerformance } from "./competitor-performance"
 import { AddCompetitorModal } from "./add-competitor-modal"
 import { CompetitorDetailsDialog } from "./competitor-details-dialog"
-import { Search, TrendingUp, AlertTriangle, Eye, RefreshCw, Plus, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { competitorAPI, monitoringAPI } from "@/lib/api-client"
-import { Competitor, CompetitorStats } from "@/lib/types"
 import { useUser } from "@clerk/nextjs"
-import { AnalysisResults } from "../monitoring/analysis-results"
+import { Competitor, MonitoringData } from "@/lib/types"
+import { 
+  Filter, 
+  TrendingUp, 
+  AlertTriangle, 
+  Users, 
+  Target, 
+  BarChart3,
+  Eye,
+  Activity,
+  Zap,
+  RefreshCw
+} from "lucide-react"
 
 export function CompetitorInvestigationDashboard() {
-  const [timeRange, setTimeRange] = useState("7d")
-  const [selectedCompetitor, setSelectedCompetitor] = useState("all")
-  const [isScanning, setIsScanning] = useState(false)
-  const [scanningCompetitors, setScanningCompetitors] = useState<Set<string>>(new Set())
-  const [scanResults, setScanResults] = useState<any>(null)
-  const [scanProgress, setScanProgress] = useState<{current: number, total: number}>({current: 0, total: 0})
   const [competitors, setCompetitors] = useState<Competitor[]>([])
-  const [stats, setStats] = useState<CompetitorStats | null>(null)
-  const [monitoringData, setMonitoringData] = useState<any[]>([])
-  const [monitoringStats, setMonitoringStats] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const { toast } = useToast()
-  const { user } = useUser()
+  const [monitoringData, setMonitoringData] = useState<MonitoringData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [timeRange, setTimeRange] = useState("7d")
+  const [selectedIndustry, setSelectedIndustry] = useState("all")
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null)
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false)
+  const { user, isLoaded } = useUser()
 
-  // Fetch competitors and stats
-  const fetchCompetitors = useCallback(async () => {
-    if (!user?.id) return
+  // Fetch competitors data
+  const fetchCompetitors = async () => {
+    if (!user?.id) {
+      console.log('No user ID available, skipping API call')
+      return
+    }
+
+    console.log('🔍 Fetching competitors with user ID:', user.id)
     
     try {
-      setIsLoading(true)
-      const [competitorsData, statsData] = await Promise.all([
-        competitorAPI.getCompetitors(user.id),
-        competitorAPI.getCompetitorStats(user.id)
-      ])
-      setCompetitors(competitorsData)
-      setStats(statsData)
-    } catch (error) {
-      console.error("Error fetching competitors:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch competitors data",
-        variant: "destructive"
+      setError(null)
+      const response = await fetch('/api/v1/competitors', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id,
+        },
       })
-    } finally {
-      setIsLoading(false)
+      
+      console.log('📡 Competitors API response status:', response.status)
+      console.log('📡 Competitors API response headers:', Object.fromEntries(response.headers.entries()))
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Competitors data received:', data)
+        setCompetitors(data)
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Failed to fetch competitors:', response.status, errorText)
+        setError(`Failed to fetch competitors: ${response.status} - ${errorText}`)
+        // Set fallback data for development
+        setCompetitors([
+          {
+            id: "demo-1",
+            name: "Demo Competitor 1",
+            industry: "Technology",
+            status: "active",
+            platforms: ["youtube", "website"],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            scan_frequency_minutes: 60,
+            user_id: "demo-user-1"
+          },
+          {
+            id: "demo-2", 
+            name: "Demo Competitor 2",
+            industry: "E-commerce",
+            status: "active",
+            platforms: ["instagram", "facebook"],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            scan_frequency_minutes: 60,
+            user_id: "demo-user-1"
+          }
+        ])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching competitors:', error)
+      setError('Failed to connect to competitors API')
+      // Set fallback data for development
+      setCompetitors([
+        {
+          id: "demo-1",
+          name: "Demo Competitor 1",
+          industry: "Technology",
+          status: "active",
+          platforms: ["youtube", "website"],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          scan_frequency_minutes: 60,
+          user_id: "demo-user-1"
+        },
+        {
+          id: "demo-2",
+          name: "Demo Competitor 2", 
+          industry: "E-commerce",
+          status: "active",
+          platforms: ["instagram", "facebook"],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          scan_frequency_minutes: 60,
+          user_id: "demo-user-1"
+        }
+      ])
     }
-  }, [toast, user])
+  }
 
   // Fetch monitoring data
-  const fetchMonitoringData = useCallback(async () => {
-    if (!user?.id) return
+  const fetchMonitoringData = async () => {
+    if (!user?.id) {
+      console.log('No user ID available, skipping API call')
+      return
+    }
+
+    console.log('🔍 Fetching monitoring data with user ID:', user.id)
     
     try {
-      const [data, stats] = await Promise.all([
-        monitoringAPI.getMonitoringData(user.id, { limit: 100 }),
-        monitoringAPI.getMonitoringStats(user.id)
+      setError(null)
+      const response = await fetch('/api/v1/monitoring/data', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id,
+        },
+      })
+      
+      console.log('📡 Monitoring API response status:', response.status)
+      console.log('📡 Monitoring API response headers:', Object.fromEntries(response.headers.entries()))
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Monitoring data received:', data)
+        setMonitoringData(data)
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Failed to fetch monitoring data:', response.status, errorText)
+        setError(`Failed to fetch monitoring data: ${response.status} - ${errorText}`)
+        // Set fallback data for development
+        setMonitoringData([
+          {
+            id: "demo-1",
+            competitor_id: "demo-1",
+            platform: "youtube",
+            content_text: "Demo video content about new product features",
+            content_hash: "demo-hash-1",
+            detected_at: new Date().toISOString(),
+            is_content_change: true
+          },
+          {
+            id: "demo-2",
+            competitor_id: "demo-2", 
+            platform: "instagram",
+            content_text: "Demo image post showcasing new collection",
+            content_hash: "demo-hash-2",
+            detected_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+            is_content_change: false
+          }
+        ])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching monitoring data:', error)
+      setError('Failed to connect to monitoring API')
+      // Set fallback data for development
+      setMonitoringData([
+        {
+          id: "demo-1",
+          competitor_id: "demo-1",
+          platform: "youtube",
+          content_text: "Demo video content about new product features",
+          content_hash: "demo-hash-1",
+          detected_at: new Date().toISOString(),
+          is_content_change: true
+        },
+        {
+          id: "demo-2",
+          competitor_id: "demo-2",
+          platform: "instagram", 
+          content_text: "Demo image post showcasing new collection",
+          content_hash: "demo-hash-2",
+          detected_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+          is_content_change: false
+        }
       ])
-      setMonitoringData(data.data || [])
-      setMonitoringStats(stats.stats || {})
-    } catch (error) {
-      console.error("Error fetching monitoring data:", error)
-    }
-  }, [user])
-
-  // Fetch stats only
-  const fetchStats = async () => {
-    if (!user?.id) return
-    
-    try {
-      const statsData = await competitorAPI.getCompetitorStats(user.id)
-      setStats(statsData)
-    } catch (error) {
-      console.error("Error fetching stats:", error)
-    }
-  }
-
-  // Refresh data
-  const refreshData = async () => {
-    setIsRefreshing(true)
-    try {
-      await Promise.all([
-        fetchCompetitors(),
-        fetchStats(),
-        fetchMonitoringData()
-      ])
-      // Clear scan results when refreshing
-      setScanResults(null)
-    } catch (error) {
-      console.error("Error refreshing data:", error)
     } finally {
-      setIsRefreshing(false)
+      setLoading(false)
     }
   }
 
-  // Clear scan results
-  const clearScanResults = () => {
-    setScanResults(null)
+  // Refresh all data
+  const refreshData = async () => {
+    setLoading(true)
+    setError(null)
+    await Promise.all([fetchCompetitors(), fetchMonitoringData()])
   }
 
   // Handle competitor added
-  const handleCompetitorAdded = useCallback(() => {
-    fetchCompetitors()
-  }, [fetchCompetitors])
-
-  // Handle platform-specific scan
-  const handlePlatformScan = async (competitorId: string, platform: string) => {
-    if (!user?.id) {
-      toast({
-        title: "Authentication Error",
-        description: "Please log in again to continue",
-        variant: "destructive"
-      })
-      return
-    }
-
-    try {
-      // Set this competitor as scanning
-      setScanningCompetitors(prev => new Set(prev).add(competitorId))
-      
-      toast({
-        title: "Starting Scan",
-        description: `Starting ${platform} scan for competitor...`,
-      })
-
-      // Call the platform-specific scan endpoint
-      const result = await monitoringAPI.scanPlatform(user.id, platform, competitorId)
-      
-      toast({
-        title: "Scan Complete",
-        description: `${platform} scan completed successfully`,
-      })
-
-      // Refresh data after scan
-      await Promise.all([
-        fetchCompetitors(),
-        fetchMonitoringData()
-      ])
-
-    } catch (error) {
-      console.error(`Error in ${platform} scan:`, error)
-      toast({
-        title: "Scan Error",
-        description: `Failed to complete ${platform} scan: ${error instanceof Error ? error.message : "Unknown error"}`,
-        variant: "destructive"
-      })
-    } finally {
-      // Remove from scanning set
-      setScanningCompetitors(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(competitorId)
-        return newSet
-      })
-    }
+  const handleCompetitorAdded = () => {
+    setShowAddModal(false)
+    fetchCompetitors() // Refresh the competitors list
   }
 
-  // Start scan
-  const startScan = async () => {
-    console.log('🚀 startScan called');
-    
-    if (competitors.length === 0) {
-      console.log('❌ No competitors found');
-      toast({
-        title: "No Competitors",
-        description: "Please add competitors first before starting a scan",
-        variant: "destructive"
-      })
-      return
-    }
-
-    if (!user?.id) {
-      console.log('❌ No user ID found');
-      toast({
-        title: "Authentication Error",
-        description: "Please log in again to continue",
-        variant: "destructive"
-      })
-      return
-    }
-
-    console.log('✅ Starting scan process...');
-    setIsScanning(true)
-    // Set all active competitors as scanning
-    const activeCompetitors = competitors.filter(c => c.status === 'active')
-    console.log('📊 Active competitors:', activeCompetitors);
-    setScanningCompetitors(new Set(activeCompetitors.map(c => c.id)))
-    setScanProgress({current: 0, total: activeCompetitors.length})
-    
-    try {
-      console.log(`🚀 Starting scan for user: ${user.id}`)
-      console.log(`📊 Found ${activeCompetitors.length} active competitors to scan`)
-      
-      // Call the backend scan endpoint
-      console.log('📡 Calling competitorAPI.scanAllCompetitors...');
-      const scanResult = await competitorAPI.scanAllCompetitors(user.id)
-      console.log('✅ Scan result received:', scanResult)
-      
-      setScanResults(scanResult)
-      setScanProgress({current: scanResult.competitors_scanned || 0, total: scanResult.total_competitors || 0})
-      
-      toast({
-        title: "Scan Complete",
-        description: `Successfully scanned ${scanResult.competitors_scanned || 0} competitors. ${scanResult.successful_scans || 0} successful, ${scanResult.failed_scans || 0} failed.`
-      })
-      
-      // Refresh data after scan
-      console.log('🔄 Refreshing competitor data...');
-      await Promise.all([
-        fetchCompetitors(),
-        fetchMonitoringData()
-      ])
-      console.log('✅ Competitor data refreshed');
-    } catch (error) {
-      console.error("❌ Error during scan:", error)
-      toast({
-        title: "Scan Error",
-        description: error instanceof Error ? error.message : "Failed to complete competitor scan",
-        variant: "destructive"
-      })
-    } finally {
-      console.log('🏁 Scan process completed, cleaning up...');
-      setIsScanning(false)
-      setScanningCompetitors(new Set())
-      setScanProgress({current: 0, total: 0})
-    }
+  // Handle competitor details dialog close
+  const handleDetailsDialogClose = () => {
+    setShowDetailsDialog(false)
+    setSelectedCompetitor(null)
   }
 
-  // Load data on component mount
   useEffect(() => {
-    if (user) {
+    if (isLoaded && user?.id) {
       fetchCompetitors()
+    }
+  }, [isLoaded, user?.id])
+
+  useEffect(() => {
+    if (isLoaded && user?.id) {
       fetchMonitoringData()
     }
-  }, [fetchCompetitors, fetchMonitoringData, user])
+  }, [isLoaded, user?.id])
 
-  // Format last scan time
-  const formatLastScan = (lastScanAt?: string) => {
-    if (!lastScanAt) return "Never scanned"
-    
-    const lastScan = new Date(lastScanAt)
-    const now = new Date()
-    const diffMs = now.getTime() - lastScan.getTime()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-    
-    if (diffMins < 60) return `${diffMins} minutes ago`
-    if (diffHours < 24) return `${diffHours} hours ago`
-    return `${diffDays} days ago`
-  }
+  // Filter competitors based on industry only
+  const filteredCompetitors = competitors.filter(competitor => {
+    const matchesIndustry = selectedIndustry === "all" || 
+                          (competitor.industry && competitor.industry === selectedIndustry)
+    return matchesIndustry
+  })
 
-  // Get status badge variant
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'active': return 'default'
-      case 'paused': return 'secondary'
-      case 'error': return 'destructive'
-      default: return 'outline'
-    }
-  }
+  // Get unique industries for filter (safely handle null values)
+  const industries = ["all", ...Array.from(new Set(
+    competitors
+      .map(c => c.industry)
+      .filter((industry): industry is string => 
+        industry !== undefined && 
+        industry !== null && 
+        industry.trim() !== ''
+      )
+  ))]
 
-  // Calculate real metrics from monitoring data
-  const calculateMetrics = () => {
-    const totalPosts = monitoringData.length
-    const alertWorthyPosts = monitoringData.filter(post => post.is_alert_worthy).length
-    const recentPosts = monitoringData.filter(post => {
-      const postDate = new Date(post.detected_at)
-      const now = new Date()
-      const diffDays = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60 * 24)
-      return diffDays <= 7
-    }).length
-
-    return {
-      totalPosts,
-      alertWorthyPosts,
-      recentPosts,
-      contentGaps: Math.max(0, totalPosts - recentPosts) // Simple gap calculation
-    }
-  }
-
-  const metrics = calculateMetrics()
-
-  if (isLoading) {
+  // Show loading state while user is being loaded
+  if (!isLoaded) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading competitor data...</span>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading user authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error if user is not authenticated
+  if (!user?.id) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+          <p className="text-lg font-medium text-red-600">Authentication Required</p>
+          <p className="text-sm text-muted-foreground">Please sign in to view competitor intelligence</p>
+          <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-left text-sm">
+            <p><strong>Debug Info:</strong></p>
+            <p>User loaded: {isLoaded ? 'Yes' : 'No'}</p>
+            <p>User object: {JSON.stringify(user, null, 2)}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading investigation data...</p>
+        </div>
       </div>
     )
   }
@@ -307,283 +301,167 @@ export function CompetitorInvestigationDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Competitor Intelligence</h1>
-          <p className="text-muted-foreground">AI-powered competitive analysis and monitoring</p>
+          <h2 className="text-2xl font-bold tracking-tight">Competitor Investigation</h2>
+          <p className="text-muted-foreground">
+            Deep dive into competitor strategies and performance
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={startScan} disabled={isScanning || competitors.length === 0}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isScanning ? "animate-spin" : ""}`} />
-            {isScanning ? "Scanning..." : "Scan Now"}
+          <Button variant="outline" size="sm" onClick={refreshData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh Data
           </Button>
-          <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
+          <Button onClick={() => setShowAddModal(true)} className="bg-primary hover:bg-primary/90">
+            <Users className="h-4 w-4 mr-2" />
+            Add Competitor
           </Button>
-          <AddCompetitorModal onCompetitorAdded={handleCompetitorAdded} />
         </div>
       </div>
 
-
-      {/* Scan Progress Indicator */}
-      {isScanning && scanProgress.total > 0 && (
-        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />
-              Scanning Competitors...
+            <CardTitle className="flex items-center gap-2 text-red-800 dark:text-red-200">
+              <AlertTriangle className="h-5 w-5" />
+              API Connection Issue
             </CardTitle>
-            <CardDescription>
-              Scanning {scanProgress.current} of {scanProgress.total} competitors
+            <CardDescription className="text-red-700 dark:text-red-300">
+              {error} - Showing demo data for development purposes
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Progress</span>
-                <span>{Math.round((scanProgress.current / scanProgress.total) * 100)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                <div 
-                  className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
-                ></div>
-              </div>
-              <div className="text-center text-sm text-muted-foreground">
-                {scanProgress.current} of {scanProgress.total} competitors processed
-              </div>
-            </div>
-          </CardContent>
         </Card>
       )}
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Competitors Tracked</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_competitors || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.active_competitors || 0} actively monitored
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Content Gaps Found</CardTitle>
-            <Search className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.contentGaps}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.recentPosts} recent posts analyzed
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Threat Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{metrics.alertWorthyPosts}</div>
-            <p className="text-xs text-muted-foreground">
-              AI-detected significant events
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Posts Analyzed</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.totalPosts}</div>
-            <p className="text-xs text-muted-foreground">
-              Across all platforms
-            </p>
-          </CardContent>
-        </Card>
+
+      {/* Filters */}
+      <div className="flex items-center gap-4">
+        <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Industry" />
+          </SelectTrigger>
+          <SelectContent>
+            {industries.map((industry) => (
+              <SelectItem key={industry} value={industry}>
+                {industry === "all" ? "All Industries" : industry}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Scan Results Summary */}
-      {scanResults && (
-        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <RefreshCw className="h-5 w-5 text-blue-600" />
-                Last Scan Results
-              </CardTitle>
-              <Button variant="outline" size="sm" onClick={clearScanResults}>
-                Clear Results
-              </Button>
-            </div>
-            <CardDescription>
-              Scan completed at {new Date(scanResults.scan_started_at).toLocaleString()}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AnalysisResults results={scanResults.results || []} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Competitor Status Overview */}
+      {/* Competitor List */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Competitor Status</CardTitle>
-              <CardDescription>Real-time monitoring status and recent activity</CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshData}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </div>
+          <CardTitle>Competitors ({filteredCompetitors.length})</CardTitle>
+          <CardDescription>
+            Active competitors being monitored
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {competitors.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Eye className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No competitors added yet</p>
-              <p className="text-sm">Add your first competitor to start monitoring their activities</p>
-            </div>
-          ) : (
+          {filteredCompetitors.length > 0 ? (
             <div className="space-y-4">
-              {competitors.map((competitor) => (
-                <div key={competitor.id} className="flex items-center justify-between p-4 border rounded-lg">
+              {filteredCompetitors.map((competitor) => (
+                <div
+                  key={competitor.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                      <span className="font-semibold text-sm">{competitor.name.slice(0, 2).toUpperCase()}</span>
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <span className="font-semibold text-primary">
+                        {competitor.name.slice(0, 2).toUpperCase()}
+                      </span>
                     </div>
                     <div>
                       <h3 className="font-medium">{competitor.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Last scan: {formatLastScan(competitor.last_scan_at)}
-                      </p>
-                      {competitor.industry && (
-                        <p className="text-xs text-muted-foreground">{competitor.industry}</p>
-                      )}
-                      {competitor.platforms && competitor.platforms.length > 0 && (
-                        <div className="flex items-center gap-1 mt-1">
-                          {competitor.platforms.slice(0, 3).map((platform) => (
-                            <Badge key={platform} variant="outline" className="text-xs">
-                              {platform}
-                            </Badge>
-                          ))}
-                          {competitor.platforms.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{competitor.platforms.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
+                      <p className="text-sm text-muted-foreground">{competitor.industry}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {(competitor.platforms || []).map((platform) => (
+                          <Badge key={platform} variant="secondary" className="text-xs">
+                            {platform}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {scanningCompetitors.has(competitor.id) && (
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        <span className="text-xs">Scanning...</span>
-                      </div>
-                    )}
-                    
-                    {/* Platform-specific scan buttons */}
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handlePlatformScan(competitor.id, 'youtube')}
-                        disabled={scanningCompetitors.has(competitor.id)}
-                        className="h-8 px-2 text-xs"
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        YouTube
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handlePlatformScan(competitor.id, 'website')}
-                        disabled={scanningCompetitors.has(competitor.id)}
-                        className="h-8 px-2 text-xs"
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        Website
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handlePlatformScan(competitor.id, 'browser')}
-                        disabled={scanningCompetitors.has(competitor.id)}
-                        className="h-8 px-2 text-xs"
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        Web
-                      </Button>
-                    </div>
-                    
-                    <Badge variant={getStatusBadgeVariant(competitor.status)}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={competitor.status === 'active' ? 'default' : 'secondary'}>
                       {competitor.status}
                     </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {competitor.scan_frequency_minutes}min
-                    </Badge>
-                    <CompetitorDetailsDialog 
-                      competitor={competitor} 
-                      onCompetitorUpdated={handleCompetitorAdded}
-                    />
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCompetitor(competitor)
+                        setShowDetailsDialog(true)
+                      }}
+                    >
+                      View Details
+                    </Button>
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No competitors found</p>
+              <p className="text-sm">Try adjusting your search or filters</p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Main Analysis Tabs */}
+      {/* Investigation Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="content-gaps">Content Gaps</TabsTrigger>
-          <TabsTrigger value="social-monitoring">Social Monitoring</TabsTrigger>
-          <TabsTrigger value="performance">Performance Comparison</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="gaps">Content Gaps</TabsTrigger>
+          <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <CompetitorOverview timeRange={timeRange} monitoringData={monitoringData} />
-        </TabsContent>
-
-        <TabsContent value="content-gaps" className="space-y-6">
-          <ContentGapAnalysis monitoringData={monitoringData} />
-        </TabsContent>
-
-        <TabsContent value="social-monitoring" className="space-y-6">
-          <SocialMediaMonitoring monitoringData={monitoringData} />
+          <CompetitorOverview 
+            timeRange={timeRange} 
+            monitoringData={monitoringData}
+          />
         </TabsContent>
 
         <TabsContent value="performance" className="space-y-6">
-          <CompetitorPerformance timeRange={timeRange} monitoringData={monitoringData} />
+          <CompetitorPerformance 
+            timeRange={timeRange} 
+            monitoringData={monitoringData}
+          />
+        </TabsContent>
+
+        <TabsContent value="gaps" className="space-y-6">
+          <ContentGapAnalysis 
+            monitoringData={monitoringData}
+          />
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="space-y-6">
+          <SocialMediaMonitoring 
+            monitoringData={monitoringData}
+          />
         </TabsContent>
       </Tabs>
+
+      {/* Competitor Details Dialog */}
+      {selectedCompetitor && showDetailsDialog && (
+        <CompetitorDetailsDialog
+          competitor={selectedCompetitor}
+          onCompetitorUpdated={handleCompetitorAdded}
+        />
+      )}
+
+      {/* Add Competitor Modal */}
+      <AddCompetitorModal 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)}
+        onCompetitorAdded={handleCompetitorAdded} 
+      />
     </div>
   )
 }

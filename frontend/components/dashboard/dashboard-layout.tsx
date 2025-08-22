@@ -52,6 +52,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const checkOnboardingStatus = async () => {
       try {
+        console.log('🔍 Dashboard: Checking onboarding status...');
         setIsCheckingOnboarding(true)
         
         // Check multiple sources for onboarding completion
@@ -67,19 +68,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           sessionStorage: typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
         }
 
+        console.log('🔍 Dashboard: Onboarding sources:', sources);
+
         // If any source indicates completion, consider it complete
         const isComplete = Object.values(sources).some(Boolean)
         
         if (isComplete) {
+          console.log('✅ Dashboard: Onboarding complete from local sources');
           setOnboardingComplete(true)
           return
         }
 
         // 4. Check database status (most reliable)
         try {
+          console.log('🔍 Dashboard: Checking database onboarding status...');
           const apiClient = new (await import('@/lib/api-client')).ApiClient()
           const dbStatus = await apiClient.getUserOnboardingStatus(user.id)
+          console.log('✅ Dashboard: Database status response:', dbStatus);
+          
           if (dbStatus?.onboarding_complete) {
+            console.log('✅ Dashboard: Onboarding complete from database');
             setOnboardingComplete(true)
             // Update local storage for future checks
             if (typeof window !== "undefined") {
@@ -88,15 +96,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             return
           }
         } catch (dbError) {
-          console.warn('Failed to check database onboarding status:', dbError)
+          console.warn('⚠️ Dashboard: Failed to check database onboarding status:', dbError)
           // Continue with other checks
         }
 
         // If we get here, onboarding is not complete
+        console.log('❌ Dashboard: Onboarding not complete');
         setOnboardingComplete(false)
         
       } catch (error) {
-        console.error('Error checking onboarding status:', error)
+        console.error('❌ Dashboard: Error checking onboarding status:', error)
         setOnboardingComplete(false)
       } finally {
         setIsCheckingOnboarding(false)
@@ -109,11 +118,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     if (!isLoaded || onboardingComplete === null || isCheckingOnboarding) return
     
-    // If user hasn't completed onboarding and no temporary override, send to onboarding
-    if (!onboardingComplete) {
+    // Only redirect if we're not already on the onboarding page and onboarding is not complete
+    if (!onboardingComplete && pathname !== "/onboarding") {
       router.replace("/onboarding")
     }
-  }, [isLoaded, onboardingComplete, isCheckingOnboarding, router])
+  }, [isLoaded, onboardingComplete, isCheckingOnboarding, router, pathname])
+
+  // If we're already on the onboarding page, don't show loading or redirect
+  if (pathname === "/onboarding") {
+    return null
+  }
 
   if (!isLoaded || isCheckingOnboarding) {
     return (
@@ -123,6 +137,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <p className="text-lg text-muted-foreground">
             {!isLoaded ? 'Loading...' : 'Checking your setup...'}
           </p>
+          {/* Debug button for development */}
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={() => {
+                localStorage.setItem("onboardingComplete", "true")
+                setOnboardingComplete(true)
+              }}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Debug: Skip Onboarding
+            </button>
+          )}
         </div>
       </div>
     )

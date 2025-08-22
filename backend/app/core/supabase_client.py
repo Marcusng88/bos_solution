@@ -115,7 +115,7 @@ class SupabaseClient:
             if response.status_code == 200:
                 competitors = response.json()
                 # Transform data back to frontend format
-                return [self._transform_competitor_response(comp) for comp in competitors]
+                return [comp for comp in competitors]
             return []
         except Exception as e:
             logger.error(f"Error getting competitors: {e}")

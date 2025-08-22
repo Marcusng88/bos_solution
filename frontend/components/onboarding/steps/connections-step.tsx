@@ -3,8 +3,9 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Loader2, Check, Plus, Save } from "lucide-react"
+import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Loader2, Check, Plus, Save, Home } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 import { initiateOAuth, getAvailablePlatforms, getPlatformConfig } from "@/lib/oauth"
 import { formatPlatformName, getPlatformIcon, getPlatformColor } from "@/lib/utils"
 import { YouTubeConnection } from "../youtube-connection"
@@ -41,6 +42,7 @@ const platforms = [
 
 export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettings = false, onSave, currentStep }: ConnectionsStepProps) {
   const { toast } = useToast()
+  const router = useRouter()
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
   const [facebookLoginStatus, setFacebookLoginStatus] = useState<string>('unknown')
   
@@ -190,6 +192,20 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
     }
   }
 
+  const handleGoToDashboard = () => {
+    // Since user preferences are already saved, we can go directly to dashboard
+    router.push("/dashboard")
+  }
+
+  const handleSkipToDashboard = () => {
+    // User can skip social media connections and go to dashboard
+    toast({
+      title: "Skipped",
+      description: "You can connect social media accounts later from the dashboard.",
+    })
+    router.push("/dashboard")
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -197,7 +213,7 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
         <CardDescription>
           {isFromSettings 
             ? "Update your connected social media and advertising accounts. Changes will be saved when you click 'Save Changes'."
-            : "Connect your social media and advertising accounts to enable AI-powered content creation and campaign management. You can skip this step and connect accounts later."
+            : "Connect your social media accounts to enable AI-powered content creation and campaign management. Your business preferences have already been saved, so you can connect accounts now or later from the dashboard."
           }
         </CardDescription>
       </CardHeader>
@@ -367,13 +383,13 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
 
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
           <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-            What happens when you connect?
+            Final Step - You're Almost Done!
           </h4>
           <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-            <li>• We'll securely authenticate with each platform</li>
-            <li>• You'll grant permission to access your data</li>
-            <li>• We'll start monitoring your performance metrics</li>
-            <li>• You can revoke access at any time</li>
+            <li>• Your business preferences have been saved</li>
+            <li>• Connect social media accounts to get started</li>
+            <li>• Or skip for now and connect later from dashboard</li>
+            <li>• You'll be redirected to your dashboard after this step</li>
           </ul>
         </div>
 
@@ -388,10 +404,15 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
               Save Changes
             </Button>
           ) : (
-            <Button onClick={onNext}>
-              {getConnectedCount() > 0 ? "Continue" : "Skip for now"}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={handleSkipToDashboard}>
+                Skip for now
+              </Button>
+              <Button onClick={handleGoToDashboard}>
+                <Home className="mr-2 h-4 w-4" />
+                Go to Dashboard
+              </Button>
+            </div>
           )}
         </div>
       </CardContent>

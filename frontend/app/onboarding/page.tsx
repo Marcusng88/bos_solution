@@ -1,3 +1,5 @@
+'use client';
+
 import { Suspense } from "react"
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard"
 import { AuthGuard } from "@/components/auth/auth-guard"

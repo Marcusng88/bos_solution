@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Loader2, CheckCircle, AlertCircle, Youtube } from "lucide-react"
 import { useYouTubeStore } from "@/hooks/use-youtube"
 import { useToast } from "@/hooks/use-toast"
 
-export default function YouTubeCallbackPage() {
+function YouTubeCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -67,12 +67,12 @@ export default function YouTubeCallbackPage() {
       
       toast({
         title: "YouTube Connected!",
-        description: "Your YouTube account has been successfully connected.",
+        description: "Your YouTube account has been successfully connected. Redirecting to dashboard...",
       })
 
-      // Redirect back to onboarding after a short delay
+      // Redirect to dashboard since user preferences are already saved
       setTimeout(() => {
-        router.push('/onboarding')
+        router.push('/dashboard')
       }, 2000)
       
     } catch (error: any) {
@@ -86,10 +86,6 @@ export default function YouTubeCallbackPage() {
         variant: "destructive",
       })
     }
-  }
-
-  const handleReturnToOnboarding = () => {
-    router.push('/onboarding')
   }
 
   const getStatusIcon = () => {
@@ -145,13 +141,13 @@ export default function YouTubeCallbackPage() {
             {status === 'success' && (
               <div className="text-center space-y-2">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  You'll be redirected to onboarding shortly...
+                  You'll be redirected to dashboard shortly...
                 </p>
                 <Button 
-                  onClick={handleReturnToOnboarding}
+                  onClick={() => router.push('/dashboard')}
                   className="w-full"
                 >
-                  Continue to Onboarding
+                  Continue to Dashboard
                 </Button>
               </div>
             )}
@@ -159,14 +155,14 @@ export default function YouTubeCallbackPage() {
             {status === 'error' && (
               <div className="w-full space-y-2">
                 <Button 
-                  onClick={handleReturnToOnboarding}
+                  onClick={() => router.push('/dashboard')}
                   variant="outline"
                   className="w-full"
                 >
-                  Return to Onboarding
+                  Go to Dashboard
                 </Button>
                 <p className="text-xs text-center text-muted-foreground">
-                  You can try connecting again from the onboarding page
+                  You can try connecting again from the dashboard settings
                 </p>
               </div>
             )}
@@ -182,5 +178,37 @@ export default function YouTubeCallbackPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function YouTubeCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+          <CardHeader>
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm">
+                <Youtube className="h-8 w-8 text-red-600" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">YouTube Connection</CardTitle>
+                <CardDescription>Loading...</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <p className="text-center text-sm text-muted-foreground">
+                Initializing connection...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <YouTubeCallbackContent />
+    </Suspense>
   )
 }

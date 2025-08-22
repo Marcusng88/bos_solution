@@ -9,38 +9,100 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { useContentPlanning } from "@/hooks/use-content-planning"
-import { Sparkles, ThumbsUp, Edit3, X, RefreshCw, Target, Upload, Image as ImageIcon, Video, Trash2 } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
+import { Sparkles, ThumbsUp, Edit3, X, RefreshCw, Target, Upload, Image as ImageIcon, Video, Trash2, Plus } from "lucide-react"
 
 interface AISuggestionsPanelProps {
   selectedDate: Date
 }
 
 export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editedContent, setEditedContent] = useState("")
-  const [uploadedMedia, setUploadedMedia] = useState<{ [key: number]: { file: File; preview: string; type: 'image' | 'video' } | null }>({})
+  const [uploadedMedia, setUploadedMedia] = useState<{ [key: string]: { file: File; preview: string; type: 'image' | 'video' } | null }>({})
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [loadingCreate, setLoadingCreate] = useState(false)
   const { toast } = useToast()
+  const { user } = useUser()
   
-  const { generateContent, selectedIndustry } = useContentPlanning({ autoLoad: false })
+  const { 
+    generateContent, 
+    saveContentSuggestion, 
+    getContentSuggestions, 
+    selectedIndustry 
+  } = useContentPlanning({ autoLoad: false })
 
-  const loadAISuggestions = async () => {
+  // Load content suggestions from database
+  const loadContentSuggestions = async () => {
+    if (!user?.id) return
+    
     try {
       setLoadingSuggestions(true)
+      const response = await getContentSuggestions(user.id, 3)
       
-      // Generate multiple content suggestions for different platforms
-      const platforms = ['instagram', 'linkedin', 'twitter']
+      if (response.success && response.suggestions) {
+        // Transform database data to match component structure
+        const transformedSuggestions = response.suggestions.map((suggestion, index) => ({
+          id: suggestion.id,
+          type: suggestion.competitor_analysis?.content_type === 'promotional' ? 'gap-based' : 
+                suggestion.competitor_analysis?.content_type === 'educational' ? 'trending-topic' : 'competitor-response',
+          platform: suggestion.competitor_analysis?.platform?.charAt(0).toUpperCase() + suggestion.competitor_analysis?.platform?.slice(1) || 'LinkedIn',
+          title: `AI Generated ${suggestion.competitor_analysis?.content_type?.charAt(0).toUpperCase() + suggestion.competitor_analysis?.content_type?.slice(1) || 'Content'}`,
+          content: suggestion.suggested_content,
+          engagement: suggestion.predicted_engagement?.estimated_engagement_rate === 'high' ? 'High' : 'Medium',
+          confidence: suggestion.predicted_engagement?.confidence_score || 85,
+          gapType: suggestion.competitor_analysis?.content_type === 'promotional' ? 'Content Gap' : 
+                   suggestion.competitor_analysis?.content_type === 'educational' ? 'Educational Content' : 'Competitor Response',
+          competitorInsight: `AI-generated content optimized for ${suggestion.competitor_analysis?.platform || 'social media'} engagement`,
+          hashtags: suggestion.suggested_hashtags || [],
+          created_at: suggestion.created_at,
+          // Store original data for saving
+          originalData: suggestion
+        }))
+        setSuggestions(transformedSuggestions)
+      } else {
+        setSuggestions([])
+      }
+    } catch (error) {
+      console.error('Failed to load content suggestions:', error)
+      setSuggestions([])
+      toast({
+        title: "Error",
+        description: "Failed to load content suggestions from database.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }
+
+  // Create new content using AI agent
+  const handleCreateContent = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setLoadingCreate(true)
+      
+      // Generate content for different platforms
+      const platforms = ['linkedin', 'instagram', 'twitter']
       const contentTypes = ['promotional', 'educational', 'entertaining']
       
-      const suggestionPromises = platforms.map(async (platform, index) => {
-        const contentType = contentTypes[index % contentTypes.length]
+      const createdSuggestions = []
+      
+      for (let i = 0; i < 3; i++) {
+        const platform = platforms[i % platforms.length]
+        const contentType = contentTypes[i % contentTypes.length]
+        
         try {
-          // 🎯 SHORTENED CONTENT PROMPT - HIGHLIGHTED FOR ATTENTION
-          // ========================================================
-          // Previous: "Create engaging ${contentType} content for ${platform}. Make it relevant to current trends and competitor gaps."
-          // NEW: Concise prompt with specific instructions for shorter, impactful content
-          // ========================================================
+          // Generate content using AI agent
           const response = await generateContent({
             industry: selectedIndustry,
             platform,
@@ -50,53 +112,65 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
             custom_requirements: `🎯 Create concise, impactful ${contentType} content for ${platform}. Keep it short and engaging. Focus on trends and competitor gaps. Max 2-3 sentences with relevant hashtags.`
           })
           
-          return {
-            id: index + 1,
-            type: contentType === 'promotional' ? 'gap-based' : contentType === 'educational' ? 'trending-topic' : 'competitor-response',
-            platform: platform.charAt(0).toUpperCase() + platform.slice(1),
-            title: `AI Generated ${contentType.charAt(0).toUpperCase() + contentType.slice(1)} Content`,
-            content: response.content?.post_content || 'Content generated successfully',
-            engagement: response.content?.estimated_engagement || 'High',
-            confidence: 90 + Math.floor(Math.random() * 10),
-            gapType: contentType === 'promotional' ? 'Content Gap' : contentType === 'educational' ? 'Educational Content' : 'Competitor Response',
-            competitorInsight: `AI-generated content optimized for ${platform} engagement`,
-            hashtags: response.content?.hashtags || []
+          if (response.success && response.content) {
+            // Save to database
+            const saveResponse = await saveContentSuggestion({
+              user_id: user.id,
+              suggested_content: response.content.post_content || 'Content generated successfully',
+              platform,
+              industry: selectedIndustry,
+              content_type: contentType,
+              tone: 'professional',
+              target_audience: 'professionals',
+              hashtags: response.content.hashtags || [],
+              custom_requirements: `Generate ${contentType} content for ${platform} in ${selectedIndustry} industry`
+            })
+            
+            if (saveResponse.success) {
+              createdSuggestions.push({
+                platform,
+                contentType,
+                content: response.content.post_content || 'Content generated successfully',
+                hashtags: response.content.hashtags || []
+              })
+            }
           }
         } catch (error) {
           console.error(`Failed to generate content for ${platform}:`, error)
-          return null
         }
-      })
+      }
       
-      const results = await Promise.all(suggestionPromises)
-      const validSuggestions = results.filter(Boolean)
-      setSuggestions(validSuggestions)
+      // Reload suggestions from database
+      await loadContentSuggestions()
+      
+      if (createdSuggestions.length > 0) {
+        toast({
+          title: "Success",
+          description: `Generated ${createdSuggestions.length} new content suggestions!`,
+        })
+      } else {
+        toast({
+          title: "Warning",
+          description: "Failed to generate any content suggestions. Please try again.",
+          variant: "destructive"
+        })
+      }
       
     } catch (error) {
-      console.error('Failed to load AI suggestions:', error)
-      // Fallback to mock data if API fails
-      setSuggestions([
-        {
-          id: 1,
-          type: "gap-based",
-          platform: "Instagram",
-          title: "AI Content Suggestion",
-          content: "🚀 Boost your strategy with AI insights! Stay competitive. #AIContent #Strategy",
-          engagement: "High",
-          confidence: 92,
-          gapType: "Content Gap",
-          competitorInsight: "Concise AI-generated content optimized for engagement",
-          hashtags: ["#AIContent", "#Strategy"]
-        }
-      ])
+      console.error('Failed to create content:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create content. Please try again.",
+        variant: "destructive"
+      })
     } finally {
-      setLoadingSuggestions(false)
+      setLoadingCreate(false)
     }
   }
 
   useEffect(() => {
-    loadAISuggestions()
-  }, [selectedIndustry])
+    loadContentSuggestions()
+  }, [user?.id, selectedIndustry])
 
   // Cleanup function to revoke object URLs and prevent memory leaks
   useEffect(() => {
@@ -115,7 +189,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     // Keep any existing uploaded media when entering edit mode
   }
 
-  const handleSave = (id: number) => {
+  const handleSave = (id: string) => {
     setSuggestions(prev => prev.map(s => 
       s.id === id ? { ...s, content: editedContent } : s
     ))
@@ -133,7 +207,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     })
   }
 
-  const handleMediaUpload = (suggestionId: number, event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = (suggestionId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -176,7 +250,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     })
   }
 
-  const handleRemoveMedia = (suggestionId: number) => {
+  const handleRemoveMedia = (suggestionId: string) => {
     const media = uploadedMedia[suggestionId]
     if (media?.preview) {
       URL.revokeObjectURL(media.preview)
@@ -249,16 +323,26 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
               AI-powered content ideas based on competitor gaps and trends
             </CardDescription>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={loadAISuggestions}
-            disabled={loadingSuggestions}
-            className="flex-shrink-0"
-          >
-            <RefreshCw className={`h-3 w-3 mr-1 ${loadingSuggestions ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
+          <div className="flex gap-2 flex-shrink-0">
+            <Button 
+              onClick={handleCreateContent}
+              disabled={loadingCreate || !user?.id}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-3 w-3" />
+              <span className="hidden sm:inline">Create Content</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={loadContentSuggestions}
+              disabled={loadingSuggestions}
+              className="flex-shrink-0"
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${loadingSuggestions ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
@@ -280,6 +364,24 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
               </div>
             </div>
           ))
+        ) : suggestions.length === 0 ? (
+          <div className="text-center py-8">
+            <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+              No Content Suggestions Yet
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              Click "Create Content" to generate AI-powered content suggestions based on competitor analysis.
+            </p>
+            <Button 
+              onClick={handleCreateContent}
+              disabled={loadingCreate || !user?.id}
+              className="flex items-center gap-2 mx-auto"
+            >
+              <Plus className="h-4 w-4" />
+              {loadingCreate ? 'Generating...' : 'Create Content'}
+            </Button>
+          </div>
         ) : (
           suggestions.map((suggestion) => (
             <div key={suggestion.id} className="relative space-y-2 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors overflow-hidden">

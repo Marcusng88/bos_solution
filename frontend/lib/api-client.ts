@@ -8,8 +8,7 @@ import { Competitor, CompetitorCreate, CompetitorUpdate, CompetitorStats } from 
 import { useMemo } from 'react';
 
 // API base URL - adjust based on your backend configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const API_VERSION_PREFIX = '/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 /**
  * Create API headers with user authentication
@@ -83,9 +82,9 @@ export class ApiClient {
       throw new Error('User ID is required for API requests');
     }
 
-    // Add API version prefix if not already present
-    const fullEndpoint = endpoint.startsWith('/api/v1') ? endpoint : `${API_VERSION_PREFIX}${endpoint}`;
-    const url = `${this.baseUrl}${fullEndpoint}`;
+    // Don't add API version prefix since backend is already mounted at /api/v1
+    // and endpoints are relative to that mount point
+    const url = `${this.baseUrl}${endpoint}`;
     const headers = createApiHeaders(userId, requestOptions.headers as Record<string, string>);
 
     console.log(`🌐 API Request: ${url}`);
@@ -135,6 +134,13 @@ export class ApiClient {
       userId,
       method: 'POST',
       body: JSON.stringify(clerkUserData),
+    });
+  }
+
+  async checkUserStatus(userId: string) {
+    return this.request('/auth/check-user-status', {
+      userId,
+      method: 'GET',
     });
   }
 
@@ -498,7 +504,7 @@ export const competitorAPI = {
   // Toggle competitor status
   toggleCompetitorStatus: async (id: string, userId: string): Promise<Competitor> => {
     const response = await fetch(`${API_BASE_URL}/competitors/${id}/toggle-status`, {
-      method: 'POST',
+      method: 'PUT',
       headers: createApiHeaders(userId),
     });
     

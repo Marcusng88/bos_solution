@@ -39,8 +39,8 @@ const steps = [
   { id: 2, title: "Business", description: "Tell us about your company" },
   { id: 3, title: "Goals", description: "What do you want to achieve?" },
   { id: 4, title: "Competitors", description: "Who are you competing against?" },
-  { id: 5, title: "Connections", description: "Connect your accounts" },
-  { id: 6, title: "Complete", description: "AI analysis starting!" },
+  { id: 5, title: "Connections", description: "Connect your social media accounts" },
+  { id: 6, title: "Complete", description: "Setup complete!" },
 ]
 
 const ONBOARDING_STEP_KEY = 'onboarding_current_step'
@@ -101,23 +101,8 @@ export function OnboardingWizard() {
     if (savedStep) {
       const step = parseInt(savedStep, 10)
       if (step >= 1 && step <= steps.length) {
-        // Don't allow going directly to completion step without completing required fields
-        if (step === 6) {
-          const hasIndustry = Boolean(data.industry && data.companySize)
-          const hasGoals = Boolean(data.goals.length > 0 && data.budget)
-          const hasCompetitors = Boolean(data.competitors.length > 0)
-          const hasConnections = Boolean(data.connectedAccounts.length > 0)
-          
-          if (!hasIndustry || !hasGoals || !hasCompetitors || !hasConnections) {
-            // Find the first incomplete step
-            if (!hasIndustry) setCurrentStep(2)
-            else if (!hasGoals) setCurrentStep(3)
-            else if (!hasCompetitors) setCurrentStep(4)
-            else if (!hasConnections) setCurrentStep(5)
-            else setCurrentStep(1)
-            return
-          }
-        }
+        // Since user preferences are now saved before reaching social media step,
+        // we don't need to validate completion here
         setCurrentStep(step)
       }
     }

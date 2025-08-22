@@ -27,7 +27,10 @@ export function ContentPlanningDashboard() {
     changeIndustry,
     refreshData,
     isReady
-  } = useContentPlanning({ industry: 'technology', autoLoad: true })
+  } = useContentPlanning({ 
+    industry: 'technology', 
+    autoLoad: true // This only loads basic dashboard data, not AI agent
+  })
 
   return (
     <div className="space-y-6 overflow-hidden w-full max-w-full content-container">{/* Header */}
@@ -68,6 +71,8 @@ export function ContentPlanningDashboard() {
               Settings
             </Link>
           </Button>
+          
+          {/* AI Content Generator - Only invokes AI agent when clicked */}
           <AIContentGenerator
             trigger={
               <Button>

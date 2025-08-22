@@ -18,7 +18,7 @@ export function AuthGuard({
   redirectTo = '/login' 
 }: AuthGuardProps) {
   const { isSignedIn, isLoaded } = useUser();
-  const { isSyncing, isSynced, error } = useUserSync();
+  const { isSyncing, isSynced, error, redirectPath } = useUserSync();
   const router = useRouter();
 
   useEffect(() => {
@@ -26,6 +26,18 @@ export function AuthGuard({
       router.push(redirectTo);
     }
   }, [isLoaded, isSignedIn, requireAuth, redirectTo, router]);
+
+  // Handle redirects based on user status
+  useEffect(() => {
+    if (isLoaded && isSignedIn && isSynced && redirectPath) {
+      // Only redirect if not already on the target page
+      if (redirectPath === 'dashboard' && window.location.pathname.startsWith('/onboarding')) {
+        router.push('/dashboard');
+      } else if (redirectPath === 'onboarding' && window.location.pathname.startsWith('/dashboard')) {
+        router.push('/onboarding');
+      }
+    }
+  }, [isLoaded, isSignedIn, isSynced, redirectPath, router]);
 
   // Show loading state while Clerk is loading or user is syncing
   if (!isLoaded || (isSignedIn && !isSynced && isSyncing)) {

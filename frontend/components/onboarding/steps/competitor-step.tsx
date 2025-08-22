@@ -7,8 +7,13 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, Search, Globe, Facebook, Instagram, Youtube } from "lucide-react"
+import { Plus, X, Search, Globe, Facebook, Instagram, Youtube, Save, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { useUser } from "@clerk/nextjs"
 import type { OnboardingData } from "../onboarding-wizard"
+
+// Import ApiClient
+import { ApiClient } from "@/lib/api-client"
 
 interface CompetitorStepProps {
   data: OnboardingData
@@ -31,6 +36,9 @@ const platformOptions = [
 ]
 
 export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSettings = false }: CompetitorStepProps) {
+  const { toast } = useToast()
+  const { user } = useUser()
+  const [isSaving, setIsSaving] = useState(false)
   const [newCompetitor, setNewCompetitor] = useState({
     name: "",
     website: "",
@@ -61,6 +69,79 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
   }
 
   const canProceed = data.competitors.length >= 1
+
+  const handleSaveAndContinue = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!canProceed) {
+      toast({
+        title: "Validation Error",
+        description: "Please add at least 1 competitor before continuing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const apiClient = new ApiClient()
+      
+      // First, sync user to ensure they exist in the users table
+      await apiClient.syncUserFromClerk(user.id, {
+        id: user.id,
+        email_addresses: user.emailAddresses.map(email => ({
+          id: email.id,
+          email_address: email.emailAddress,
+        })),
+        first_name: user.firstName,
+        last_name: user.lastName,
+        image_url: user.imageUrl,
+        primary_email_address_id: user.primaryEmailAddressId,
+      })
+
+      // Save user preferences to database
+      await apiClient.saveUserPreferences(user.id, {
+        industry: data.industry,
+        companySize: data.companySize,
+        goals: data.goals,
+        budget: data.budget
+      })
+
+      // Save competitors to database (one by one)
+      for (const competitor of data.competitors) {
+        await apiClient.saveCompetitor(user.externalId || user.id, {
+          name: competitor.name,
+          website: competitor.website,
+          description: competitor.description,
+          platforms: competitor.platforms
+        })
+      }
+
+      toast({
+        title: "Preferences Saved!",
+        description: "Your business information has been saved successfully.",
+      })
+
+      // Proceed to next step
+      onNext()
+    } catch (error) {
+      console.error('Failed to save preferences:', error)
+      toast({
+        title: "Save Failed",
+        description: "Failed to save your preferences. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <Card>
@@ -203,11 +284,22 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
           <Button variant="outline" onClick={onPrev}>
             Previous
           </Button>
-          <Button onClick={onNext} disabled={!canProceed}>
-            {isFromSettings 
-              ? (canProceed ? "Next: Connections" : "Add at least 1 competitor")
-              : (canProceed ? "Start AI Analysis" : "Add at least 1 competitor")
-            }
+          <Button 
+            onClick={handleSaveAndContinue} 
+            disabled={!canProceed || isSaving}
+            className="min-w-[140px]"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save & Continue
+              </>
+            )}
           </Button>
         </div>
       </CardContent>

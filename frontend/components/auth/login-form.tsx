@@ -2,6 +2,28 @@
 
 import { SignIn } from "@clerk/nextjs"
 import { useEffect } from "react"
+import { useUserSync } from "@/hooks/use-user-sync"
+import { useUser } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
+
+function LoginRedirectHandler() {
+  const { isSignedIn, isLoaded } = useUser();
+  const { isSynced, redirectPath } = useUserSync();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn && isSynced && redirectPath) {
+      // Only redirect if not already on the target page
+      if (redirectPath === 'dashboard' && window.location.pathname !== '/dashboard') {
+        router.push('/dashboard');
+      } else if (redirectPath === 'onboarding' && window.location.pathname !== '/onboarding') {
+        router.push('/onboarding');
+      }
+    }
+  }, [isLoaded, isSignedIn, isSynced, redirectPath, router]);
+
+  return null; // This component doesn't render anything
+}
 
 export function LoginForm() {
   useEffect(() => {
@@ -10,7 +32,6 @@ export function LoginForm() {
       // Try multiple selectors to find the Google button
       const selectors = [
         'button[data-provider="google"]',
-        '[data-testid="social-buttons-block-button"]:has([data-provider="google"])',
         'button:has(span:contains("Google"))',
         'button:has(span:contains("Continue with Google"))',
         '[data-testid="social-buttons-block"] button',
@@ -46,6 +67,7 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-md mx-auto">
+      <LoginRedirectHandler />
       <SignIn 
         routing="hash"
         appearance={{
@@ -64,7 +86,6 @@ export function LoginForm() {
             socialButtonsBlockButtonText: "text-foreground",
           }
         }}
-        fallbackRedirectUrl="/onboarding"
         signUpUrl="/signup"
       />
       <style jsx global>{`

@@ -1,6 +1,10 @@
 /**
  * React hook for content planning functionality
  * Manages state and API interactions for content planning features
+ * 
+ * Note: autoLoad only loads basic dashboard data and supported options.
+ * AI agent functions (generateContent, analyzeCompetitors, etc.) are only
+ * invoked when explicitly called by the user.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -14,7 +18,7 @@ import {
 
 export interface UseContentPlanningOptions {
   industry?: string
-  autoLoad?: boolean
+  autoLoad?: boolean // Only loads basic dashboard data, doesn't invoke AI agent
 }
 
 export function useContentPlanning(options: UseContentPlanningOptions = {}) {
@@ -54,7 +58,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [selectedIndustry])
 
-  // Generate content
+  // Generate content - Only invoked when user clicks "Create Content" button
   const generateContent = useCallback(async (request: ContentGenerationRequest): Promise<ContentGenerationResponse> => {
     try {
       setLoading(true)
@@ -70,7 +74,49 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [])
 
-  // Analyze competitors
+  // Save content suggestion to database
+  const saveContentSuggestion = useCallback(async (suggestionData: {
+    user_id: string
+    suggested_content: string
+    platform: string
+    industry: string
+    content_type: string
+    tone: string
+    target_audience: string
+    hashtags?: string[]
+    custom_requirements?: string
+  }) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await contentPlanningAPI.saveContentSuggestion(suggestionData)
+      return response
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save content suggestion'
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Get content suggestions from database
+  const getContentSuggestions = useCallback(async (userId: string, limit: number = 3) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await contentPlanningAPI.getContentSuggestions(userId, limit)
+      return response
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch content suggestions'
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Analyze competitors - Only invoked when explicitly requested by user
   const analyzeCompetitors = useCallback(async (analysisType: string = 'trend_analysis') => {
     try {
       setLoading(true)
@@ -89,7 +135,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [selectedIndustry])
 
-  // Research hashtags
+  // Research hashtags - Only invoked when explicitly requested by user
   const researchHashtags = useCallback(async (platform: string, contentType: string = 'promotional') => {
     try {
       setLoading(true)
@@ -110,7 +156,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [selectedIndustry])
 
-  // Generate content strategy
+  // Generate content strategy - Only invoked when explicitly requested by user
   const generateStrategy = useCallback(async (platforms: string[], goals: string[] = ['engagement', 'reach']) => {
     try {
       setLoading(true)
@@ -131,7 +177,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [selectedIndustry])
 
-  // Generate content calendar
+  // Generate content calendar - Only invoked when explicitly requested by user
   const generateCalendar = useCallback(async (
     platforms: string[], 
     durationDays: number = 30, 
@@ -156,7 +202,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [selectedIndustry])
 
-  // Identify content gaps
+  // Identify content gaps - Only invoked when explicitly requested by user
   const identifyContentGaps = useCallback(async (userContentSummary: string = 'Standard promotional and educational content') => {
     try {
       setLoading(true)
@@ -186,7 +232,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     ])
   }, [loadDashboardData, loadSupportedOptions])
 
-  // Auto-load data on mount
+  // Auto-load basic dashboard data on mount (does NOT invoke AI agent)
   useEffect(() => {
     if (autoLoad) {
       refreshData()
@@ -205,6 +251,8 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     loadDashboardData,
     loadSupportedOptions,
     generateContent,
+    saveContentSuggestion,
+    getContentSuggestions,
     analyzeCompetitors,
     researchHashtags,
     generateStrategy,

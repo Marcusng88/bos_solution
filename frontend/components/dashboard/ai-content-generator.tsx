@@ -1,6 +1,9 @@
 /**
  * AI Content Generation Modal Component
  * Modal for creating AI-generated content using the content planning API
+ * 
+ * IMPORTANT: The AI agent is ONLY invoked when the user explicitly clicks
+ * the "Generate Content" button. It does NOT run automatically.
  */
 
 "use client"
@@ -28,6 +31,7 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
   const [generatedContent, setGeneratedContent] = useState<any>(null)
   const [copied, setCopied] = useState(false)
   
+  // Note: autoLoad: true only loads basic options, doesn't invoke AI agent
   const { generateContent, supportedOptions } = useContentPlanning({ autoLoad: true })
 
   // Form state
@@ -41,6 +45,7 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
   
   const [topic, setTopic] = useState('')
 
+  // This function is ONLY called when user clicks "Generate Content" button
   const handleGenerate = async () => {
     if (!topic.trim()) return
 
@@ -50,6 +55,7 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
         ...formData,
         custom_requirements: `Topic: ${topic}. ${formData.custom_requirements || ''}`
       }
+      // AI agent is invoked here - only when user explicitly requests it
       const response = await generateContent(requestData)
       setGeneratedContent(response.content)
     } catch (error) {
@@ -105,7 +111,8 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
             AI Content Generator
           </DialogTitle>
           <DialogDescription>
-            Create engaging social media content with AI assistance
+            Create engaging social media content with AI assistance. 
+            The AI agent will only run when you click "Generate Content".
           </DialogDescription>
         </DialogHeader>
 
@@ -123,7 +130,7 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {supportedOptions?.platforms.map((platform) => (
+                    {supportedOptions?.platforms.map((platform: string) => (
                       <SelectItem key={platform} value={platform}>
                         {platform.charAt(0).toUpperCase() + platform.slice(1)}
                       </SelectItem>
@@ -165,7 +172,7 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {supportedOptions?.industries.map((industry) => (
+                    {supportedOptions?.industries.map((industry: string) => (
                       <SelectItem key={industry} value={industry}>
                         {industry.charAt(0).toUpperCase() + industry.slice(1)}
                       </SelectItem>

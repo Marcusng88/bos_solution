@@ -16,6 +16,8 @@ import { useUser } from "@clerk/nextjs"
 
 interface AddCompetitorModalProps {
   onCompetitorAdded: () => void
+  isOpen: boolean
+  onClose: () => void
 }
 
 const AVAILABLE_PLATFORMS: Platform[] = [
@@ -57,8 +59,7 @@ const AVAILABLE_PLATFORMS: Platform[] = [
   }
 ]
 
-export function AddCompetitorModal({ onCompetitorAdded }: AddCompetitorModalProps) {
-  const [open, setOpen] = useState(false)
+export function AddCompetitorModal({ onCompetitorAdded, isOpen, onClose }: AddCompetitorModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<CompetitorCreate>({
     name: "",
@@ -164,7 +165,7 @@ export function AddCompetitorModal({ onCompetitorAdded }: AddCompetitorModalProp
       })
       setSelectedPlatforms(["youtube"])
       setSocialHandles({})
-      setOpen(false)
+      onClose()
       
       // Notify parent component
       onCompetitorAdded()
@@ -200,13 +201,7 @@ export function AddCompetitorModal({ onCompetitorAdded }: AddCompetitorModalProp
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Competitor
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Competitor</DialogTitle>
@@ -329,7 +324,7 @@ export function AddCompetitorModal({ onCompetitorAdded }: AddCompetitorModalProp
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={onClose}
               disabled={isLoading}
             >
               Cancel

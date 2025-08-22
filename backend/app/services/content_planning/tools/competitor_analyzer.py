@@ -31,6 +31,24 @@ class CompetitorAnalyzer:
     def __init__(self):
         # Initialize with mock data for now
         self._load_competitor_data()
+        self.llm = None  # Initialize lazily
+    
+    def _get_llm(self):
+        """Lazy initialization of LLM"""
+        if self.llm is None:
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                self.llm = ChatGoogleGenerativeAI(
+                    model=settings.model_name,
+                    temperature=settings.temperature,
+                    max_tokens=settings.max_tokens,
+                    top_p=settings.top_p,
+                    google_api_key=os.getenv("GOOGLE_API_KEY")
+                )
+            except Exception as e:
+                print(f"Warning: Could not initialize Google AI LLM: {e}")
+                self.llm = "mock"  # Use mock mode
+        return self.llm
     
     def _load_competitor_data(self):
         """Load competitor data from mock dataset"""
@@ -335,8 +353,12 @@ class CompetitorAnalyzer:
         )
         
         try:
-            response = self.llm.invoke(prompt)
-            return response.content
+            llm = self._get_llm()
+            if llm == "mock":
+                return "AI analysis unavailable: Using mock mode"
+            else:
+                response = llm.invoke(prompt)
+                return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
             return f"AI analysis unavailable: {str(e)}"
     

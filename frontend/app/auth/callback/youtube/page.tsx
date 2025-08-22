@@ -84,8 +84,8 @@ function YouTubeCallbackContent() {
         } else if (returnContext === 'publishing') {
           router.push('/dashboard/publishing')
         } else {
-          // Add step as URL parameter as backup
-          router.push(`/onboarding${returnStep ? `?step=${returnStep}` : ''}`)
+          // For onboarding users, go to dashboard since preferences are already saved
+          router.push('/dashboard')
         }
       }, 2000)
       
@@ -111,7 +111,8 @@ function YouTubeCallbackContent() {
     } else if (returnContext === 'publishing') {
       router.push('/dashboard/publishing')
     } else {
-      router.push('/onboarding')
+      // For onboarding users, go to dashboard since preferences are already saved
+      router.push('/dashboard')
     }
   }
 
@@ -168,13 +169,13 @@ function YouTubeCallbackContent() {
             {status === 'success' && (
               <div className="text-center space-y-2">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  You'll be redirected shortly...
+                  You'll be redirected to dashboard shortly...
                 </p>
                 <Button 
                   onClick={handleReturnToOnboarding}
                   className="w-full"
                 >
-                  Continue
+                  Continue to Dashboard
                 </Button>
               </div>
             )}
@@ -186,10 +187,10 @@ function YouTubeCallbackContent() {
                   variant="outline"
                   className="w-full"
                 >
-                  Return
+                  Go to Dashboard
                 </Button>
                 <p className="text-xs text-center text-muted-foreground">
-                  You can try connecting again
+                  You can try connecting again from the dashboard
                 </p>
               </div>
             )}

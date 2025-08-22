@@ -163,7 +163,7 @@ class YouTubeAgent:
                 }
             
             # Step 2.5: Filter videos for relevance to competitor
-            relevant_videos = await self._filter_relevant_videos(today_videos, competitor_name)
+            relevant_videos = await self._filter_relevant_videos_ai(today_videos, competitor_name)
             logger.info(f"🎯 Filtered to {len(relevant_videos)} relevant videos for {competitor_name}")
             
             if not relevant_videos:
@@ -396,8 +396,63 @@ Example format:
             logger.error(f"❌ Error searching today's videos: {e}")
             return []
     
-    async def _filter_relevant_videos(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[Dict[str, Any]]:
-        """Filter videos to only include those relevant to the competitor"""
+    async def _filter_relevant_videos_ai(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[Dict[str, Any]]:
+        """Use AI to filter videos for relevance to the competitor"""
+        try:
+            if not videos:
+                return []
+            
+            if not self.llm:
+                logger.info("🤖 LLM not available, using heuristic filtering")
+                return self._filter_relevant_videos_heuristic(videos, competitor_name)
+            
+            relevant_videos = []
+            competitor_name_lower = competitor_name.lower()
+            
+            logger.info(f"🧠 Using AI to filter {len(videos)} videos for relevance to {competitor_name}")
+            
+            for video in videos:
+                try:
+                    snippet = video.get('snippet', {})
+                    title = snippet.get('title', '')
+                    description = snippet.get('description', '')
+                    channel_title = snippet.get('channelTitle', '')
+                    
+                    # Use AI to determine relevance
+                    is_relevant = await self._ai_video_relevance_check(
+                        title, description, channel_title, competitor_name
+                    )
+                    
+                    if is_relevant:
+                        relevant_videos.append(video)
+                        logger.info(f"   ✅ AI Relevant: {title[:50]}...")
+                    else:
+                        logger.info(f"   ❌ AI Irrelevant: {title[:50]}...")
+                        
+                except Exception as e:
+                    logger.error(f"   ❌ Error in AI relevance check: {e}")
+                    # Fallback to heuristic check
+                    if self._is_video_relevant_to_competitor_heuristic(
+                        title, description, channel_title, competitor_name_lower
+                    ):
+                        relevant_videos.append(video)
+                        logger.info(f"   ✅ Heuristic Relevant: {title[:50]}...")
+                    continue
+            
+            logger.info(f"🧠 AI filtered {len(videos)} videos to {len(relevant_videos)} relevant ones")
+            return relevant_videos
+            
+        except Exception as e:
+            logger.error(f"❌ Error in AI video filtering: {e}")
+            logger.info("🔄 Falling back to heuristic filtering")
+            return self._filter_relevant_videos_heuristic(videos, competitor_name)
+
+    def _filter_relevant_videos_heuristic(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[Dict[str, Any]]:
+        """Fallback heuristic filtering when AI is not available"""
+        return self._filter_relevant_videos(videos, competitor_name)
+
+    def _filter_relevant_videos(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[Dict[str, Any]]:
+        """Filter videos to only include those relevant to the competitor using heuristics"""
         try:
             if not videos:
                 return []
@@ -413,29 +468,29 @@ Example format:
                     channel_title = snippet.get('channelTitle', '').lower()
                     
                     # Check if video is relevant to the competitor
-                    is_relevant = self._is_video_relevant_to_competitor(
+                    is_relevant = self._is_video_relevant_to_competitor_heuristic(
                         title, description, channel_title, competitor_name_lower
                     )
                     
                     if is_relevant:
                         relevant_videos.append(video)
-                        logger.info(f"   ✅ Relevant: {snippet.get('title', 'Unknown')[:50]}...")
+                        logger.info(f"   ✅ Heuristic Relevant: {snippet.get('title', 'Unknown')[:50]}...")
                     else:
-                        logger.info(f"   ❌ Irrelevant: {snippet.get('title', 'Unknown')[:50]}...")
+                        logger.info(f"   ❌ Heuristic Irrelevant: {snippet.get('title', 'Unknown')[:50]}...")
                         
                 except Exception as e:
                     logger.error(f"   ❌ Error filtering video: {e}")
                     continue
             
-            logger.info(f"🎯 Filtered {len(videos)} videos to {len(relevant_videos)} relevant ones")
+            logger.info(f"🎯 Heuristic filtered {len(videos)} videos to {len(relevant_videos)} relevant ones")
             return relevant_videos
             
         except Exception as e:
             logger.error(f"❌ Error filtering relevant videos: {e}")
             return videos  # Return all videos if filtering fails
-    
-    def _is_video_relevant_to_competitor(self, title: str, description: str, channel_title: str, competitor_name: str) -> bool:
-        """Determine if a video is relevant to the competitor"""
+
+    def _is_video_relevant_to_competitor_heuristic(self, title: str, description: str, channel_title: str, competitor_name: str) -> bool:
+        """Heuristic method for determining video relevance (fallback)"""
         try:
             # Must contain competitor name in title or description
             if competitor_name not in title and competitor_name not in description:
@@ -472,8 +527,9 @@ Example format:
             return False
     
     async def _get_video_details(self, video_id: str) -> Optional[Dict[str, Any]]:
-        """Get detailed information about a specific video"""
+        """Get detailed information about a specific video including captions"""
         try:
+            # Get basic video information
             video_response = self.youtube_api.videos().list(
                 part='snippet,statistics,contentDetails',
                 id=video_id
@@ -485,6 +541,9 @@ Example format:
             video = video_response['items'][0]
             snippet = video['snippet']
             statistics = video.get('statistics', {})
+            
+            # Get video captions/transcripts if available
+            captions = await self._get_video_captions(video_id)
             
             return {
                 'video_id': video_id,
@@ -498,12 +557,66 @@ Example format:
                 'like_count': int(statistics.get('likeCount', 0)),
                 'comment_count': int(statistics.get('commentCount', 0)),
                 'duration': video.get('contentDetails', {}).get('duration', ''),
-                'tags': snippet.get('tags', [])
+                'tags': snippet.get('tags', []),
+                'captions': captions
             }
             
         except Exception as e:
             logger.error(f"❌ Error getting video details for {video_id}: {e}")
             return None
+
+    async def _get_video_captions(self, video_id: str) -> str:
+        """Get video captions/transcripts if available"""
+        try:
+            # First, check if captions are available
+            captions_response = self.youtube_api.captions().list(
+                part='snippet',
+                videoId=video_id
+            ).execute()
+            
+            if not captions_response.get('items'):
+                logger.info(f"📝 No captions available for video {video_id}")
+                return ""
+            
+            # Get the first available caption track (usually auto-generated)
+            caption_id = captions_response['items'][0]['id']
+            
+            # Download the caption content
+            caption_response = self.youtube_api.captions().download(
+                id=caption_id,
+                tfmt='srt'
+            ).execute()
+            
+            if caption_response:
+                # Parse SRT format and extract text
+                caption_text = self._parse_srt_captions(caption_response.decode('utf-8'))
+                logger.info(f"📝 Retrieved captions for video {video_id}: {len(caption_text)} characters")
+                return caption_text
+            else:
+                return ""
+                
+        except Exception as e:
+            logger.warning(f"⚠️  Could not retrieve captions for video {video_id}: {e}")
+            return ""
+
+    def _parse_srt_captions(self, srt_content: str) -> str:
+        """Parse SRT caption format and extract clean text"""
+        try:
+            lines = srt_content.split('\n')
+            text_lines = []
+            
+            for i, line in enumerate(lines):
+                # Skip timestamp lines and empty lines
+                if (line.strip().isdigit() or 
+                    '-->' in line or 
+                    not line.strip()):
+                    continue
+                text_lines.append(line.strip())
+            
+            return ' '.join(text_lines)
+        except Exception as e:
+            logger.warning(f"⚠️  Error parsing SRT captions: {e}")
+            return srt_content
     
     async def _analyze_video_intelligence(self, video_details: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
         """Analyze video content using AI to determine significance and generate insights"""
@@ -520,13 +633,17 @@ Example format:
             return self._heuristic_video_analysis(video_details, competitor_name)
     
     async def _ai_video_analysis(self, video_details: Dict[str, Any], competitor_name: str) -> Dict[str, Any]:
-        """Use AI to analyze video content for competitive intelligence"""
+        """Use AI to analyze video content for competitive intelligence and sentiment"""
         try:
             title = video_details.get('title', '')
-            description = video_details.get('description', '')[:500]  # First 500 chars
+            description = video_details.get('description', '')
+            captions = video_details.get('captions', '')
             channel = video_details.get('channel_title', '')
             views = video_details.get('view_count', 0)
             likes = video_details.get('like_count', 0)
+            
+            # Combine all content for comprehensive analysis
+            full_content = f"Title: {title}\nDescription: {description}\nCaptions: {captions}"
             
             prompt = f"""
 Analyze this YouTube video for competitive intelligence about "{competitor_name}":
@@ -534,6 +651,7 @@ Analyze this YouTube video for competitive intelligence about "{competitor_name}
 TITLE: {title}
 CHANNEL: {channel}
 DESCRIPTION: {description}
+CAPTIONS: {captions[:1000] if captions else "No captions available"}
 ENGAGEMENT: {views} views, {likes} likes
 PUBLISHED: Today
 
@@ -541,6 +659,7 @@ Your analysis should determine:
 1. Is this video ALERT-WORTHY for competitive intelligence?
 2. What are the key insights about the competitor?
 3. What marketing/business strategies can be observed?
+4. What is the sentiment of this content?
 
 IMPORTANT: Only analyze videos that are DIRECTLY about the competitor company. If the video is not clearly about the company, mark it as not alert-worthy.
 
@@ -552,6 +671,12 @@ ALERT-WORTHY criteria:
 - Crisis management or negative coverage about the company
 - Competitive moves or market positioning by the company
 
+SENTIMENT ANALYSIS:
+Analyze the overall tone and sentiment of the content, considering:
+- Language used (positive, negative, neutral)
+- Context and implications for the company
+- Public reaction indicators
+
 Provide your response in this JSON format:
 {{
     "is_alert_worthy": true/false,
@@ -560,7 +685,13 @@ Provide your response in this JSON format:
     "summary": "Brief competitive intelligence summary (max 200 words)",
     "key_insights": ["insight1", "insight2", "insight3"],
     "content_type": "announcement/review/news/official/other",
-    "competitive_impact": "high/medium/low"
+    "competitive_impact": "high/medium/low",
+    "sentiment_analysis": {{
+        "overall_sentiment": "positive/negative/neutral",
+        "sentiment_score": -1.0 to 1.0,
+        "sentiment_reason": "Brief explanation of sentiment",
+        "key_sentiment_indicators": ["indicator1", "indicator2"]
+    }}
 }}
 
 Be selective with alerts - only flag truly significant competitive intelligence.
@@ -678,16 +809,30 @@ Be selective with alerts - only flag truly significant competitive intelligence.
         }
     
     def _create_monitoring_data(self, video_details: Dict[str, Any], analysis_result: Dict[str, Any], competitor_id: str) -> Dict[str, Any]:
-        """Create monitoring data structure for Supabase"""
-        content_text = f"{video_details.get('title', '')}\n\n{video_details.get('description', '')[:500]}"
+        """Create monitoring data structure for Supabase with full content"""
+        # Combine all available content without truncation
+        content_parts = [video_details.get('title', '')]
+        
+        if video_details.get('description'):
+            content_parts.append(video_details.get('description'))
+        
+        if video_details.get('captions'):
+            content_parts.append(f"Captions: {video_details.get('captions')}")
+        
+        content_text = '\n\n'.join(content_parts)
         content_hash = hashlib.md5(content_text.encode()).hexdigest()
+        
+        # Extract sentiment score from AI analysis
+        sentiment_score = 0.0
+        if analysis_result.get('sentiment_analysis'):
+            sentiment_score = analysis_result['sentiment_analysis'].get('sentiment_score', 0.0)
         
         return {
             'competitor_id': str(competitor_id),
             'platform': 'youtube',
             'post_id': video_details['video_id'],
             'post_url': video_details['url'],
-            'content_text': content_text,
+            'content_text': content_text,  # Full content without truncation
             'content_hash': content_hash,
             'media_urls': [video_details.get('thumbnail', '')],
             'engagement_metrics': {
@@ -699,7 +844,7 @@ Be selective with alerts - only flag truly significant competitive intelligence.
             'author_display_name': video_details.get('channel_title', ''),
             'post_type': 'video',
             'language': 'en',  # Default to English
-            'sentiment_score': 0.0,  # Default neutral
+            'sentiment_score': sentiment_score,  # AI-determined sentiment
             'detected_at': datetime.now(timezone.utc).isoformat(),
             'posted_at': video_details.get('published_at'),
             'is_new_post': True,
@@ -751,6 +896,39 @@ Be selective with alerts - only flag truly significant competitive intelligence.
                 
         except Exception as e:
             logger.error(f"❌ Error creating intelligent alert: {e}")
+
+    async def _ai_video_relevance_check(self, title: str, description: str, channel_title: str, competitor_name: str) -> bool:
+        """Use AI to determine if a video is relevant to the competitor"""
+        try:
+            prompt = f"""
+Determine if this YouTube video is DIRECTLY relevant to the company "{competitor_name}":
+
+TITLE: {title}
+DESCRIPTION: {description[:500]}
+CHANNEL: {channel_title}
+
+The video is ONLY relevant if it is:
+1. DIRECTLY about the company "{competitor_name}" (not just similar words)
+2. Contains official company announcements, news, or content
+3. Is a review or analysis specifically about the company
+4. Discusses the company's products, services, or business activities
+
+The video is NOT relevant if it:
+1. Only mentions similar words but is about different companies
+2. Is generic content that happens to use similar terminology
+3. Is unrelated content from a channel with a similar name
+
+Respond with ONLY "RELEVANT" or "NOT_RELEVANT".
+"""
+            
+            response = await self.llm.ainvoke(prompt)
+            result = response.content.strip().upper()
+            
+            return result == "RELEVANT"
+            
+        except Exception as e:
+            logger.error(f"❌ Error in AI relevance check: {e}")
+            return False
 
     async def close(self):
         """Close any resources"""

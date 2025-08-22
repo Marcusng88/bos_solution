@@ -37,6 +37,40 @@ async def get_current_user(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+@router.get("/check-user-status")
+async def check_user_status(
+    user_id: str = Header(..., alias="X-User-ID"),
+    db: SupabaseClient = Depends(get_db)
+):
+    """Check if user exists and determine redirect path"""
+    try:
+        # Check if user exists in Supabase
+        user = await db.get_user_by_clerk_id(user_id)
+        
+        if user:
+            # User exists - check if they have completed onboarding
+            # You can add additional checks here for onboarding completion
+            # For now, if user exists, they can go to dashboard
+            return {
+                "exists": True,
+                "redirect_to": "dashboard",
+                "user": user,
+                "message": "User found, redirecting to dashboard"
+            }
+        else:
+            # User doesn't exist - they need to go through onboarding
+            return {
+                "exists": False,
+                "redirect_to": "onboarding",
+                "user": None,
+                "message": "New user, redirecting to onboarding"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error checking user status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check user status: {str(e)}")
+
+
 @router.post("/sync")
 async def sync_user_with_clerk(
     db: SupabaseClient = Depends(get_db),

@@ -29,6 +29,7 @@ class HashtagResearcher:
     
     def __init__(self):
         self._load_hashtag_data()
+        self.llm = None  # Initialize lazily
     
     def _load_hashtag_data(self):
         """Load hashtag performance data"""
@@ -43,6 +44,23 @@ class HashtagResearcher:
             self.trending_data = {"technology": ["#AI", "#Innovation", "#TechTrends"]}
             self.performance_data = {}
     
+    def _get_llm(self):
+        """Lazy initialization of LLM"""
+        if self.llm is None:
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                self.llm = ChatGoogleGenerativeAI(
+                    model=settings.model_name,
+                    temperature=settings.temperature,
+                    max_tokens=settings.max_tokens,
+                    top_p=settings.top_p,
+                    google_api_key=os.getenv("GOOGLE_API_KEY")
+                )
+            except Exception as e:
+                print(f"Warning: Could not initialize Google AI LLM: {e}")
+                self.llm = "mock"  # Use mock mode
+        return self.llm
+
     def _run(
         self,
         industry: str,
@@ -289,8 +307,12 @@ class HashtagResearcher:
         )
         
         try:
-            response = self.llm.invoke(prompt)
-            return response.content
+            llm = self._get_llm()
+            if llm == "mock":
+                return "AI insights unavailable: Using mock mode"
+            else:
+                response = llm.invoke(prompt)
+                return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
             return f"AI insights unavailable: {str(e)}"
     
