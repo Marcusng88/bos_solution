@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Base class for models - renamed to avoid conflict with SQLAlchemy's metadata
 Base = declarative_base()
 
+# Alias for compatibility with existing imports
+ModelBase = Base
+
 # Initialize engine and session factory as None initially
 engine = None
 AsyncSessionLocal = None
