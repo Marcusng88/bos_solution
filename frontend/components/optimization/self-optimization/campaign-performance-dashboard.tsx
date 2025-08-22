@@ -407,7 +407,7 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
             </div>
             
             {/* Performance Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4 bg-gray-50 rounded-lg">
               <div className="text-center">
                 <div className="text-lg font-semibold text-blue-600">
                   {campaigns.filter(c => c.ongoing === 'Yes').length}
@@ -433,10 +433,16 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
                 <div className="text-xs text-gray-600">Fair</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-semibold text-red-600">
-                  {campaigns.filter(c => getPerformanceScore(c) < 70).length}
+                <div className="text-lg font-semibold text-orange-600">
+                  {campaigns.filter(c => getPerformanceScore(c) >= 60 && getPerformanceScore(c) < 70).length}
                 </div>
                 <div className="text-xs text-gray-600">Underperform</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-red-600">
+                  {campaigns.filter(c => getPerformanceScore(c) < 60).length}
+                </div>
+                <div className="text-xs text-gray-600">Poor</div>
               </div>
             </div>
 

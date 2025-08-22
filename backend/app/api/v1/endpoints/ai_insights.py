@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 from app.core.database import get_db
 from app.core.auth_utils import get_current_user_id
-from app.services.ai_service import ai_service
+from app.services.optimization.ai_service import ai_service
 from app.schemas.ai_insights import (
     AIAnalysisRequest,
     AIAnalysisResponse,

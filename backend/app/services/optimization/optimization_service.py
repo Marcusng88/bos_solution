@@ -318,7 +318,10 @@ class OptimizationService:
             'budget_utilization': round(budget_utilization, 1),
             'profit_margin': round(profit_margin, 1),
             'performance_score': round(performance_score, 1),
-            'performance_category': performance_category
+            'performance_category': performance_category,
+            'ctr': round(ctr, 2) if ctr > 0 else None,
+            'cpc': round(cpc, 2) if cpc > 0 else None,
+            'conversion_rate': round(conversion_rate, 2) if conversion_rate > 0 else None
         }
     
     def calculate_confidence_score(self, campaign: Dict[str, Any], risk_factors: List[str], risk_score: float) -> float:

@@ -87,24 +87,25 @@ export function AIInsightsPanel() {
 
       // Call the AI chat endpoint with the specific question
       console.log("🔍 Calling AI chat endpoint...")
-      const aiQuestion = `Please list any recommendation actions or optimizations steps that can be taken to improve the performance of all my ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please follow this format:
-[Level of Priority]
-1.[Campaign Name]
-[Recommendation Actions]
-
-2. [Campaign Name]
-[Recommendation Actions]
-
-......
-
-[Level of Priority]
-1.[Campaign Name]
-[Recommendation Actions]
-
-2. [Campaign Name]
-[Recommendation Actions]
-
-.....`
+      const aiQuestion = `Please list and explain any recommendation actions or optimizations steps that can be taken to improve the performance for my ongoing campaigns.You need not have to give actions to every ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please give your response in a structured JSON output format, just the json file do not add any other words, as the example below:
+{
+  "recommendations": {
+    "high_priority": [
+      {
+        "campaign_name": 
+        "action": 
+        "reasoning": 
+      }
+    ],
+    "medium_priority": [
+      {
+        "campaign_name":  
+        "action": 
+        "reasoning": 
+      }
+    ]
+  }
+}`
       
       const response = await apiClient.chatWithAI(userId, aiQuestion)
 

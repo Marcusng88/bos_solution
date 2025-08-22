@@ -1,7 +1,7 @@
 import type React from "react"
 import Link from "next/link"
 import { Brain, Sparkles } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { ThemeToggle } from "@/components/optimization/theme-toggle"
 
 interface AuthLayoutProps {
   children: React.ReactNode

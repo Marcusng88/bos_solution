@@ -335,42 +335,58 @@ class AIService:
             competitor_data_json = str(convert_decimal_to_float(competitor_data))
             monitoring_data_json = str(convert_decimal_to_float(monitoring_data))
         
-        combined_prompt = f"""You are an expert marketing AI analyst specializing in campaign optimization and performance analysis. 
- 
- Your task is to analyze REAL-TIME campaign data and provide actionable insights and recommendations. Focus on:
- 1. Performance trends and patterns
- 2. Budget optimization opportunities
- 3. Risk identification and mitigation
- 4. Competitive analysis insights
- 5. Specific actionable recommendations
- 
-   **IMPORTANT**: When analyzing campaigns, always mention specific campaign names from the data (e.g., "Adidas Boost Launch", "CocaCola Refresh 2025", "Lazada Flash Sales 8.8"). This helps users understand which campaigns you're referring to. When asked about ongoing campaigns, focus specifically on campaigns where ongoing = 'Yes'.
-  
-  Analyze the following REAL-TIME campaign and market data to provide actionable insights:
- 
- Campaign Data: {campaign_data_json}
- Competitor Data: {competitor_data_json}
- Market Monitoring: {monitoring_data_json}
- Risk Calculation Context: {risk_context}
- 
- Please provide:
- 1. Key performance insights (3-5 bullet points) - mention specific campaign names
- 2. Budget optimization recommendations (2-3 specific actions) - reference actual campaigns
- 3. Risk alerts and mitigation strategies (if any) - identify specific campaigns at risk
- 4. Competitive opportunities (2-3 actionable insights) - based on real campaign data
- 5. Overall campaign health score (1-10) with reasoning
- 
- Format your response as a structured analysis with clear sections and actionable recommendations. Always reference specific campaign names when discussing performance."""
+        combined_prompt = f"""You are an expert marketing AI analyst specializing in campaign optimization and performance analysis.
+
+Please list any recommendation actions or optimization steps that can be taken to improve the performance of all my ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please give your response in a structured JSON output format.
+
+**IMPORTANT**: 
+- Focus ONLY on campaigns where ongoing = 'Yes' in the data
+- Always mention specific campaign names from the data
+- Provide actionable, specific recommendations with clear reasoning
+- Use the exact JSON format specified below
+
+Available REAL-TIME Data:
+Campaign Data: {campaign_data_json}
+Competitor Data: {competitor_data_json}
+Market Monitoring: {monitoring_data_json}
+Risk Calculation Context: {risk_context}
+
+Please provide your response in this EXACT JSON format:
+
+{{
+  "recommendations": {{
+    "high_priority": [
+      {{
+        "campaign_name": "Campaign Name Here",
+        "action": "Specific actionable recommendation here",
+        "reasoning": "Clear reasoning for why this action is needed and its expected impact"
+      }}
+    ],
+    "medium_priority": [
+      {{
+        "campaign_name": "Campaign Name Here", 
+        "action": "Specific actionable recommendation here",
+        "reasoning": "Clear reasoning for why this action is needed and its expected impact"
+      }}
+    ]
+  }}
+}}
+
+Only include campaigns where ongoing = 'Yes'. Categorize recommendations by priority based on potential impact and urgency."""
         
         try:
             # Use HumanMessage only (no SystemMessage)
             response = await self.llm.ainvoke([HumanMessage(content=combined_prompt)])
             
+            # Try to parse JSON response
+            json_recommendations = self._parse_json_recommendations(response.content)
+            
             # Parse and structure the response
             analysis = {
                 "timestamp": datetime.now().isoformat(),
                 "insights": response.content,
-                "recommendations": self._extract_recommendations(response.content),
+                "recommendations": json_recommendations,
+                "raw_response": response.content,  # Keep raw response for fallback
                 "risk_alerts": self._extract_risk_alerts(response.content),
                 "performance_score": self._extract_performance_score(response.content)
             }
@@ -501,6 +517,83 @@ class AIService:
             return 5  # Default score
         except:
             return 5
+
+    def _parse_json_recommendations(self, content: str) -> Dict[str, Any]:
+        """Parse JSON recommendations from AI response"""
+        try:
+            # Look for JSON content in the response
+            import re
+            
+            # Find JSON block in response (between ```json and ``` or just { and })
+            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL | re.IGNORECASE)
+            if not json_match:
+                # Try to find JSON object directly
+                json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+            
+            if json_match:
+                json_text = json_match.group(1)
+                parsed_json = json.loads(json_text)
+                
+                # Validate structure
+                if "recommendations" in parsed_json:
+                    recommendations = parsed_json["recommendations"]
+                    
+                    # Ensure both priority levels exist
+                    if "high_priority" not in recommendations:
+                        recommendations["high_priority"] = []
+                    if "medium_priority" not in recommendations:
+                        recommendations["medium_priority"] = []
+                    
+                    # Validate each recommendation has required fields
+                    for priority_level in ["high_priority", "medium_priority"]:
+                        valid_recs = []
+                        for rec in recommendations[priority_level]:
+                            if isinstance(rec, dict) and all(key in rec for key in ["campaign_name", "action", "reasoning"]):
+                                valid_recs.append(rec)
+                        recommendations[priority_level] = valid_recs
+                    
+                    return recommendations
+                else:
+                    print("⚠️ JSON response missing 'recommendations' key")
+                    return self._fallback_recommendations(content)
+            else:
+                print("⚠️ No JSON found in AI response")
+                return self._fallback_recommendations(content)
+                
+        except json.JSONDecodeError as e:
+            print(f"⚠️ JSON parsing error: {e}")
+            return self._fallback_recommendations(content)
+        except Exception as e:
+            print(f"⚠️ Error parsing recommendations: {e}")
+            return self._fallback_recommendations(content)
+    
+    def _fallback_recommendations(self, content: str) -> Dict[str, Any]:
+        """Create fallback recommendations structure from plain text"""
+        # Extract traditional recommendations and try to categorize them
+        traditional_recs = self._extract_recommendations(content)
+        
+        # Simple heuristic: first half are high priority, second half are medium
+        mid_point = len(traditional_recs) // 2 if len(traditional_recs) > 2 else 1
+        
+        high_priority = []
+        medium_priority = []
+        
+        for i, rec in enumerate(traditional_recs):
+            rec_dict = {
+                "campaign_name": "General",
+                "action": rec,
+                "reasoning": "Extracted from AI analysis"
+            }
+            
+            if i < mid_point or "critical" in rec.lower() or "urgent" in rec.lower():
+                high_priority.append(rec_dict)
+            else:
+                medium_priority.append(rec_dict)
+        
+        return {
+            "high_priority": high_priority,
+            "medium_priority": medium_priority
+        }
 
 
 # Global AI service instance

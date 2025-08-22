@@ -174,7 +174,7 @@ export function OverspendingPredictionWidget() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
-            Enhanced Overspending Predictions
+            Enhanced Risk Detection
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -252,15 +252,15 @@ export function OverspendingPredictionWidget() {
                 <div className="grid grid-cols-3 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                   <div className="text-center">
                     <div className="text-xs text-gray-500">CTR</div>
-                    <div className="text-sm font-semibold">{prediction.ctr?.toFixed(2) || 'N/A'}%</div>
+                    <div className="text-sm font-semibold">{prediction.ctr !== null && prediction.ctr !== undefined ? prediction.ctr.toFixed(2) : 'N/A'}%</div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500">CPC</div>
-                    <div className="text-sm font-semibold">${prediction.cpc?.toFixed(2) || 'N/A'}</div>
+                    <div className="text-sm font-semibold">${prediction.cpc !== null && prediction.cpc !== undefined ? prediction.cpc.toFixed(2) : 'N/A'}</div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500">Conv. Rate</div>
-                    <div className="text-sm font-semibold">{prediction.conversions && prediction.impressions ? ((prediction.conversions / prediction.impressions) * 100).toFixed(2) : 'N/A'}%</div>
+                    <div className="text-sm font-semibold">{prediction.conversion_rate !== null && prediction.conversion_rate !== undefined ? prediction.conversion_rate.toFixed(2) : 'N/A'}%</div>
                   </div>
                 </div>
                 

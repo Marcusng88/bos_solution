@@ -116,7 +116,10 @@ async def get_overspending_predictions(
                     'profit_margin': risk_analysis['profit_margin'],
                     'risk_score': risk_analysis['risk_score'],
                     'performance_score': risk_analysis['performance_score'],
-                    'performance_category': risk_analysis['performance_category']
+                    'performance_category': risk_analysis['performance_category'],
+                    'ctr': risk_analysis['ctr'],
+                    'cpc': risk_analysis['cpc'],
+                    'conversion_rate': risk_analysis['conversion_rate']
                 })
         
         # Sort by risk score (highest first)

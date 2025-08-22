@@ -9,7 +9,7 @@ import { GoalsStep } from "./steps/goals-step"
 import { CompetitorStep } from "./steps/competitor-step"
 import { ConnectionsStep } from "./steps/connections-step"
 import { CompletionStep } from "./steps/completion-step"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { ThemeToggle } from "@/components/optimization/theme-toggle"
 
 export interface OnboardingData {
   industry: string

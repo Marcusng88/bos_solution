@@ -17,6 +17,7 @@ interface Recommendation {
   estimatedTime: string
   campaign?: string
   actionType: "optimization" | "budget" | "creative" | "targeting" | "pausing" | "analysis"
+  reasoning?: string // Add reasoning field for structured JSON data
 }
 
 interface AIAnalysisRecommendationsProps {
@@ -31,38 +32,186 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
 
   // Function to analyze AI response and extract recommendations
   const analyzeAIResponse = (response: string): Recommendation[] => {
-    const extractedRecommendations: Recommendation[] = []
+    console.log("🔍 Analyzing AI response for JSON structure...")
     
-    // Remove any asterisks from the response
-    const cleanResponse = response.replace(/\*\*\*/g, '')
+    // Only parse JSON response - no fallback to text parsing
+    const jsonRecommendations = parseJSONResponse(response)
     
-    // Split response into priority sections
-    const highPriorityMatch = cleanResponse.match(/High Priority[^]*?(?=Medium Priority|$)/i)
-    const mediumPriorityMatch = cleanResponse.match(/Medium Priority[^]*$/i)
-    
-    // Process High Priority section
-    if (highPriorityMatch) {
-      const highPrioritySection = highPriorityMatch[0]
-      const highPriorityRecommendations = extractRecommendationsFromSection(highPrioritySection, "high")
-      extractedRecommendations.push(...highPriorityRecommendations)
+    if (jsonRecommendations.length > 0) {
+      console.log(`✅ Successfully parsed ${jsonRecommendations.length} recommendations from JSON`)
+      return jsonRecommendations
     }
     
-    // Process Medium Priority section
-    if (mediumPriorityMatch) {
-      const mediumPrioritySection = mediumPriorityMatch[0]
-      const mediumPriorityRecommendations = extractRecommendationsFromSection(mediumPrioritySection, "medium")
-      extractedRecommendations.push(...mediumPriorityRecommendations)
+    console.log("⚠️ No valid JSON recommendations found")
+    return []
+  }
+
+  // Function to parse JSON response from AI
+  const parseJSONResponse = (response: string): Recommendation[] => {
+    try {
+      console.log("🔍 Attempting to parse JSON response...")
+      
+      // Look for JSON content in the response (between ```json and ``` or just { and })
+      let jsonText = ""
+      const jsonBlockMatch = response.match(/```json\s*([\s\S]*?)\s*```/)
+      if (jsonBlockMatch) {
+        jsonText = jsonBlockMatch[1]
+        console.log("✅ Found JSON in code block")
+      } else {
+        // Try to find JSON object directly
+        const jsonMatch = response.match(/(\{[\s\S]*\})/)
+        if (jsonMatch) {
+          jsonText = jsonMatch[1]
+          console.log("✅ Found JSON object directly")
+        }
+      }
+
+      if (!jsonText) {
+        console.log("⚠️ No JSON found in response")
+        return []
+      }
+
+      const parsed = JSON.parse(jsonText)
+      console.log("✅ Successfully parsed JSON:", parsed)
+
+      if (!parsed.recommendations) {
+        console.log("⚠️ JSON missing 'recommendations' key")
+        return []
+      }
+
+      const { recommendations } = parsed
+      const extractedRecommendations: Recommendation[] = []
+
+      // Process high priority recommendations
+      if (recommendations.high_priority && Array.isArray(recommendations.high_priority)) {
+        console.log(`📊 Processing ${recommendations.high_priority.length} high priority recommendations`)
+        if (recommendations.high_priority.length === 0) {
+          console.log("ℹ️ No high priority recommendations found")
+        }
+        recommendations.high_priority.forEach((rec: any, index: number) => {
+          if (rec.campaign_name && rec.action && rec.reasoning) {
+            const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
+            
+            extractedRecommendations.push({
+              id: `high-${index}-${Date.now()}`,
+              title: rec.campaign_name, // Use campaign name as title
+              description: rec.action, // Main action
+              priority: "high",
+              category: determineCategory(rec.action),
+              impact: impact,
+              effort: effort,
+              estimatedTime: estimatedTime,
+              actionType: actionType,
+              campaign: rec.campaign_name,
+              reasoning: rec.reasoning // Store reasoning separately
+            })
+          } else {
+            console.log("⚠️ Skipping incomplete high priority recommendation:", rec)
+          }
+        })
+      } else {
+        console.log("ℹ️ No high_priority array found or it's not an array")
+      }
+
+      // Process medium priority recommendations
+      if (recommendations.medium_priority && Array.isArray(recommendations.medium_priority)) {
+        console.log(`📊 Processing ${recommendations.medium_priority.length} medium priority recommendations`)
+        if (recommendations.medium_priority.length === 0) {
+          console.log("ℹ️ No medium priority recommendations found")
+        }
+        recommendations.medium_priority.forEach((rec: any, index: number) => {
+          if (rec.campaign_name && rec.action && rec.reasoning) {
+            const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
+            
+            extractedRecommendations.push({
+              id: `medium-${index}-${Date.now()}`,
+              title: rec.campaign_name, // Use campaign name as title
+              description: rec.action, // Main action
+              priority: "medium",
+              category: determineCategory(rec.action),
+              impact: impact,
+              effort: effort,
+              estimatedTime: estimatedTime,
+              actionType: actionType,
+              campaign: rec.campaign_name,
+              reasoning: rec.reasoning // Store reasoning separately
+            })
+          } else {
+            console.log("⚠️ Skipping incomplete medium priority recommendation:", rec)
+          }
+        })
+      } else {
+        console.log("ℹ️ No medium_priority array found or it's not an array")
+      }
+
+      console.log(`✅ Extracted ${extractedRecommendations.length} recommendations from JSON`)
+      return extractedRecommendations
+
+    } catch (error) {
+      console.log("❌ JSON parsing failed:", error)
+      return []
     }
-    
-    // If no structured recommendations found, try to extract from general text
-    if (extractedRecommendations.length === 0) {
-      const generalRecommendations = extractGeneralRecommendations(cleanResponse)
-      extractedRecommendations.push(...generalRecommendations)
-    }
-    
-    return extractedRecommendations.slice(0, 8) // Limit to top 8 recommendations
+  }
+
+  // Helper function to determine category from action text
+  const determineCategory = (action: string): string => {
+    const lowerAction = action.toLowerCase()
+    if (lowerAction.includes('creative') || lowerAction.includes('ad copy')) return "Creative"
+    if (lowerAction.includes('budget') || lowerAction.includes('spend')) return "Budget"
+    if (lowerAction.includes('target') || lowerAction.includes('audience')) return "Targeting"
+    if (lowerAction.includes('optimization') || lowerAction.includes('optimize')) return "Optimization"
+    return "Campaign Optimization"
   }
   
+  // Function to check if text is actually a recommendation (not general chat text)
+  const isValidRecommendation = (text: string): boolean => {
+    const lowerText = text.toLowerCase()
+    
+    // Exclude general chat messages
+    const excludePatterns = [
+      'please let me know',
+      'feel free to ask',
+      'if you have any questions',
+      'if you need',
+      'let me know if',
+      'is there anything else',
+      'do you have any other',
+      'would you like me to',
+      'can i help you',
+      'thank you for',
+      'hope this helps',
+      'let me know if you need',
+      'if you would like',
+      'please let me know if',
+      'feel free to reach out',
+      'if you need any clarification',
+      'is there anything specific',
+      'do you want me to',
+      'would you like me to help',
+      'if you have other questions'
+    ]
+    
+    // Check if text contains any exclusion patterns
+    for (const pattern of excludePatterns) {
+      if (lowerText.includes(pattern)) {
+        return false
+      }
+    }
+    
+    // Must contain action-oriented words to be considered a recommendation
+    const actionWords = [
+      'optimize', 'improve', 'increase', 'decrease', 'adjust', 'modify',
+      'review', 'analyze', 'investigate', 'consider', 'focus on',
+      'enhance', 'boost', 'reduce', 'change', 'update', 'refine',
+      'target', 'audience', 'budget', 'spend', 'creative', 'copy',
+      'landing page', 'conversion', 'ctr', 'cpc', 'roi', 'performance'
+    ]
+    
+    const hasActionWord = actionWords.some(word => lowerText.includes(word))
+    
+    return hasActionWord && text.length > 20
+  }
+
   const extractRecommendationsFromSection = (section: string, priority: "high" | "medium"): Recommendation[] => {
     const recommendations: Recommendation[] = []
     
@@ -79,7 +228,7 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
         // Remaining lines are recommendations
         const recommendationText = lines.slice(1).join('\n').trim()
         
-        if (recommendationText && recommendationText.length > 10) {
+        if (recommendationText && recommendationText.length > 10 && isValidRecommendation(recommendationText)) {
           // Determine recommendation type and other properties
           const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(recommendationText)
           
@@ -226,21 +375,21 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
       // Check for bullet points with recommendations
       if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-')) {
         const cleanText = trimmedLine.replace(/^[•\-]\s*/, '').trim()
-        if (cleanText.length > 20) {
+        if (cleanText.length > 20 && isValidRecommendation(cleanText)) {
           const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(cleanText)
           
-                     recommendations.push({
-             id: `gen-${index}-${Date.now()}`,
-             title: generateRecommendationTitle(cleanText),
-             description: cleanText,
-             priority: currentPriority as "high" | "medium" | "low",
-             category: "Campaign Optimization",
-             impact: impact,
-             effort: effort,
-             estimatedTime: estimatedTime,
-             actionType: actionType,
-             campaign: currentCampaign
-           })
+          recommendations.push({
+            id: `gen-${index}-${Date.now()}`,
+            title: generateRecommendationTitle(cleanText),
+            description: cleanText,
+            priority: currentPriority as "high" | "medium" | "low",
+            category: "Campaign Optimization",
+            impact: impact,
+            effort: effort,
+            estimatedTime: estimatedTime,
+            actionType: actionType,
+            campaign: currentCampaign
+          })
         }
       }
     })
@@ -250,16 +399,26 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
   
   // Effect to analyze AI response when it changes
   useEffect(() => {
-    if (aiResponse && aiResponse.length > 100) {
+    if (aiResponse && aiResponse.length > 50) {
+      console.log("🔍 AI response received, starting analysis...")
       setIsAnalyzing(true)
       
-      // Simulate analysis time
+      // Shorter delay for better user experience
       setTimeout(() => {
         const extractedRecommendations = analyzeAIResponse(aiResponse)
         setRecommendations(extractedRecommendations)
         setIsAnalyzing(false)
         setAnalysisComplete(true)
-      }, 2000)
+        
+        if (extractedRecommendations.length === 0) {
+          console.log("⚠️ No recommendations extracted - check AI response format")
+          console.log("Raw AI Response:", aiResponse.substring(0, 500) + "...")
+        }
+      }, 1000) // Reduced from 2000ms to 1000ms
+    } else if (aiResponse) {
+      console.log("⚠️ AI response too short or empty:", aiResponse.length)
+      setIsAnalyzing(false)
+      setAnalysisComplete(true)
     }
   }, [aiResponse])
   
@@ -438,7 +597,7 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 space-y-3">
-                    {/* Header */}
+                    {/* Header with Campaign Name as Main Title */}
                     <div className="flex items-center gap-3">
                       {getPriorityIcon(recommendation.priority)}
                       <h3 className="font-semibold text-lg">{recommendation.title}</h3>
@@ -447,28 +606,35 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
                       </Badge>
                     </div>
                     
-                    {/* Campaign Name - Bold */}
-                    {recommendation.campaign && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Campaign:</span>
-                        <span className="font-bold text-base text-gray-900 dark:text-gray-100">
-                          {recommendation.campaign}
-                        </span>
-                      </div>
-                    )}
-                    
                     {/* Action Type */}
                     <div className="flex items-center gap-2">
                       {getActionTypeIcon(recommendation.actionType)}
                       <span className="text-sm text-muted-foreground capitalize">
-                        {recommendation.actionType}
+                        {recommendation.category}
                       </span>
                     </div>
                     
-                    {/* Description */}
-                    <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                      {recommendation.description}
+                    {/* Action Description */}
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                        Action:
+                      </div>
+                      <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300 pl-4 border-l-2 border-blue-200">
+                        {recommendation.description}
+                      </div>
                     </div>
+                    
+                    {/* Reasoning (if available from JSON) */}
+                    {recommendation.reasoning && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                          Reasoning:
+                        </div>
+                        <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-green-200">
+                          {recommendation.reasoning}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Metrics */}
                     <div className="grid grid-cols-3 gap-4 text-sm">
@@ -504,15 +670,45 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
         </Card>
       )}
       
-      {/* No Recommendations State */}
+      {/* No Recommendations State - Improved */}
       {analysisComplete && recommendations.length === 0 && (
         <Card>
           <CardContent className="p-6 text-center">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Immediate Actions Required</h3>
-            <p className="text-muted-foreground">
-              Your AI analysis didn't identify any urgent recommendations. Your campaigns appear to be performing well!
+            <p className="text-muted-foreground mb-4">
+              Your AI analysis completed successfully but didn't identify any urgent optimization actions for your ongoing campaigns.
             </p>
+            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+              <p className="text-sm text-green-800 dark:text-green-200">
+                This could mean:
+              </p>
+              <ul className="text-sm text-green-700 dark:text-green-300 mt-2 space-y-1 text-left inline-block">
+                <li>• Your campaigns are performing well within targets</li>
+                <li>• No ongoing campaigns need immediate attention</li>
+                <li>• All campaigns are properly optimized</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Analysis Error State */}
+      {analysisComplete && !aiResponse && (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Analysis Incomplete</h3>
+            <p className="text-muted-foreground mb-4">
+              The AI analysis couldn't be completed properly. This might be due to:
+            </p>
+            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1 text-left inline-block">
+                <li>• No campaign data available</li>
+                <li>• AI service temporarily unavailable</li>
+                <li>• Response format not recognized</li>
+              </ul>
+            </div>
           </CardContent>
         </Card>
       )}
