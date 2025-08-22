@@ -29,6 +29,9 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import os
+from pathlib import Path
+import importlib.util
 
 from app.core.config import settings
 from app.api.v1.api import api_router
@@ -42,7 +45,24 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         connection_mode = get_connection_mode()
-        print(f"✅ Database initialized successfully in {connection_mode} mode")
+        print(f"Database initialized successfully in {connection_mode} mode")
+        # Start ROI scheduler (dynamic import due to space in folder name)
+        try:
+            here = Path(__file__).resolve()
+            scheduler_path = here.parent / "app" / "core" / "ROI backend" / "roi" / "services" / "scheduler.py"
+            if scheduler_path.exists():
+                spec = importlib.util.spec_from_file_location("roi_scheduler", str(scheduler_path))
+                if spec and spec.loader:
+                    mod = importlib.util.module_from_spec(spec)
+                    import sys as _sys
+                    if spec.name:
+                        _sys.modules[spec.name] = mod
+                    spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+                    if hasattr(mod, "start_scheduler"):
+                        mod.start_scheduler()
+                        print("ROI scheduler started")
+        except Exception as e:
+            print(f"ROI scheduler failed to start: {e}")
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         print("⚠️  Application will continue using available connection methods")

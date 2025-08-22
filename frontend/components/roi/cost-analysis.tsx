@@ -3,42 +3,44 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+import { useEffect, useState } from "react"
+import { useUser } from "@clerk/nextjs"
+import { roiApi, type TimeRange } from "@/lib/api-client"
 
-const costBreakdown = [
-  { category: "Ad Spend", amount: 32000, percentage: 81.6, color: "#3b82f6" },
-  { category: "Creative Production", amount: 4200, percentage: 10.7, color: "#10b981" },
-  { category: "Tools & Software", amount: 2100, percentage: 5.4, color: "#f59e0b" },
-  { category: "Agency Fees", amount: 900, percentage: 2.3, color: "#ef4444" },
-]
+interface CostAnalysisProps {
+  range?: TimeRange
+}
 
-const monthlySpend = [
-  { month: "Jan", adSpend: 28000, creative: 3500, tools: 1800, agency: 800 },
-  { month: "Feb", adSpend: 31000, creative: 4000, tools: 1900, agency: 850 },
-  { month: "Mar", adSpend: 29500, creative: 3800, tools: 2000, agency: 900 },
-  { month: "Apr", adSpend: 35000, creative: 4500, tools: 2100, agency: 950 },
-  { month: "May", adSpend: 33000, creative: 4200, tools: 2000, agency: 900 },
-  { month: "Jun", adSpend: 32000, creative: 4200, tools: 2100, agency: 900 },
-]
+export function CostAnalysis({ range = "30d" }: CostAnalysisProps) {
+  const { user } = useUser()
+  const [breakdown, setBreakdown] = useState<any[]>([])
+  const [monthly, setMonthly] = useState<any[]>([])
+  useEffect(() => {
+    if (!user) return
+    roiApi.costBreakdown(user.id, range).then((res) => setBreakdown(res.rows || [])).catch(() => setBreakdown([]))
+    const year = new Date().getUTCFullYear()
+    roiApi.monthlySpendTrends(user.id, year).then((res) => setMonthly(res.rows || [])).catch(() => setMonthly([]))
+  }, [user, range])
 
-const costPerChannel = [
-  { channel: "Facebook Ads", cost: 21300, cpa: 38, roas: 4.1 },
-  { channel: "Instagram", cost: 11200, cpa: 52, roas: 3.4 },
-]
-
-export function CostAnalysis() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Cost Breakdown</CardTitle>
-            <CardDescription>Distribution of marketing expenses</CardDescription>
+            <CardDescription>
+              {range === "7d" ? "Last 7 days marketing expenses" :
+               range === "30d" ? "Last 30 days marketing expenses" :
+               range === "90d" ? "Last 90 days marketing expenses" :
+               range === "1y" ? "Last year marketing expenses" :
+               "Distribution of marketing expenses"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={costBreakdown}
+                  data={breakdown.map(b => ({ category: b.platform, amount: Number(b.total_spend||0), color: "#3b82f6" }))}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -46,7 +48,7 @@ export function CostAnalysis() {
                   paddingAngle={5}
                   dataKey="amount"
                 >
-                  {costBreakdown.map((entry, index) => (
+                  {breakdown.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -54,13 +56,13 @@ export function CostAnalysis() {
               </PieChart>
             </ResponsiveContainer>
             <div className="mt-4 space-y-2">
-              {costBreakdown.map((item, index) => (
+              {breakdown.map((item, index) => (
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-sm">{item.category}</span>
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }}></div>
+                    <span className="text-sm">{item.platform}</span>
                   </div>
-                  <span className="text-sm font-medium">${item.amount.toLocaleString()}</span>
+                  <span className="text-sm font-medium">${Number(item.total_spend||0).toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -69,20 +71,24 @@ export function CostAnalysis() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Spend Trends</CardTitle>
-            <CardDescription>Cost evolution over time</CardDescription>
+            <CardTitle>Spend Trends</CardTitle>
+            <CardDescription>
+              {range === "7d" ? "Last 7 days cost evolution" :
+               range === "30d" ? "Last 30 days cost evolution" :
+               range === "90d" ? "Last 90 days cost evolution" :
+               range === "1y" ? "Last year cost evolution" :
+               "Cost evolution over time"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlySpend}>
+              <BarChart data={monthly.map(m => ({ month: m.month, adSpend: Number(m.spend||0), revenue: Number(m.revenue||0) }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, ""]} />
-                <Bar dataKey="adSpend" stackId="a" fill="#3b82f6" name="Ad Spend" />
-                <Bar dataKey="creative" stackId="a" fill="#10b981" name="Creative" />
-                <Bar dataKey="tools" stackId="a" fill="#f59e0b" name="Tools" />
-                <Bar dataKey="agency" stackId="a" fill="#ef4444" name="Agency" />
+                <Bar dataKey="adSpend" fill="#3b82f6" name="Ad Spend" />
+                <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -92,26 +98,32 @@ export function CostAnalysis() {
       <Card>
         <CardHeader>
           <CardTitle>Cost Per Channel</CardTitle>
-          <CardDescription>Detailed cost analysis by marketing channel</CardDescription>
+          <CardDescription>
+            {range === "7d" ? "Last 7 days cost analysis by channel" :
+             range === "30d" ? "Last 30 days cost analysis by channel" :
+             range === "90d" ? "Last 90 days cost analysis by channel" :
+             range === "1y" ? "Last year cost analysis by channel" :
+             "Detailed cost analysis by marketing channel"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {costPerChannel.map((channel, index) => (
+            {breakdown.map((channel, index) => (
               <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                   <div>
-                    <p className="font-medium">{channel.channel}</p>
-                    <p className="text-sm text-muted-foreground">Cost per acquisition: ${channel.cpa}</p>
+                    <p className="font-medium">{channel.platform}</p>
+                    <p className="text-sm text-muted-foreground">Avg CPC: ${Number(channel.avg_cpc||0).toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="font-semibold">${channel.cost.toLocaleString()}</p>
+                    <p className="font-semibold">${Number(channel.total_spend||0).toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">Total spend</p>
                   </div>
-                  <Badge variant={channel.roas >= 4 ? "default" : channel.roas >= 3 ? "secondary" : "destructive"}>
-                    {channel.roas}x ROAS
+                  <Badge variant={(channel as any).revenue_multiplier >= 4 ? "default" : (channel as any).revenue_multiplier >= 3 ? "secondary" : "destructive"}>
+                    {Number((channel as any).revenue_multiplier||0).toFixed(2)}x ROAS
                   </Badge>
                 </div>
               </div>

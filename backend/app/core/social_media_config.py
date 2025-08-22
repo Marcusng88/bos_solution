@@ -39,14 +39,7 @@ class SocialMediaConfig:
             "default_access_token": os.getenv("LINKEDIN_ACCESS_TOKEN")
         }
     
-    # TikTok Configuration
-    @staticmethod
-    def get_tiktok_config() -> dict:
-        return {
-            "client_key": os.getenv("TIKTOK_CLIENT_KEY"),
-            "client_secret": os.getenv("TIKTOK_CLIENT_SECRET"),
-            "default_access_token": os.getenv("TIKTOK_ACCESS_TOKEN")
-        }
+    # TikTok removed (not supported)
     
     # YouTube Configuration
     @staticmethod
@@ -70,9 +63,7 @@ class SocialMediaConfig:
         elif platform == "linkedin":
             config = SocialMediaConfig.get_linkedin_config()
             return bool(config["client_id"] and config["client_secret"])
-        elif platform == "tiktok":
-            config = SocialMediaConfig.get_tiktok_config()
-            return bool(config["client_key"] and config["client_secret"])
+        # TikTok removed
         elif platform == "youtube":
             config = SocialMediaConfig.get_youtube_config()
             return bool(config["api_key"])

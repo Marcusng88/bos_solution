@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Settings, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
@@ -22,6 +23,8 @@ export function ConnectedAccounts() {
   const { user } = useUser()
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showIgGuide, setShowIgGuide] = useState(false)
+  const [igGuideReason, setIgGuideReason] = useState<string>("")
 
   // Get real user data and check actual connections from database
   useEffect(() => {
@@ -30,7 +33,7 @@ export function ConnectedAccounts() {
     const checkRealConnections = async () => {
       try {
         // First fetch connected accounts from database
-        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
         const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
           headers: {
             'X-User-ID': user.id,
@@ -179,7 +182,7 @@ export function ConnectedAccounts() {
   const getPlatformName = (platform: string) => {
     switch (platform) {
       case "facebook":
-        return "FB/Ins"
+        return "Facebook"
       case "instagram":
         return "Instagram"
       case "twitter":
@@ -313,7 +316,8 @@ export function ConnectedAccounts() {
                 const err = await r.json().catch(() => ({}))
                 throw new Error(err?.detail || 'Failed to save connection')
               }
-              
+              const result = await r.json().catch(() => ({}))
+
               // Refresh accounts from database to get the real connection status
               const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
                 headers: {
@@ -339,10 +343,27 @@ export function ConnectedAccounts() {
                 }))
               }
               
-              toast({
-                title: "Connected!",
-                description: "Facebook & Instagram connected successfully!",
-              })
+              const fbConnected = !!result?.facebook?.connected
+              const igConnected = !!result?.instagram?.connected
+
+              if (fbConnected && igConnected) {
+                toast({
+                  title: "Connected!",
+                  description: "Facebook and Instagram connected successfully!",
+                })
+              } else if (fbConnected && !igConnected) {
+                toast({
+                  title: "Facebook connected",
+                  description: "Instagram is not connected. We'll guide you to link your Instagram Business account to your Page.",
+                })
+                setIgGuideReason(result?.instagram?.reason || "No Instagram business account linked")
+                setShowIgGuide(true)
+              } else {
+                toast({
+                  title: "Connection updated",
+                  description: "Connection status refreshed.",
+                })
+              }
             }).catch(() => {
               toast({
                 title: "Persist failed",
@@ -372,6 +393,73 @@ export function ConnectedAccounts() {
           description: "Please wait for Facebook SDK to load and try again.",
           variant: "destructive",
         })
+      }
+    } else if (platform === 'instagram') {
+      // Trigger Instagram connection via backend (uses env/default token or provided token)
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        const userId = user?.id
+        if (!apiBase || !userId) {
+          toast({
+            title: "Missing config",
+            description: "Unable to start Instagram connect.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const r = await fetch(`${apiBase}/social-media/connect/instagram`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': userId,
+          },
+          body: JSON.stringify({})
+        })
+
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}))
+          throw new Error(err?.detail || 'Failed to connect Instagram')
+        }
+
+        const result = await r.json().catch(() => ({}))
+
+        // Refresh and reflect
+        const resp = await fetch(`${apiBase}/social-media/connected-accounts`, {
+          headers: {
+            'X-User-ID': userId,
+          },
+        })
+        if (resp.ok) {
+          const dbAccounts = (await resp.json()).accounts || []
+          setAccounts(prev => prev.map(account => {
+            const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
+            if (dbAccount) {
+              return {
+                ...account,
+                isConnected: true,
+                username: dbAccount.username || dbAccount.account_name || "",
+                displayName: dbAccount.account_name || account.displayName,
+                lastSync: 'Just now',
+                permissions: Object.keys(dbAccount.permissions || {})
+              }
+            }
+            return account
+          }))
+        }
+
+        const igConnected = !!result?.instagram?.connected
+        const fbConnected = !!result?.facebook?.connected
+        if (igConnected && fbConnected) {
+          toast({ title: "Connected!", description: "Instagram and Facebook connected successfully!" })
+        } else if (igConnected && !fbConnected) {
+          toast({ title: "Instagram connected", description: "Facebook is not connected." })
+        } else {
+          toast({ title: "Connection updated", description: "Connection status refreshed." })
+        }
+
+      } catch (e) {
+        toast({ title: "Error", description: "Instagram connect failed.", variant: "destructive" })
       }
     } else {
       // For other platforms, show a message
@@ -515,6 +603,30 @@ export function ConnectedAccounts() {
           </div>
         </CardContent>
       </Card>
+      {/* Guidance Modal for Instagram linking */}
+      <Dialog open={showIgGuide} onOpenChange={setShowIgGuide}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect Instagram Business Account</DialogTitle>
+            <DialogDescription>
+              {igGuideReason || "We couldn't find a linked Instagram Business account for your Facebook Page."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="font-medium">To connect Instagram:</p>
+            <ol className="list-decimal ml-5 space-y-2">
+              <li>Open Instagram app → Settings → Account → Switch to Professional → Business.</li>
+              <li>In your Facebook Page settings, link your Instagram account to this Page.</li>
+              <li>Return here and press Connect on Instagram.</li>
+            </ol>
+            <p className="text-muted-foreground">Also ensure permissions: instagram_basic, pages_show_list, pages_read_engagement.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowIgGuide(false)}>Close</Button>
+            <Button onClick={() => { setShowIgGuide(false); handleConnect('instagram') }}>Re-check now</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

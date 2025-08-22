@@ -3,51 +3,140 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts"
+import { useEffect, useState } from "react"
+import { useUser } from "@clerk/nextjs"
+import { roiApi, type TimeRange } from "@/lib/api-client"
 
-const channelData = [
-  { channel: "Facebook Ads", roi: 410, spend: 21300, revenue: 87300, efficiency: 91 },
-  { channel: "Instagram", roi: 340, spend: 11200, revenue: 38080, efficiency: 80 },
-]
+interface ChannelPerformanceProps {
+  range?: TimeRange
+}
 
-export function ChannelPerformance() {
+export function ChannelPerformance({ range = "30d" }: ChannelPerformanceProps) {
+  const { user } = useUser()
+  const [rows, setRows] = useState<any[]>([])
+  
+  // Professional color palette for different platforms
+  const platformColors = {
+    'YouTube': '#FF0000',
+    'Instagram': '#E4405F', 
+    'Facebook': '#1877F2',
+    'Twitter': '#1DA1F2',
+    'LinkedIn': '#0A66C2',
+    'TikTok': '#000000'
+  }
+  
+  const getColor = (platform: string, index: number) => {
+    return platformColors[platform as keyof typeof platformColors] || 
+           ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16'][index % 6]
+  }
+  
+  useEffect(() => {
+    if (!user) return
+    roiApi.channelPerformance(user.id, range).then((res) => {
+      // Filter out duplicate platforms, keeping only capitalized versions
+      const filteredRows = (res.rows || []).filter((row: any, index: number, arr: any[]) => {
+        const platform = row.platform;
+        // Keep only capitalized versions (Facebook, Instagram, YouTube)
+        return platform === 'Facebook' || platform === 'Instagram' || platform === 'YouTube';
+      });
+      setRows(filteredRows);
+    }).catch(() => setRows([]))
+  }, [user, range])
   return (
     <Card>
       <CardHeader>
         <CardTitle>Channel Performance</CardTitle>
-        <CardDescription>ROI and efficiency by marketing channel</CardDescription>
+        <CardDescription>
+          {range === "7d" ? "Last 7 days ROI by channel" :
+           range === "30d" ? "Last 30 days ROI by channel" :
+           range === "90d" ? "Last 90 days ROI by channel" :
+           range === "1y" ? "Last year ROI by channel" :
+           "ROI and efficiency by marketing channel"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={channelData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="channel" />
-            <YAxis />
-            <Tooltip formatter={(value) => [`${value}%`, "ROI"]} />
-            <Bar dataKey="roi" fill="#3b82f6" />
+          <BarChart 
+            data={rows.map(r => ({ channel: r.platform, roi: Number(r.avg_roi||0) }))}
+            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+          >
+            <defs>
+              {rows.map((r, index) => (
+                <linearGradient key={r.platform} id={`gradient-${index}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={getColor(r.platform, index)} stopOpacity={0.9}/>
+                  <stop offset="95%" stopColor={getColor(r.platform, index)} stopOpacity={0.4}/>
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+            <XAxis 
+              dataKey="channel" 
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 12, fill: '#64748b' }}
+            />
+            <YAxis 
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 12, fill: '#64748b' }}
+              tickFormatter={(value) => `${value}%`}
+            />
+            <Tooltip 
+              contentStyle={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                color: '#1f2937'
+              }}
+              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, "ROI"]}
+            />
+            <Bar 
+              dataKey="roi" 
+              radius={[8, 8, 0, 0]}
+              stroke="#ffffff"
+              strokeWidth={2}
+            >
+              {rows.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={`url(#gradient-${index})`} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
 
-        <div className="mt-6 space-y-4">
-          {channelData.map((channel, index) => (
-            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+        <div className="mt-6 space-y-3">
+          {rows.map((channel, index) => (
+            <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-xl hover:shadow-md transition-all duration-200">
+              <div className="flex items-center gap-4">
+                <div 
+                  className="w-4 h-4 rounded-full shadow-sm"
+                  style={{ backgroundColor: getColor(channel.platform, index) }}
+                ></div>
                 <div>
-                  <p className="font-medium">{channel.channel}</p>
-                  <p className="text-sm text-muted-foreground">
-                    ${channel.spend.toLocaleString()} spend → ${channel.revenue.toLocaleString()} revenue
-                  </p>
+                  <p className="font-semibold text-slate-900">{channel.platform}</p>
+                  <p className="text-sm text-slate-600">${Number(channel.spend||channel.revenue||0).toLocaleString()} metrics</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <Badge variant={channel.roi >= 400 ? "default" : channel.roi >= 300 ? "secondary" : "outline"}>
-                    {channel.roi}% ROI
+                  <Badge 
+                    variant={Number(channel.avg_roi||0) >= 400 ? "default" : Number(channel.avg_roi||0) >= 300 ? "secondary" : "outline"}
+                    className="font-semibold px-3 py-1"
+                  >
+                    {Number(channel.avg_roi||0).toFixed(0)}% ROI
                   </Badge>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Progress value={channel.efficiency} className="w-16 h-2" />
-                    <span className="text-xs text-muted-foreground">{channel.efficiency}%</span>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-20 bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${Math.min(100, Number(channel.efficiency_score||0))}%`,
+                          backgroundColor: getColor(channel.platform, index)
+                        }}
+                      ></div>
+                    </div>
+                    <span className="text-xs text-slate-600 font-medium">{Number(channel.efficiency_score||0).toFixed(0)}%</span>
                   </div>
                 </div>
               </div>

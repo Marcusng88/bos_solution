@@ -34,6 +34,7 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
   const [newCompetitor, setNewCompetitor] = useState({
     name: "",
     website: "",
+    description: "",
     platforms: [] as string[],
   })
 
@@ -42,7 +43,7 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
       updateData({
         competitors: [...data.competitors, { ...newCompetitor }],
       })
-      setNewCompetitor({ name: "", website: "", platforms: [] })
+      setNewCompetitor({ name: "", website: "", description: "", platforms: [] })
     }
   }
 
@@ -97,6 +98,16 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
               />
             </div>
           </div>
+          
+          <div>
+            <Label htmlFor="competitor-description">Description (Optional)</Label>
+            <Input
+              id="competitor-description"
+              placeholder="Brief description of this competitor..."
+              value={newCompetitor.description}
+              onChange={(e) => setNewCompetitor({ ...newCompetitor, description: e.target.value })}
+            />
+          </div>
 
           <div>
             <Label>Platforms they're active on</Label>
@@ -138,6 +149,9 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">{competitor.website}</span>
                   </div>
+                  {competitor.description && (
+                    <p className="text-sm text-muted-foreground mb-2">{competitor.description}</p>
+                  )}
                   <div className="flex gap-1 flex-wrap">
                     {competitor.platforms.map((platform) => {
                       const Icon = platformIcons[platform as keyof typeof platformIcons]
@@ -189,12 +203,11 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
           <Button variant="outline" onClick={onPrev}>
             Previous
           </Button>
-          <Button onClick={onNext} disabled={!canProceed}>
-            {isFromSettings 
-              ? (canProceed ? "Next: Connections" : "Add at least 1 competitor")
-              : (canProceed ? "Start AI Analysis" : "Add at least 1 competitor")
-            }
-          </Button>
+          {!isFromSettings && (
+            <Button onClick={onNext} disabled={!canProceed}>
+              {canProceed ? "Start AI Analysis" : "Add at least 1 competitor"}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

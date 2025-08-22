@@ -24,12 +24,11 @@ class Settings(BaseSettings):
     
     # CORS
     ALLOWED_HOSTS: List[str] = Field(
-        default=["http://localhost:3000", "http://127.0.0.1:3000", "https://308a8c214f1d.ngrok-free.app"],
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "https://5d7a587ce8ba.ngrok-free.app"],
         env="ALLOWED_HOSTS"
     )
     
-    # Database
-    DATABASE_URL: str = Field(default="sqlite+aiosqlite:///./dev.db", env="DATABASE_URL")
+    # Database - Using Supabase REST API only
     SUPABASE_URL: str = Field(default="", env="SUPABASE_URL")
     SUPABASE_ANON_KEY: str = Field(default="", env="SUPABASE_ANON_KEY")
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="", env="SUPABASE_SERVICE_ROLE_KEY")

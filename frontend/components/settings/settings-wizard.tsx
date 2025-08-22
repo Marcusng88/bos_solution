@@ -35,6 +35,18 @@ export function SettingsWizard() {
     connectedAccounts: [],
     budget: "",
   })
+  const [initialCompetitorIds, setInitialCompetitorIds] = useState<string[]>([])
+
+  // Simple URL validator for http/https only
+  const isValidHttpUrl = (value?: string) => {
+    if (!value || typeof value !== "string") return false
+    try {
+      const url = new URL(value)
+      return url.protocol === "http:" || url.protocol === "https:"
+    } catch {
+      return false
+    }
+  }
 
   // Load existing settings and handle YouTube OAuth return
   useEffect(() => {
@@ -58,9 +70,10 @@ export function SettingsWizard() {
         const apiClient = new ApiClient()
         
         // Load user preferences and competitors in parallel
+        const clerkId = user.externalId || user.id
         const [preferences, competitors] = await Promise.all([
-          apiClient.getUserPreferences(user.id).catch(() => null),
-          apiClient.getUserCompetitors(user.id).catch(() => [])
+          apiClient.getUserPreferences(clerkId).catch(() => null),
+          apiClient.getUserCompetitors(clerkId).catch(() => [])
         ])
         
         // Transform database data to match OnboardingData interface
@@ -92,15 +105,17 @@ export function SettingsWizard() {
           goals: (preferences as any)?.marketing_goals || ["Brand Awareness", "Lead Generation"],
           competitors: (competitors as any[]).map((comp: any) => ({
             id: comp.id, // Include the database ID for updates
-            name: comp.name, // Use 'name' instead of 'competitor_name'
-            website: comp.website_url || "", // Use 'website_url' instead of 'website'
-            platforms: comp.platforms || [] // Use 'platforms' instead of 'active_platforms'
+            name: comp.name || comp.competitor_name,
+            website: comp.website_url || "",
+            description: comp.description || "",
+            platforms: comp.platforms || comp.active_platforms || []
           })),
           connectedAccounts: data.connectedAccounts, // Keep existing connected accounts
           budget: transformBudgetFromDB((preferences as any)?.monthly_budget) || "5000-10000"
         }
         
         setData(transformedData)
+        setInitialCompetitorIds((competitors as any[]).map((c: any) => c.id).filter(Boolean))
       } catch (error) {
         console.error('Failed to load user settings:', error)
         toast({
@@ -145,34 +160,80 @@ export function SettingsWizard() {
 
     try {
       const apiClient = new ApiClient()
+      const clerkId = user.externalId || user.id
       
       // Save user preferences to database
-      await apiClient.saveUserPreferences(user.id, {
+      await apiClient.saveUserPreferences(clerkId, {
         industry: data.industry,
         companySize: data.companySize,
         goals: data.goals,
         budget: data.budget
       })
       
+      // Determine deletions (IDs that were initially loaded but are no longer present)
+      const currentIds = data.competitors.map((c) => c.id).filter(Boolean) as string[]
+      const idsToDelete = initialCompetitorIds.filter((id) => !currentIds.includes(id))
+      for (const id of idsToDelete) {
+        try {
+          await apiClient.deleteCompetitor(clerkId, id)
+        } catch (e) {
+          console.warn('Failed to delete competitor', id, e)
+        }
+      }
+
       // Save competitors to database (one by one)
       for (const competitor of data.competitors) {
+        // Frontend validation for website URL
+        if (competitor.website && !isValidHttpUrl(competitor.website)) {
+          console.warn("Please add valid URL", { name: competitor.name, website: competitor.website })
+          toast({
+            title: "Please add valid URL",
+            description: `Invalid website for ${competitor.name}. Use http(s)://...`,
+            variant: "destructive",
+          })
+          return
+        }
         if (competitor.id) {
           // Update existing competitor
-          await apiClient.updateCompetitor(user.id, competitor.id, {
+          await apiClient.updateCompetitor(clerkId, competitor.id, {
             name: competitor.name,
             website: competitor.website,
+            description: competitor.description,
             platforms: competitor.platforms
           })
         } else {
           // Create new competitor
-          await apiClient.saveCompetitor(user.id, {
+          await apiClient.saveCompetitor(clerkId, {
             name: competitor.name,
             website: competitor.website,
+            description: competitor.description,
             platforms: competitor.platforms
           })
         }
       }
-      
+      // Refresh from database so UI reflects DB and captures new IDs
+      try {
+        const refreshed = await apiClient.getUserCompetitors(clerkId)
+        const refreshedMapped: OnboardingData = {
+          industry: data.industry,
+          companySize: data.companySize,
+          goals: data.goals,
+          competitors: (refreshed as any[]).map((comp: any) => ({
+            id: comp.id,
+            name: comp.name || comp.competitor_name,
+            website: comp.website_url || "",
+            description: comp.description || "",
+            platforms: comp.platforms || comp.active_platforms || []
+          })),
+          connectedAccounts: data.connectedAccounts,
+          budget: data.budget,
+        }
+        setData(refreshedMapped)
+        setInitialCompetitorIds((refreshed as any[]).map((c: any) => c.id).filter(Boolean))
+      } catch (e) {
+        console.warn('Failed to refresh competitors after save', e)
+      }
+
       setHasChanges(false)
       toast({
         title: "Settings Saved!",

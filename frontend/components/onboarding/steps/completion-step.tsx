@@ -31,6 +31,18 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
     if (!data.connectedAccounts?.length) missing.push('connections')
     return missing
   }
+
+   
+  // Simple URL validator for http/https only
+  const isValidHttpUrl = (value?: string) => {
+    if (!value || typeof value !== "string") return false
+    try {
+      const url = new URL(value)
+      return url.protocol === "http:" || url.protocol === "https:"
+    } catch {
+      return false
+    }
+  }
   
   const getStepNumber = (stepName: string) => {
     const stepMap: Record<string, number> = {
@@ -115,10 +127,21 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
       // Save competitors to database (one by one)
       console.log(`👥 Saving ${data.competitors.length} competitors...`)
       for (const competitor of data.competitors) {
-        console.log('💾 Saving competitor:', competitor)
-        await apiClient.saveCompetitor(user.id, {
+        // Frontend validation for website URL
+        if (competitor.website && !isValidHttpUrl(competitor.website)) {
+          console.warn("Please add valid URL", { name: competitor.name, website: competitor.website })
+          toast({
+            title: "Please add valid URL",
+            description: `Invalid website for ${competitor.name}. Use http(s)://...`,
+            variant: "destructive",
+          })
+          setIsSaving(false)
+          return
+        }
+        await apiClient.saveCompetitor(user.externalId || user.id, {
           name: competitor.name,
           website: competitor.website,
+          description: competitor.description,
           platforms: competitor.platforms
         })
       }

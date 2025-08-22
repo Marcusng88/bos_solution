@@ -3,7 +3,7 @@ Main API router - includes all endpoint routers
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import competitors, monitoring, users, auth, youtube, user_preferences, social_media
+from app.api.v1.endpoints import competitors, monitoring, users, auth, youtube, user_preferences, social_media, roi, roi_updates
 
 api_router = APIRouter()
 
@@ -21,3 +21,5 @@ api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monito
 api_router.include_router(youtube.router, prefix="/youtube", tags=["youtube"])
 api_router.include_router(user_preferences.router, prefix="/user-preferences", tags=["user-preferences"])
 api_router.include_router(social_media.router, prefix="/social-media", tags=["social-media"])
+api_router.include_router(roi.router, prefix="/roi", tags=["roi"])
+api_router.include_router(roi_updates.router, prefix="/roi-updates", tags=["roi-updates"])

@@ -1,3 +1,28 @@
+export type TimeRange = '7d' | '30d' | '90d' | '1y'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
+
+async function get<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
+  const url = new URL(`${API_BASE}${path}`)
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
+  const data: T = await res.json()
+  return data
+}
+
+export const roiApi = {
+  overview: (userId: string, range: TimeRange) => get(`${'/roi/overview'}`, { user_id: userId, range }),
+  revenueBySource: (userId: string, range: TimeRange) => get(`${'/roi/revenue/by-source'}`, { user_id: userId, range }),
+  revenueTrends: (userId: string, range: TimeRange) => get(`${'/roi/revenue/trends'}`, { user_id: userId, range }),
+  costBreakdown: (userId: string, range: TimeRange) => get(`${'/roi/cost/breakdown'}`, { user_id: userId, range }),
+  monthlySpendTrends: (userId: string, year: number) => get(`${'/roi/cost/monthly-trends'}`, { user_id: userId, year }),
+  clv: (userId: string, range: TimeRange) => get(`${'/roi/profitability/clv'}`, { user_id: userId, range }),
+  cac: (userId: string, range: TimeRange) => get(`${'/roi/profitability/cac'}`, { user_id: userId, range }),
+  roiTrends: (userId: string, range: TimeRange) => get(`${'/roi/roi/trends'}`, { user_id: userId, range }),
+  channelPerformance: (userId: string, range: TimeRange) => get(`${'/roi/channel/performance'}`, { user_id: userId, range }),
+}
+
 /**
  * API Client for BOS Solution Backend
  * Handles authentication headers and API communication
@@ -228,14 +253,16 @@ export class ApiClient {
     name: string
     website: string
     platforms: string[]
+    description?: string
   }) {
     return this.request('/competitors', {
       userId,
       method: 'POST',
       body: JSON.stringify({
         name: competitor.name,
-        website_url: competitor.website, // Backend expects website_url
-        platforms: competitor.platforms
+        website: competitor.website,
+        platforms: competitor.platforms,
+        description: competitor.description
       }),
     });
   }
@@ -248,14 +275,16 @@ export class ApiClient {
     name: string
     website: string
     platforms: string[]
+    description?: string
   }) {
     return this.request(`/competitors/${competitorId}`, {
       userId,
       method: 'PUT',
       body: JSON.stringify({
         name: competitor.name,
-        website_url: competitor.website, // Backend expects website_url
-        platforms: competitor.platforms
+        website: competitor.website,
+        platforms: competitor.platforms,
+        description: competitor.description
       }),
     });
   }

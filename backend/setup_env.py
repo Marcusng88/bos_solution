@@ -18,8 +18,8 @@ DEBUG=true
 HOST=0.0.0.0
 PORT=8000
 
-# Database - Using your Supabase database as default
-DATABASE_URL=postgresql://postgres:RE-_tXFsy9K8D$M@db.zktakfluvzuxhwwvccqs.supabase.co:5432/postgres
+# Database - Using Supabase REST API only (no direct PostgreSQL connection needed)
+# DATABASE_URL=postgresql://postgres:RE-_tXFsy9K8D$M@db.zktakfluvzuxhwwvccqs.supabase.co:5432/postgres
 
 # Supabase Configuration
 SUPABASE_URL=url_here

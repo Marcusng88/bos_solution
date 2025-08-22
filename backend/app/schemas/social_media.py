@@ -8,7 +8,6 @@ class SocialMediaPlatform(str, Enum):
     facebook = "facebook"
     twitter = "twitter"
     linkedin = "linkedin"
-    tiktok = "tiktok"
     youtube = "youtube"
     other = "other"
 

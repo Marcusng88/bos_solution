@@ -2,6 +2,7 @@
 Competitors endpoints for managing competitor monitoring
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from app.core.database import get_db
@@ -12,6 +13,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+def _sanitize_website(url_value):
+    """Return a valid http(s) URL string or None if invalid."""
+    if not url_value or not isinstance(url_value, str):
+        return None
+    try:
+        parsed = urlparse(url_value)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return url_value
+    except Exception:
+        pass
+    return None
 
 @router.get("/", response_model=List[CompetitorResponse])
 async def get_competitors(
