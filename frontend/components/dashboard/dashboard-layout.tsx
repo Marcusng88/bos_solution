@@ -21,6 +21,7 @@ import {
   X,
   Search,
   Eye,
+  Settings,
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -35,6 +36,7 @@ const navigation = [
   { name: "Optimization", href: "/dashboard/optimization", icon: Lightbulb },
   { name: "ROI Dashboard", href: "/dashboard/roi", icon: DollarSign },
   { name: "Continuous Monitoring", href: "/dashboard/monitoring", icon: Eye },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {

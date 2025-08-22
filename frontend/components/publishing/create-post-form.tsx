@@ -12,14 +12,11 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { MediaUpload } from "./media-upload"
 import { PostPreview } from "./post-preview"
-import { Facebook, Instagram, Twitter, Linkedin, Youtube, Calendar, Send, Save, Sparkles } from "lucide-react"
+import { Facebook, Instagram, Calendar, Send, Save, Sparkles } from "lucide-react"
 
 const platforms = [
   { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600", connected: true },
   { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600", connected: true },
-  { id: "twitter", name: "Twitter/X", icon: Twitter, color: "bg-black", connected: true },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700", connected: true },
-  { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600", connected: false },
 ]
 
 export function CreatePostForm() {
@@ -32,6 +29,9 @@ export function CreatePostForm() {
   })
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([])
   const { toast } = useToast()
+
+  // Use platforms directly since YouTube is handled separately
+  const dynamicPlatforms = platforms
 
   const togglePlatform = (platformId: string) => {
     setSelectedPlatforms((prev) =>
@@ -49,7 +49,7 @@ export function CreatePostForm() {
     })
   }
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!postData.caption.trim()) {
       toast({
         title: "Caption required",
@@ -68,16 +68,26 @@ export function CreatePostForm() {
       return
     }
 
-    const action = postData.postType === "now" ? "published" : "scheduled"
-    toast({
-      title: `Post ${action}!`,
-      description: `Your content has been ${action} to ${selectedPlatforms.length} platform(s).`,
-    })
+    try {
+      const action = postData.postType === "now" ? "published" : "scheduled"
+      toast({
+        title: `Post ${action}!`,
+        description: `Your content has been ${action} to ${selectedPlatforms.length} platform(s).`,
+      })
 
-    // Reset form
-    setPostData({ caption: "", scheduledDate: "", scheduledTime: "", postType: "now" })
-    setSelectedPlatforms(["facebook", "instagram"])
-    setUploadedMedia([])
+      // Reset form
+      setPostData({ caption: "", scheduledDate: "", scheduledTime: "", postType: "now" })
+      setSelectedPlatforms(["facebook", "instagram"])
+      setUploadedMedia([])
+      
+    } catch (error: any) {
+      console.error('Publishing error:', error)
+      toast({
+        title: "Publishing Failed",
+        description: error.message || "Failed to publish content. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSaveDraft = () => {
@@ -101,7 +111,7 @@ export function CreatePostForm() {
             <div className="space-y-3">
               <Label className="text-base font-medium">Select Platforms</Label>
               <div className="grid grid-cols-2 gap-3">
-                {platforms.map((platform) => {
+                {dynamicPlatforms.map((platform) => {
                   const Icon = platform.icon
                   const isSelected = selectedPlatforms.includes(platform.id)
                   const isConnected = platform.connected

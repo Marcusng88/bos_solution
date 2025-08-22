@@ -1,0 +1,274 @@
+{
+  "test_info": {
+    "timestamp": "2025-08-19T22:20:16.355897",
+    "base_url": "http://localhost:8000",
+    "test_version": "1.0",
+    "token_preview": "ya29.a0AS3H6NxA0go-e...42gXYA0175"
+  },
+  "connectivity_tests": {
+    "backend_server": {
+      "status": "SUCCESS",
+      "response_time": 2.02901,
+      "data": {
+        "status": "healthy"
+      }
+    },
+    "google_api": {
+      "status": "SUCCESS",
+      "channel_info": {
+        "channel_id": "UCf4J58y62t7zTw3KOfi9K0g",
+        "title": "jialih lim",
+        "description": "",
+        "subscribers": 1,
+        "total_videos": "6",
+        "total_views": 51,
+        "published_at": "2018-07-07T03:40:07Z",
+        "country": "N/A",
+        "custom_url": "@jialihlim7014"
+      }
+    },
+    "recent_activity": {
+      "status": "SUCCESS",
+      "summary": {
+        "total_activities": 1,
+        "videos_analyzed": 1,
+        "cutoff_time": "2025-08-18T22:20:20.678811Z"
+      }
+    },
+    "roi_dashboard": {
+      "status": "SUCCESS",
+      "summary": "ROI Dashboard data retrieved successfully"
+    }
+  },
+  "youtube_data": {
+    "channel_overview": {
+      "channel_id": "UCf4J58y62t7zTw3KOfi9K0g",
+      "title": "jialih lim",
+      "description": "",
+      "subscribers": 1,
+      "total_videos": "6",
+      "total_views": 51,
+      "published_at": "2018-07-07T03:40:07Z",
+      "country": "N/A",
+      "custom_url": "@jialihlim7014"
+    },
+    "recent_activity": {
+      "success": true,
+      "hours_back": 24,
+      "cutoff_time": "2025-08-18T22:20:20.678811Z",
+      "total_activities": 1,
+      "channel_analytics": {
+        "total_subscribers": 1,
+        "total_videos": 6,
+        "total_views": 51,
+        "channel_created": "2018-07-07T03:40:07Z"
+      },
+      "roi_summary": {
+        "total_recent_views": 0,
+        "total_recent_likes": 0,
+        "total_recent_comments": 0,
+        "total_recent_shares": 0,
+        "total_engagement_rate": 0,
+        "videos_analyzed": 1,
+        "avg_engagement_rate": 0.0
+      },
+      "recent_activity": [
+        {
+          "type": "video",
+          "video_id": "vDlFuu1AN6c",
+          "title": "BGA-shout",
+          "description": "a group of Students from UM shouting for BGA so that they can give them price",
+          "thumbnail": "https://i.ytimg.com/vi/vDlFuu1AN6c/default.jpg",
+          "published_at": "2025-08-19T08:42:53Z",
+          "video_url": "https://www.youtube.com/watch?v=vDlFuu1AN6c",
+          "statistics": {
+            "view_count": 0,
+            "like_count": 0,
+            "dislike_count": 0,
+            "comment_count": 0,
+            "favorite_count": 0
+          },
+          "roi_metrics": {
+            "engagement_rate": 0,
+            "likes_per_view": 0,
+            "comments_per_view": 0,
+            "views_per_hour_since_publish": 0.0,
+            "estimated_watch_time_hours": 0.0,
+            "click_through_rate_estimate": 0,
+            "audience_retention_estimate": 0.0
+          },
+          "content_details": {
+            "duration": "PT5S",
+            "duration_seconds": 5,
+            "definition": "sd",
+            "caption": "false",
+            "licensed_content": false,
+            "tags": [],
+            "category_id": "22",
+            "default_language": "",
+            "live_broadcast_content": "none"
+          },
+          "recent_comments": [],
+          "comment_analytics": {
+            "total_comments_in_timeframe": 0,
+            "total_comment_likes": 0,
+            "total_replies": 0,
+            "avg_comment_length": 0,
+            "engagement_types": {
+              "questions": 0,
+              "compliments": 0,
+              "requests": 0,
+              "other": 0
+            }
+          }
+        }
+      ]
+    },
+    "roi_analytics": {
+      "success": true,
+      "analysis_period": "7 days",
+      "cutoff_time": "2025-08-12T22:20:24.267878Z",
+      "generated_at": "2025-08-19T22:20:25.276309",
+      "roi_analytics": {
+        "channel_overview": {
+          "channel_title": "jialih lim",
+          "total_subscribers": 1,
+          "total_videos": 6,
+          "total_views": 51,
+          "channel_created": "2018-07-07T03:40:07Z",
+          "subscriber_growth_rate": 0
+        },
+        "performance_metrics": {
+          "total_views_period": 8,
+          "total_likes_period": 0,
+          "total_comments_period": 1,
+          "total_shares_period": 0,
+          "total_watch_time_hours": 0.001388888888888889,
+          "average_view_duration": 0,
+          "videos_analyzed": 4,
+          "avg_engagement_rate": 12.5,
+          "avg_ctr_estimate": 0,
+          "top_performing_video": {
+            "title": "BGA-shout",
+            "video_id": "gGNCAbW6ckQ",
+            "roi_score": 0.1,
+            "engagement_rate": 50.0
+          }
+        },
+        "engagement_analytics": {
+          "likes_to_views_ratio": 0.0,
+          "comments_to_views_ratio": 12.5,
+          "subscriber_conversion_rate": 0,
+          "engagement_by_video_type": {},
+          "peak_engagement_times": [],
+          "audience_sentiment": {
+            "positive": 0,
+            "neutral": 0,
+            "negative": 0
+          }
+        },
+        "content_insights": {
+          "most_engaging_topics": [],
+          "optimal_video_length": 5.0,
+          "best_performing_tags": [
+            {
+              "tag": "Excited",
+              "count": 1
+            },
+            {
+              "tag": "Innovation",
+              "count": 1
+            },
+            {
+              "tag": "ProductLaunch",
+              "count": 1
+            }
+          ],
+          "upload_frequency_impact": 0
+        },
+        "revenue_estimates": {
+          "estimated_rpm": 2.5,
+          "estimated_monthly_revenue": 0.09,
+          "estimated_annual_revenue": 1.03,
+          "revenue_per_subscriber": 1.0286,
+          "monetization_efficiency": 0
+        },
+        "roi_recommendations": [
+          {
+            "priority": "Medium",
+            "category": "Content Length",
+            "recommendation": "Consider creating longer-form content (5-10 minutes) for better retention",
+            "expected_impact": "15-30% watch time increase"
+          }
+        ]
+      },
+      "video_performances": [
+        {
+          "video_id": "vDlFuu1AN6c",
+          "title": "BGA-shout",
+          "views": 1,
+          "likes": 0,
+          "comments": 0,
+          "engagement_rate": 0.0,
+          "watch_time_hours": 0.0,
+          "duration_seconds": 5,
+          "published_at": "2025-08-19T08:42:53Z",
+          "tags": [],
+          "roi_score": 0.0
+        },
+        {
+          "video_id": "AlOsS-1eCL4",
+          "title": "BGA-shout",
+          "views": 0,
+          "likes": 0,
+          "comments": 0,
+          "engagement_rate": 0,
+          "watch_time_hours": 0.0,
+          "duration_seconds": 5,
+          "published_at": "2025-08-16T15:13:30Z",
+          "tags": [
+            "Excited",
+            "Innovation",
+            "ProductLaunch"
+          ],
+          "roi_score": 0.0
+        },
+        {
+          "video_id": "gGNCAbW6ckQ",
+          "title": "BGA-shout",
+          "views": 2,
+          "likes": 0,
+          "comments": 1,
+          "engagement_rate": 50.0,
+          "watch_time_hours": 0.001388888888888889,
+          "duration_seconds": 5,
+          "published_at": "2025-08-15T16:27:12Z",
+          "tags": [],
+          "roi_score": 0.1
+        },
+        {
+          "video_id": "U4ugpQUsUeI",
+          "title": "BGA-shout",
+          "views": 5,
+          "likes": 0,
+          "comments": 0,
+          "engagement_rate": 0.0,
+          "watch_time_hours": 0.0,
+          "duration_seconds": 5,
+          "published_at": "2025-08-15T16:26:09Z",
+          "tags": [],
+          "roi_score": 0.0
+        }
+      ]
+    }
+  },
+  "errors": [],
+  "test_summary": {
+    "total_tests": 4,
+    "successful_tests": 4,
+    "failed_tests": 0,
+    "error_tests": 0,
+    "total_errors": 0,
+    "data_retrieved": true
+  }
+}

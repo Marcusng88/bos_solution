@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, Search, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube } from "lucide-react"
+import { Plus, X, Search, Globe, Facebook, Instagram, Youtube } from "lucide-react"
 import type { OnboardingData } from "../onboarding-wizard"
 
 interface CompetitorStepProps {
@@ -15,28 +15,26 @@ interface CompetitorStepProps {
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
 }
 
 const platformIcons = {
   facebook: Facebook,
   instagram: Instagram,
-  twitter: Twitter,
-  linkedin: Linkedin,
   youtube: Youtube,
 }
 
 const platformOptions = [
   { id: "facebook", name: "Facebook", icon: Facebook },
   { id: "instagram", name: "Instagram", icon: Instagram },
-  { id: "twitter", name: "Twitter/X", icon: Twitter },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin },
   { id: "youtube", name: "YouTube", icon: Youtube },
 ]
 
-export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorStepProps) {
+export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSettings = false }: CompetitorStepProps) {
   const [newCompetitor, setNewCompetitor] = useState({
     name: "",
     website: "",
+    description: "",
     platforms: [] as string[],
   })
 
@@ -45,7 +43,7 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
       updateData({
         competitors: [...data.competitors, { ...newCompetitor }],
       })
-      setNewCompetitor({ name: "", website: "", platforms: [] })
+      setNewCompetitor({ name: "", website: "", description: "", platforms: [] })
     }
   }
 
@@ -100,6 +98,16 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
               />
             </div>
           </div>
+          
+          <div>
+            <Label htmlFor="competitor-description">Description (Optional)</Label>
+            <Input
+              id="competitor-description"
+              placeholder="Brief description of this competitor..."
+              value={newCompetitor.description}
+              onChange={(e) => setNewCompetitor({ ...newCompetitor, description: e.target.value })}
+            />
+          </div>
 
           <div>
             <Label>Platforms they're active on</Label>
@@ -141,6 +149,9 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">{competitor.website}</span>
                   </div>
+                  {competitor.description && (
+                    <p className="text-sm text-muted-foreground mb-2">{competitor.description}</p>
+                  )}
                   <div className="flex gap-1 flex-wrap">
                     {competitor.platforms.map((platform) => {
                       const Icon = platformIcons[platform as keyof typeof platformIcons]
@@ -193,7 +204,10 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
             Previous
           </Button>
           <Button onClick={onNext} disabled={!canProceed}>
-            {canProceed ? "Start AI Analysis" : "Add at least 1 competitor"}
+            {isFromSettings 
+              ? (canProceed ? "Next: Connections" : "Add at least 1 competitor")
+              : (canProceed ? "Start AI Analysis" : "Add at least 1 competitor")
+            }
           </Button>
         </div>
       </CardContent>

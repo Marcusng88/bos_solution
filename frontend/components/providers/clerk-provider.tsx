@@ -3,6 +3,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { ReactNode } from "react";
 import { clerkConfig } from "@/lib/clerk";
+import { UserProvider, UserSyncStatus } from "./user-provider";
 
 interface ClerkProviderWrapperProps {
   children: ReactNode;
@@ -17,7 +18,10 @@ export function ClerkProviderWrapper({ children }: ClerkProviderWrapperProps) {
       signInFallbackRedirectUrl={clerkConfig.signInFallbackRedirectUrl}
       signUpFallbackRedirectUrl={clerkConfig.signUpFallbackRedirectUrl}
     >
-      {children}
+      <UserProvider>
+        <UserSyncStatus />
+        {children}
+      </UserProvider>
     </ClerkProvider>
   );
 }

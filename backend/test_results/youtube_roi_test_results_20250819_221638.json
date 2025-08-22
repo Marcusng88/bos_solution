@@ -1,0 +1,26 @@
+{
+  "test_info": {
+    "timestamp": "2025-08-19T22:16:36.269375",
+    "base_url": "http://localhost:8000",
+    "test_version": "1.0"
+  },
+  "connectivity_tests": {
+    "backend_server": {
+      "status": "SUCCESS",
+      "response_time": 2.046312,
+      "data": {
+        "status": "healthy"
+      }
+    }
+  },
+  "youtube_data": {},
+  "errors": [],
+  "test_summary": {
+    "total_tests": 1,
+    "successful_tests": 1,
+    "failed_tests": 0,
+    "error_tests": 0,
+    "total_errors": 0,
+    "data_retrieved": false
+  }
+}
