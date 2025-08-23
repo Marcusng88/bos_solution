@@ -8,7 +8,6 @@ export interface Competitor {
   description?: string;
   website_url?: string;
   social_media_handles?: Record<string, string>;
-  platforms?: string[];  // Array of platforms to monitor
   industry?: string;
   status: 'active' | 'paused' | 'error';
   created_at: string;
@@ -23,7 +22,6 @@ export interface CompetitorCreate {
   description?: string;
   website_url?: string;
   social_media_handles?: Record<string, string>;
-  platforms?: string[];  // Array of platforms to monitor
   industry?: string;
   scan_frequency_minutes?: number;
 }
@@ -33,7 +31,6 @@ export interface CompetitorUpdate {
   description?: string;
   website_url?: string;
   social_media_handles?: Record<string, string>;
-  platforms?: string[];  // Array of platforms to monitor
   industry?: string;
   status?: 'active' | 'paused' | 'error';
   scan_frequency_minutes?: number;

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useContentPlanning } from "@/hooks/use-content-planning"
 import { useUser } from "@clerk/nextjs"
@@ -23,6 +25,9 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [loadingCreate, setLoadingCreate] = useState(false)
+  const [loadingSave, setLoadingSave] = useState<string | null>(null) // Track which suggestion is being saved
+  const [showPromotionDialog, setShowPromotionDialog] = useState(false)
+  const [promotionDescription, setPromotionDescription] = useState("")
   const { toast } = useToast()
   const { user } = useUser()
   
@@ -30,6 +35,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     generateContent, 
     saveContentSuggestion, 
     getContentSuggestions, 
+    updateContentSuggestion,
     selectedIndustry 
   } = useContentPlanning({ autoLoad: false })
 
@@ -77,7 +83,12 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     }
   }
 
-  // Create new content using AI agent
+  // Handle create content button click - show dialog first
+  const handleCreateContentClick = () => {
+    setShowPromotionDialog(true)
+  }
+
+  // Create new content using AI agent after user provides promotion details
   const handleCreateContent = async () => {
     if (!user?.id) {
       toast({
@@ -88,29 +99,71 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
       return
     }
 
+    if (!promotionDescription.trim()) {
+      toast({
+        title: "Error",
+        description: "Please describe what you're trying to promote.",
+        variant: "destructive"
+      })
+      return
+    }
+
     try {
       setLoadingCreate(true)
+      setShowPromotionDialog(false)
       
-      // Generate content for different platforms
-      const platforms = ['linkedin', 'instagram', 'twitter']
-      const contentTypes = ['promotional', 'educational', 'entertaining']
+      // First, get user's industry from preferences
+      let userIndustry = selectedIndustry
+      if (!userIndustry) {
+        try {
+          const response = await fetch(`/api/v1/user-preferences?user_id=${user.id}`)
+          if (response.ok) {
+            const preferences = await response.json()
+            userIndustry = preferences.industry
+          }
+        } catch (error) {
+          console.warn('Could not fetch user industry, using default:', error)
+          userIndustry = 'Technology & Software' // Default fallback
+        }
+      }
+      
+      // Generate content for the four major platforms
+      const platforms = ['twitter', 'instagram', 'facebook', 'linkedin']
+      const contentTypes = ['promotional', 'educational', 'entertaining', 'promotional'] // Mix of content types
       
       const createdSuggestions = []
       
-      for (let i = 0; i < 3; i++) {
-        const platform = platforms[i % platforms.length]
-        const contentType = contentTypes[i % contentTypes.length]
+      for (let i = 0; i < 4; i++) {
+        const platform = platforms[i]
+        const contentType = contentTypes[i]
         
         try {
-          // Generate content using AI agent
+          // Generate content using AI agent with user's promotion description
           const response = await generateContent({
-            industry: selectedIndustry,
+            clerk_id: user.id,
             platform,
             content_type: contentType,
             tone: 'professional',
             target_audience: 'professionals',
-            custom_requirements: `🎯 Create concise, impactful ${contentType} content for ${platform}. Keep it short and engaging. Focus on trends and competitor gaps. Max 2-3 sentences with relevant hashtags.`
+            industry: userIndustry,
+            custom_requirements: `🎯 Create concise, impactful ${contentType} content for ${platform} to promote: ${promotionDescription}. Keep it short and engaging. Focus on trends and competitor gaps. Max 2-3 sentences with relevant hashtags.`
           })
+
+          console.log('🔧 Content generation response:', response)
+
+          if (response.success && response.content) {
+            toast({
+              title: "Content Generated! 🎉",
+              description: `AI has created ${contentType} content for ${platform}`,
+            })
+          } else {
+            console.error('❌ Content generation failed:', response)
+            toast({
+              title: "Content Generation Failed",
+              description: response.error || "Failed to generate content. Please try again.",
+              variant: "destructive"
+            })
+          }
           
           if (response.success && response.content) {
             // Save to database
@@ -118,12 +171,12 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
               user_id: user.id,
               suggested_content: response.content.post_content || 'Content generated successfully',
               platform,
-              industry: selectedIndustry,
+              industry: userIndustry,
               content_type: contentType,
               tone: 'professional',
               target_audience: 'professionals',
               hashtags: response.content.hashtags || [],
-              custom_requirements: `Generate ${contentType} content for ${platform} in ${selectedIndustry} industry`
+              custom_requirements: `Generate ${contentType} content for ${platform} in ${userIndustry} industry to promote: ${promotionDescription}`
             })
             
             if (saveResponse.success) {
@@ -146,7 +199,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
       if (createdSuggestions.length > 0) {
         toast({
           title: "Success",
-          description: `Generated ${createdSuggestions.length} new content suggestions!`,
+          description: `Generated ${createdSuggestions.length} new content suggestions for all platforms!`,
         })
       } else {
         toast({
@@ -155,6 +208,9 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
           variant: "destructive"
         })
       }
+      
+      // Reset promotion description
+      setPromotionDescription("")
       
     } catch (error) {
       console.error('Failed to create content:', error)
@@ -189,15 +245,47 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     // Keep any existing uploaded media when entering edit mode
   }
 
-  const handleSave = (id: string) => {
-    setSuggestions(prev => prev.map(s => 
-      s.id === id ? { ...s, content: editedContent } : s
-    ))
-    setEditingId(null)
-    toast({
-      title: "Content updated",
-      description: "Your AI-generated content has been saved.",
-    })
+  const handleSave = async (id: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setLoadingSave(id)
+      // Save to database
+      const response = await updateContentSuggestion(id, {
+        suggested_content: editedContent,
+        user_modifications: "User edited the AI-generated content"
+      })
+
+      if (response.success) {
+        // Update local state
+        setSuggestions(prev => prev.map(s => 
+          s.id === id ? { ...s, content: editedContent } : s
+        ))
+        setEditingId(null)
+        toast({
+          title: "Content updated",
+          description: "Your AI-generated content has been saved to the database.",
+        })
+      } else {
+        throw new Error(response.error || "Failed to update content")
+      }
+    } catch (error) {
+      console.error('Failed to update content:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save content changes. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingSave(null)
+    }
   }
 
   const handleApprove = (suggestion: any) => {
@@ -325,7 +413,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
           </div>
           <div className="flex gap-2 flex-shrink-0">
             <Button 
-              onClick={handleCreateContent}
+              onClick={handleCreateContentClick}
               disabled={loadingCreate || !user?.id}
               className="flex items-center gap-2"
             >
@@ -376,7 +464,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
               Click "Create Content" to generate AI-powered content suggestions based on competitor analysis.
             </p>
             <Button 
-              onClick={handleCreateContent}
+              onClick={handleCreateContentClick}
               disabled={loadingCreate || !user?.id}
               className="flex items-center gap-2 mx-auto"
             >
@@ -497,10 +585,10 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
                     </div>
 
                     <div className="flex gap-1 pt-1">
-                      <Button size="sm" onClick={() => handleSave(suggestion.id)} className="text-xs px-2 py-1 h-7">
-                        Save
+                      <Button size="sm" onClick={() => handleSave(suggestion.id)} className="text-xs px-2 py-1 h-7" disabled={loadingSave === suggestion.id}>
+                        {loadingSave === suggestion.id ? 'Saving...' : 'Save'}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="text-xs px-2 py-1 h-7">
+                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="text-xs px-2 py-1 h-7" disabled={loadingSave === suggestion.id}>
                         <X className="h-3 w-3 mr-1" />
                         Cancel
                       </Button>
@@ -577,6 +665,44 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={showPromotionDialog} onOpenChange={setShowPromotionDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>What are you trying to promote?</DialogTitle>
+            <DialogDescription>
+              Describe your product, service, or message. This will help AI generate more relevant and effective content for Twitter, Instagram, Facebook, and LinkedIn.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="promotion-description">Promotion Description</Label>
+              <Textarea
+                id="promotion-description"
+                value={promotionDescription}
+                onChange={(e) => setPromotionDescription(e.target.value)}
+                placeholder="e.g., Our new AI-powered marketing tool that helps businesses increase their social media engagement by 300%..."
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p>AI will create optimized content for:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li><strong>Twitter:</strong> Concise, trending content with relevant hashtags</li>
+                <li><strong>Instagram:</strong> Visual-friendly content with engaging captions</li>
+                <li><strong>Facebook:</strong> Community-focused content for broader audience</li>
+                <li><strong>LinkedIn:</strong> Professional content for business audience</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPromotionDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateContent} disabled={!promotionDescription.trim() || loadingCreate}>
+              {loadingCreate ? 'Generating...' : 'Generate Content'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

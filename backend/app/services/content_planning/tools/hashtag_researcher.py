@@ -7,10 +7,13 @@ from pydantic import BaseModel, Field
 from collections import defaultdict
 import json
 import os
+import logging
+from datetime import datetime, timezone, timedelta
 
 from ..config.settings import settings, INDUSTRY_HASHTAGS
 from ..config.prompts import HASHTAG_RESEARCH_PROMPT
 
+logger = logging.getLogger(__name__)
 
 class HashtagResearchInput(BaseModel):
     """Input schema for hashtag research"""
@@ -30,9 +33,26 @@ class HashtagResearcher:
     def __init__(self):
         self._load_hashtag_data()
         self.llm = None  # Initialize lazily
+        self.supabase_client = None  # Initialize lazily
+        
+        # Data source tracking
+        self.data_source = "mock"
+        self.last_supabase_check = None
+    
+    def _get_supabase_client(self):
+        """Lazy initialization of Supabase client"""
+        if self.supabase_client is None:
+            try:
+                from ....core.supabase_client import SupabaseClient
+                self.supabase_client = SupabaseClient()
+                logger.info("✅ Supabase client initialized successfully for hashtag research")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not initialize Supabase client: {e}")
+                self.supabase_client = None
+        return self.supabase_client
     
     def _load_hashtag_data(self):
-        """Load hashtag performance data"""
+        """Load hashtag performance data from mock dataset"""
         try:
             # Load from competitor dataset for trending data
             dataset_path = os.path.join(os.path.dirname(__file__), "..", "data", "mock_datasets", "competitors_dataset.json")
@@ -40,9 +60,142 @@ class HashtagResearcher:
                 data = json.load(f)
                 self.trending_data = data.get("trending_hashtags", {})
                 self.performance_data = data.get("content_insights", {}).get("hashtag_performance", {})
-        except (FileNotFoundError, json.JSONDecodeError):
+                logger.info("📁 Mock hashtag data loaded successfully")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.warning(f"⚠️ Mock hashtag data file not found, using minimal fallback: {e}")
             self.trending_data = {"technology": ["#AI", "#Innovation", "#TechTrends"]}
             self.performance_data = {}
+    
+    async def _fetch_supabase_hashtag_data(self, industry: str, time_period: str = "last_30_days") -> Optional[Dict[str, Any]]:
+        """Fetch hashtag data from Supabase monitoring data"""
+        try:
+            client = self._get_supabase_client()
+            if not client:
+                logger.warning("⚠️ Supabase client not available for hashtag research")
+                return None
+            
+            # Calculate time filter
+            if time_period == "last_30_days":
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            elif time_period == "last_7_days":
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+            elif time_period == "last_90_days":
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=90)
+            else:
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            
+            # First, get competitors in the industry
+            competitors_response = await client._make_request("GET", "competitors", params={"industry": f"eq.{industry}"})
+            if competitors_response.status_code != 200:
+                logger.warning(f"⚠️ Failed to fetch competitors for industry {industry}: {competitors_response.status_code}")
+                return None
+            
+            competitors = competitors_response.json()
+            if not competitors:
+                logger.info(f"ℹ️ No competitors found for industry {industry} in Supabase")
+                return None
+            
+            competitor_ids = [comp.get("id") for comp in competitors if comp.get("id")]
+            if not competitor_ids:
+                logger.warning("⚠️ No valid competitor IDs found")
+                return None
+            
+            # Fetch monitoring data for these competitors
+            params = {
+                "competitor_id": f"in.({','.join(competitor_ids)})",
+                "detected_at": f"gte.{cutoff_date.isoformat()}"
+            }
+            
+            monitoring_response = await client._make_request("GET", "monitoring_data", params=params)
+            if monitoring_response.status_code != 200:
+                logger.warning(f"⚠️ Failed to fetch monitoring data: {monitoring_response.status_code}")
+                return None
+            
+            monitoring_data = monitoring_response.json()
+            if not monitoring_data:
+                logger.info("ℹ️ No monitoring data found for hashtag analysis")
+                return None
+            
+            # Extract and analyze hashtags
+            hashtag_analysis = self._analyze_supabase_hashtags(monitoring_data, industry)
+            
+            logger.info(f"✅ Successfully fetched hashtag data from Supabase: {len(monitoring_data)} posts analyzed")
+            return hashtag_analysis
+            
+        except Exception as e:
+            logger.error(f"❌ Error fetching hashtag data from Supabase: {e}")
+            return None
+    
+    def _analyze_supabase_hashtags(self, monitoring_data: List[Dict], industry: str) -> Dict[str, Any]:
+        """Analyze hashtags from Supabase monitoring data"""
+        try:
+            hashtag_frequency = defaultdict(int)
+            hashtag_engagement = defaultdict(list)
+            platform_hashtags = defaultdict(lambda: defaultdict(int))
+            
+            for md in monitoring_data:
+                content_text = md.get("content_text", "")
+                if not content_text:
+                    continue
+                
+                platform = md.get("platform", "unknown")
+                engagement_metrics = md.get("engagement_metrics", {})
+                
+                # Calculate engagement rate
+                view_count = engagement_metrics.get("view_count", 0)
+                like_count = engagement_metrics.get("like_count", 0)
+                comment_count = engagement_metrics.get("comment_count", 0)
+                share_count = engagement_metrics.get("share_count", 0)
+                
+                engagement_rate = 0.0
+                if view_count > 0:
+                    engagement_rate = ((like_count + comment_count + share_count) / view_count) * 100
+                
+                # Extract hashtags
+                words = content_text.split()
+                hashtags = [word for word in words if word.startswith("#")]
+                
+                for hashtag in hashtags:
+                    hashtag_frequency[hashtag] += 1
+                    hashtag_engagement[hashtag].append(engagement_rate)
+                    platform_hashtags[platform][hashtag] += 1
+            
+            # Calculate hashtag performance metrics
+            hashtag_performance = {}
+            for hashtag, engagement_rates in hashtag_engagement.items():
+                if engagement_rates:
+                    avg_engagement = sum(engagement_rates) / len(engagement_rates)
+                    hashtag_performance[hashtag] = {
+                        "frequency": hashtag_frequency[hashtag],
+                        "avg_engagement": round(avg_engagement, 2),
+                        "reach_potential": hashtag_frequency[hashtag] * avg_engagement
+                    }
+            
+            # Sort hashtags by different metrics
+            by_frequency = sorted(hashtag_frequency.items(), key=lambda x: x[1], reverse=True)[:20]
+            by_engagement = sorted(hashtag_performance.items(), key=lambda x: x[1]["avg_engagement"], reverse=True)[:15]
+            by_potential = sorted(hashtag_performance.items(), key=lambda x: x[1]["reach_potential"], reverse=True)[:15]
+            
+            # Group by platform
+            platform_trends = {}
+            for platform, hashtags in platform_hashtags.items():
+                platform_trends[platform] = dict(sorted(hashtags.items(), key=lambda x: x[1], reverse=True)[:10])
+            
+            return {
+                "trending_hashtags": {industry: [hashtag for hashtag, count in by_frequency[:10]]},
+                "hashtag_performance": {
+                    "high_reach_low_competition": [hashtag for hashtag, _ in by_potential[:5]],
+                    "trending_emerging": [hashtag for hashtag, _ in by_frequency[:5]],
+                    "evergreen_high_engagement": [hashtag for hashtag, _ in by_engagement[:5]]
+                },
+                "platform_specific_trends": platform_trends,
+                "total_hashtags_analyzed": len(hashtag_performance),
+                "data_source": "supabase"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error analyzing Supabase hashtags: {e}")
+            return None
     
     def _get_llm(self):
         """Lazy initialization of LLM"""
@@ -61,7 +214,7 @@ class HashtagResearcher:
                 self.llm = "mock"  # Use mock mode
         return self.llm
 
-    def _run(
+    async def _run(
         self,
         industry: str,
         content_type: str,
@@ -72,9 +225,30 @@ class HashtagResearcher:
         """Research optimal hashtags based on inputs"""
         
         try:
+            # Try to get data from Supabase first
+            supabase_data = await self._fetch_supabase_hashtag_data(industry)
+            
+            if supabase_data:
+                # Use Supabase data
+                analysis_data = supabase_data
+                self.data_source = "supabase"
+                self.last_supabase_check = datetime.now()
+                logger.info("🔍 Using Supabase data for hashtag research")
+            else:
+                # Fallback to mock data
+                analysis_data = {
+                    "trending_hashtags": self.trending_data,
+                    "hashtag_performance": self.performance_data,
+                    "platform_specific_trends": {},
+                    "total_hashtags_analyzed": 0,
+                    "data_source": "mock"
+                }
+                self.data_source = "mock"
+                logger.info("🔍 Using mock data for hashtag research (Supabase fallback)")
+            
             # Get base hashtags for industry
             industry_hashtags = INDUSTRY_HASHTAGS.get(industry, [])
-            trending_hashtags = self.trending_data.get(industry, [])
+            trending_hashtags = analysis_data.get("trending_hashtags", {}).get(industry, [])
             
             # Analyze hashtag performance
             hashtag_analysis = self._analyze_hashtag_performance(
@@ -96,7 +270,7 @@ class HashtagResearcher:
                 industry=industry,
                 content_type=content_type,
                 platform=platform,
-                trending_data=str(self.trending_data)
+                trending_data=str(analysis_data.get("trending_hashtags", {}))
             )
             
             return {
@@ -104,17 +278,23 @@ class HashtagResearcher:
                 "industry": industry,
                 "platform": platform,
                 "content_type": content_type,
+                "target_audience": target_audience,
                 "recommended_hashtags": recommendations,
-                "hashtag_analysis": hashtag_analysis,
+                "trending_hashtags": trending_hashtags,
+                "industry_hashtags": industry_hashtags,
                 "ai_insights": ai_recommendations,
-                "strategy_summary": self._create_strategy_summary(recommendations),
-                "timestamp": "2025-08-21T00:00:00Z"
+                "performance_metrics": hashtag_analysis,
+                "data_source": self.data_source,
+                "data_freshness": self.last_supabase_check.isoformat() if self.last_supabase_check else None,
+                "total_hashtags_analyzed": analysis_data.get("total_hashtags_analyzed", 0)
             }
             
         except Exception as e:
+            logger.error(f"❌ Hashtag research failed: {str(e)}")
             return {
+                "success": False,
                 "error": f"Hashtag research failed: {str(e)}",
-                "success": False
+                "data_source": self.data_source
             }
     
     def _analyze_hashtag_performance(self, hashtags: List[str]) -> Dict[str, Any]:

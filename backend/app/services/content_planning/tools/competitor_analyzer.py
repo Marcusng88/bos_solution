@@ -7,19 +7,21 @@ from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field
 from collections import defaultdict
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
+import logging
 
 from ..config.settings import settings
 from ..config.prompts import COMPETITOR_ANALYSIS_PROMPT, CONTENT_GAP_ANALYSIS_PROMPT
 
+logger = logging.getLogger(__name__)
 
 class CompetitorAnalysisInput(BaseModel):
     """Input schema for competitor analysis"""
-    industry: str = Field(description="Industry sector to analyze")
-    competitor_ids: Optional[List[str]] = Field(description="Specific competitor IDs", default=None)
+    clerk_id: str = Field(description="Current user's Clerk ID")
     analysis_type: str = Field(description="Type of analysis to perform")
     time_period: str = Field(description="Time period for analysis", default="last_30_days")
+    competitor_ids: Optional[List[str]] = Field(description="Specific competitor IDs", default=None)
 
 
 class CompetitorAnalyzer:
@@ -29,9 +31,321 @@ class CompetitorAnalyzer:
     """
     
     def __init__(self):
-        # Initialize with mock data for now
+        # Initialize with mock data for fallback
         self._load_competitor_data()
         self.llm = None  # Initialize lazily
+        self.supabase_client = None  # Initialize lazily
+        
+        # Data source tracking
+        self.data_source = "mock"  # Track which data source is being used
+        self.last_supabase_check = None
+        
+    def _get_supabase_client(self):
+        """Lazy initialization of Supabase client"""
+        if self.supabase_client is None:
+            try:
+                from ....core.supabase_client import SupabaseClient
+                self.supabase_client = SupabaseClient()
+                logger.info("✅ Supabase client initialized successfully")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not initialize Supabase client: {e}")
+                self.supabase_client = None
+        return self.supabase_client
+    
+    def _load_competitor_data(self):
+        """Load competitor data from mock dataset as fallback"""
+        try:
+            # Try to load from the file
+            dataset_path = os.path.join(os.path.dirname(__file__), "..", "data", "mock_datasets", "competitors_dataset.json")
+            with open(dataset_path, 'r', encoding='utf-8') as f:
+                self.competitor_data = json.load(f)
+                # Ensure all competitors have clerk_id
+                self._ensure_clerk_id_in_mock_data()
+                logger.info("📁 Mock competitor data loaded successfully")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            # Fallback to minimal data structure if file not found
+            logger.warning(f"⚠️ Mock data file not found, using minimal fallback: {e}")
+            self.competitor_data = {
+                "competitors": [
+                    {
+                        "competitor_id": "comp_tech_001",
+                        "company_name": "TechFlow Solutions",
+                        "clerk_id": "user_123",  # Mock clerk ID
+                        "industry_sector": "technology",
+                        "posts": [
+                            {
+                                "post_content": "AI-powered automation increases productivity by 80%",
+                                "hashtags": ["#AI", "#Automation", "#Productivity"],
+                                "platform": "linkedin",
+                                "engagement_metrics": {"engagement_rate": 4.2}
+                            }
+                        ]
+                    }
+                ],
+                "trending_hashtags": {"technology": ["#AI", "#Innovation", "#TechTrends"]},
+                "content_insights": {}
+            }
+    
+    def _ensure_clerk_id_in_mock_data(self):
+        """Ensure all competitors in mock data have clerk_id field"""
+        for competitor in self.competitor_data.get("competitors", []):
+            if "clerk_id" not in competitor:
+                competitor["clerk_id"] = "user_123"  # Default mock clerk ID
+    
+    async def _fetch_supabase_competitors(self, clerk_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch competitor data from Supabase based on Clerk ID"""
+        try:
+            client = self._get_supabase_client()
+            if not client:
+                logger.warning("⚠️ Supabase client not available")
+                return None
+            
+            # Fetch competitors associated with the given clerk_id
+            # Note: competitors.user_id references users.clerk_id via foreign key
+            response = await client._make_request("GET", "competitors", params={"user_id": f"eq.{clerk_id}"})
+            if response.status_code != 200:
+                logger.warning(f"⚠️ Failed to fetch competitors from Supabase: {response.status_code}")
+                return None
+            
+            competitors = response.json()
+            if not competitors:
+                logger.info(f"ℹ️ No competitors found for Clerk ID: {clerk_id}")
+                return None
+            
+            logger.info(f"✅ Fetched {len(competitors)} competitors from Supabase for Clerk ID: {clerk_id}")
+            return competitors
+            
+        except Exception as e:
+            logger.error(f"❌ Error fetching competitors from Supabase: {e}")
+            return None
+    
+    async def _fetch_supabase_monitoring_data(self, competitor_ids: List[str], time_period: str = "last_30_days") -> Optional[List[Dict[str, Any]]]:
+        """Fetch monitoring data from Supabase"""
+        try:
+            client = self._get_supabase_client()
+            if not client:
+                return None
+            
+            # Calculate time filter
+            if time_period == "last_30_days":
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            elif time_period == "last_7_days":
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+            elif time_period == "last_90_days":
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=90)
+            else:
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            
+            # Build query parameters
+            params = {
+                "competitor_id": f"in.({','.join(competitor_ids)})",
+                "detected_at": f"gte.{cutoff_date.isoformat()}"
+            }
+            
+            # Fetch monitoring data
+            response = await client._make_request("GET", "monitoring_data", params=params)
+            if response.status_code != 200:
+                logger.warning(f"⚠️ Failed to fetch monitoring data from Supabase: {response.status_code}")
+                return None
+            
+            monitoring_data = response.json()
+            logger.info(f"✅ Fetched {len(monitoring_data)} monitoring records from Supabase")
+            return monitoring_data
+            
+        except Exception as e:
+            logger.error(f"❌ Error fetching monitoring data from Supabase: {e}")
+            return None
+    
+    def _transform_supabase_data(self, competitors: List[Dict], monitoring_data: List[Dict]) -> Dict[str, Any]:
+        """Transform Supabase data to match expected AI agent format"""
+        try:
+            transformed_competitors = []
+            
+            for competitor in competitors:
+                # Get monitoring data for this competitor
+                competitor_monitoring = [
+                    md for md in monitoring_data 
+                    if md.get("competitor_id") == competitor.get("id")
+                ]
+                
+                # Transform monitoring data to post format
+                posts = []
+                for md in competitor_monitoring:
+                    # Calculate engagement rate
+                    engagement_metrics = md.get("engagement_metrics", {})
+                    view_count = engagement_metrics.get("view_count", 0)
+                    like_count = engagement_metrics.get("like_count", 0)
+                    comment_count = engagement_metrics.get("comment_count", 0)
+                    share_count = engagement_metrics.get("share_count", 0)
+                    
+                    # Estimate engagement rate (if we had follower count)
+                    engagement_rate = 0.0
+                    if view_count > 0:
+                        engagement_rate = ((like_count + comment_count + share_count) / view_count) * 100
+                    
+                    # Extract hashtags from content (basic extraction)
+                    content_text = md.get("content_text", "")
+                    hashtags = []
+                    if content_text:
+                        words = content_text.split()
+                        hashtags = [word for word in words if word.startswith("#")]
+                    
+                    post = {
+                        "post_id": md.get("post_id", ""),
+                        "post_content": content_text,
+                        "hashtags": hashtags,
+                        "platform": md.get("platform", "unknown"),
+                        "post_type": md.get("post_type", "unknown"),
+                        "engagement_metrics": {
+                            "likes": like_count,
+                            "shares": share_count,
+                            "comments": comment_count,
+                            "views": view_count,
+                            "engagement_rate": round(engagement_rate, 2)
+                        },
+                        "posting_time": md.get("posted_at", md.get("detected_at")),
+                        "tone": "professional",  # Default tone
+                        "call_to_action": "",  # Extract from content if possible
+                        "target_audience": "general",  # Default audience
+                        "content_length": len(content_text) if content_text else 0,
+                        "emoji_count": sum(1 for char in content_text if char in "😀😃😄😁😆😅😂🤣😊😇🙂🙃😉😌😍🥰😘😗😙😚😋😛😝😜🤪🤨🧐🤓😎🤩🥳😏😒😞😔😟😕🙁☹️😣😖😫😩🥺😢😭😤😠😡🤬🤯😳🥵🥶😱😨😰😥😓🤗🤔🤭🤫🤥😶😐😑😯😦😧😮😲🥱😴🤤😪😵🤐🥴🤢🤮🤧😷🤒🤕🤑🤠💩👻💀☠️👽👾🤖😈👿👹👺") if content_text else 0,
+                        "hashtag_count": len(hashtags)
+                    }
+                    posts.append(post)
+                
+                # Transform competitor data
+                transformed_competitor = {
+                    "competitor_id": competitor.get("id", ""),
+                    "company_name": competitor.get("name", ""),
+                    "industry_sector": competitor.get("industry_sector", competitor.get("industry", "unknown")),
+                    "brand_description": competitor.get("description", ""),
+                    "follower_count": 0,  # Not available in current schema
+                    "engagement_rate": 0.0,  # Will be calculated from posts
+                    "posting_frequency": "unknown",  # Can be calculated from posts
+                    "posts": posts
+                }
+                
+                # Debug logging to see what fields are available
+                logger.debug(f"Competitor data fields: {list(competitor.keys())}")
+                logger.debug(f"Competitor industry: {competitor.get('industry')}")
+                logger.debug(f"Competitor industry_sector: {competitor.get('industry_sector')}")
+                logger.debug(f"Transformed industry_sector: {transformed_competitor['industry_sector']}")
+                
+                # Calculate average engagement rate
+                if posts:
+                    avg_engagement = sum(post["engagement_metrics"]["engagement_rate"] for post in posts) / len(posts)
+                    transformed_competitor["engagement_rate"] = round(avg_engagement, 2)
+                
+                transformed_competitors.append(transformed_competitor)
+            
+            # Generate trending hashtags from monitoring data
+            all_hashtags = []
+            for md in monitoring_data:
+                content_text = md.get("content_text", "")
+                if content_text:
+                    words = content_text.split()
+                    hashtags = [word for word in words if word.startswith("#")]
+                    all_hashtags.extend(hashtags)
+            
+            # Count hashtag frequency
+            hashtag_counts = defaultdict(int)
+            for hashtag in all_hashtags:
+                hashtag_counts[hashtag] += 1
+            
+            # Get top trending hashtags
+            trending_hashtags = sorted(hashtag_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+            trending_list = [hashtag for hashtag, count in trending_hashtags]
+            
+            # Group by industry (using competitor industry if available)
+            industry_hashtags = defaultdict(list)
+            for competitor in transformed_competitors:
+                try:
+                    # Get industry with better fallback logic
+                    industry = competitor.get("industry_sector") or competitor.get("industry") or "unknown"
+                    logger.debug(f"Competitor {competitor.get('name', 'unknown')} has industry: {industry}")
+                    
+                    # Ensure we have a valid industry string
+                    if not industry or industry == "unknown":
+                        industry = "general"
+                        logger.warning(f"⚠️ Competitor {competitor.get('name', 'unknown')} has no industry, using 'general'")
+                    
+                    for post in competitor.get("posts", []):
+                        industry_hashtags[industry].extend(post.get("hashtags", []))
+                except Exception as e:
+                    logger.warning(f"⚠️ Error processing competitor {competitor.get('name', 'unknown')}: {e}")
+                    # Use default industry for this competitor
+                    industry_hashtags["general"].extend(post.get("hashtags", []) if post.get("hashtags") else [])
+                    continue
+            
+            # Remove duplicates and limit per industry
+            for industry in industry_hashtags:
+                industry_hashtags[industry] = list(set(industry_hashtags[industry]))[:10]
+            
+            transformed_data = {
+                "competitors": transformed_competitors,
+                "trending_hashtags": dict(industry_hashtags),
+                "content_insights": {
+                    "optimal_posting_times": {
+                        "linkedin": ["Tuesday-Thursday, 8-10 AM", "Monday-Wednesday, 5-7 PM"],
+                        "instagram": ["Wednesday-Friday, 6-8 PM", "Saturday-Sunday, 11 AM-1 PM"],
+                        "twitter": ["Monday-Friday, 12-3 PM", "Tuesday-Thursday, 5-6 PM"],
+                        "youtube": ["Tuesday-Thursday, 2-4 PM", "Friday-Sunday, 7-9 PM"]
+                    },
+                    "top_performing_content_types": [
+                        {"type": "video", "avg_engagement": 5.2},
+                        {"type": "educational", "avg_engagement": 4.8},
+                        {"type": "product_announcement", "avg_engagement": 4.5},
+                        {"type": "user_generated", "avg_engagement": 4.3}
+                    ],
+                    "hashtag_performance": {
+                        "high_reach_low_competition": trending_list[:5],
+                        "trending_emerging": trending_list[5:10],
+                        "evergreen_high_engagement": trending_list[10:15]
+                    }
+                }
+            }
+            
+            logger.info(f"✅ Successfully transformed {len(transformed_competitors)} competitors with {sum(len(c['posts']) for c in transformed_competitors)} posts")
+            return transformed_data
+            
+        except Exception as e:
+            logger.error(f"❌ Error transforming Supabase data: {e}")
+            return None
+    
+    async def _get_supabase_analysis_data(self, clerk_id: str, competitor_ids: Optional[List[str]] = None, time_period: str = "last_30_days") -> Optional[Dict[str, Any]]:
+        """Get analysis data from Supabase with fallback to mock data"""
+        try:
+            # Try to fetch from Supabase first
+            competitors = await self._fetch_supabase_competitors(clerk_id)
+            if not competitors:
+                logger.info("ℹ️ No competitors found in Supabase, using mock data")
+                return None
+            
+            # Get competitor IDs for monitoring data
+            comp_ids = [comp.get("id") for comp in competitors if comp.get("id")]
+            if not comp_ids:
+                logger.warning("⚠️ No valid competitor IDs found")
+                return None
+            
+            # Fetch monitoring data
+            monitoring_data = await self._fetch_supabase_monitoring_data(comp_ids, time_period)
+            if not monitoring_data:
+                logger.info("ℹ️ No monitoring data found in Supabase, using mock data")
+                return None
+            
+            # Transform data to expected format
+            transformed_data = self._transform_supabase_data(competitors, monitoring_data)
+            if transformed_data:
+                self.data_source = "supabase"
+                self.last_supabase_check = datetime.now()
+                logger.info("✅ Successfully using Supabase data for analysis")
+                return transformed_data
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting Supabase analysis data: {e}")
+            return None
     
     def _get_llm(self):
         """Lazy initialization of LLM"""
@@ -50,38 +364,9 @@ class CompetitorAnalyzer:
                 self.llm = "mock"  # Use mock mode
         return self.llm
     
-    def _load_competitor_data(self):
-        """Load competitor data from mock dataset"""
-        try:
-            # Try to load from the file
-            dataset_path = os.path.join(os.path.dirname(__file__), "..", "data", "mock_datasets", "competitors_dataset.json")
-            with open(dataset_path, 'r', encoding='utf-8') as f:
-                self.competitor_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            # Fallback to minimal data structure if file not found
-            self.competitor_data = {
-                "competitors": [
-                    {
-                        "competitor_id": "comp_tech_001",
-                        "company_name": "TechFlow Solutions",
-                        "industry_sector": "technology",
-                        "posts": [
-                            {
-                                "post_content": "AI-powered automation increases productivity by 80%",
-                                "hashtags": ["#AI", "#Automation", "#Productivity"],
-                                "platform": "linkedin",
-                                "engagement_metrics": {"engagement_rate": 4.2}
-                            }
-                        ]
-                    }
-                ],
-                "trending_hashtags": {"technology": ["#AI", "#Innovation", "#TechTrends"]},
-                "content_insights": {}
-            }
-    
-    def _run(
+    async def _run(
         self,
-        industry: str,
+        clerk_id: str,
         competitor_ids: Optional[List[str]] = None,
         analysis_type: str = "trend_analysis",
         time_period: str = "last_30_days"
@@ -89,13 +374,28 @@ class CompetitorAnalyzer:
         """Analyze competitor data based on inputs"""
         
         try:
+            # Try to get data from Supabase first
+            supabase_data = await self._get_supabase_analysis_data(clerk_id, competitor_ids, time_period)
+            
+            if supabase_data:
+                # Use Supabase data
+                analysis_data = supabase_data
+                self.data_source = "supabase"
+                logger.info("🔍 Using Supabase data for competitor analysis")
+            else:
+                # Fallback to mock data
+                analysis_data = self.competitor_data
+                self.data_source = "mock"
+                logger.info("🔍 Using mock data for competitor analysis (Supabase fallback)")
+            
             # Filter competitors by industry
-            relevant_competitors = self._filter_competitors(industry, competitor_ids)
+            relevant_competitors = self._filter_competitors(clerk_id, competitor_ids, analysis_data)
             
             if not relevant_competitors:
                 return {
-                    "error": f"No competitors found for industry: {industry}",
-                    "success": False
+                    "error": f"No competitors found for Clerk ID: {clerk_id}",
+                    "success": False,
+                    "data_source": self.data_source
                 }
             
             # Perform analysis based on type
@@ -111,33 +411,47 @@ class CompetitorAnalyzer:
                 analysis_result = self._perform_comprehensive_analysis(relevant_competitors)
             
             # Enhance with AI insights
-            ai_insights = self._get_ai_insights(relevant_competitors, analysis_type, time_period)
+            ai_insights = await self._get_ai_insights(relevant_competitors, analysis_type, time_period)
             
             return {
                 "success": True,
                 "analysis_type": analysis_type,
-                "industry": industry,
+                "clerk_id": clerk_id,
                 "time_period": time_period,
                 "competitor_count": len(relevant_competitors),
                 "analysis_data": analysis_result,
                 "ai_insights": ai_insights,
                 "recommendations": self._generate_recommendations(analysis_result),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "data_source": self.data_source,
+                "data_freshness": self.last_supabase_check.isoformat() if self.last_supabase_check else None
             }
             
         except Exception as e:
+            logger.error(f"❌ Analysis failed: {str(e)}")
             return {
                 "error": f"Analysis failed: {str(e)}",
-                "success": False
+                "success": False,
+                "data_source": self.data_source
             }
     
-    def _filter_competitors(self, industry: str, competitor_ids: Optional[List[str]]) -> List[Dict]:
-        """Filter competitors based on industry and optional IDs"""
+    def _filter_competitors(self, clerk_id: str, competitor_ids: Optional[List[str]], analysis_data: Dict[str, Any]) -> List[Dict]:
+        """Filter competitors based on Clerk ID and optional IDs"""
         
-        competitors = self.competitor_data.get("competitors", [])
+        competitors = analysis_data.get("competitors", [])
         
-        # Filter by industry
-        filtered = [comp for comp in competitors if comp.get("industry_sector") == industry]
+        # Filter by user_id (which references users.clerk_id via foreign key)
+        filtered = [comp for comp in competitors if comp.get("user_id") == clerk_id]
+        
+        # If no Clerk ID match, try to infer from company name or use all
+        if not filtered and clerk_id != "unknown":
+            # Try to find partial matches
+            filtered = [comp for comp in competitors if clerk_id.lower() in comp.get("company_name", "").lower()]
+            
+            # If still no matches, use all competitors
+            if not filtered:
+                filtered = competitors
+                logger.info(f"ℹ️ No Clerk ID match found for '{clerk_id}', using all {len(filtered)} competitors")
         
         # Further filter by specific IDs if provided
         if competitor_ids:
@@ -339,14 +653,13 @@ class CompetitorAnalyzer:
             "engagement_analysis": self._perform_engagement_analysis(competitors)
         }
     
-    def _get_ai_insights(self, competitors: List[Dict], analysis_type: str, time_period: str) -> str:
+    async def _get_ai_insights(self, competitors: List[Dict], analysis_type: str, time_period: str) -> str:
         """Get AI-generated insights from competitor analysis"""
         
         # Prepare competitor data summary for AI analysis
         competitor_summary = self._prepare_competitor_summary(competitors)
         
         prompt = COMPETITOR_ANALYSIS_PROMPT.format(
-            industry=competitors[0].get("industry_sector", "unknown") if competitors else "unknown",
             competitor_data=competitor_summary,
             analysis_type=analysis_type,
             time_period=time_period
@@ -431,4 +744,13 @@ Recent Posts:"""
     
     async def _arun(self, *args, **kwargs) -> Dict[str, Any]:
         """Async version of the tool"""
-        return self._run(*args, **kwargs)
+        return await self._run(*args, **kwargs)
+    
+    async def run(self, input_data: CompetitorAnalysisInput) -> Dict[str, Any]:
+        """Main entry point for competitor analysis tool"""
+        return await self._run(
+            clerk_id=input_data.clerk_id,
+            competitor_ids=input_data.competitor_ids,
+            analysis_type=input_data.analysis_type,
+            time_period=input_data.time_period
+        )

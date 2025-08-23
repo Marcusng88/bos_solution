@@ -65,7 +65,7 @@ class SimpleMonitoringService:
         logger.info("🤖 SimpleMonitoringService initialization completed")
     
     async def run_monitoring_for_competitor(self, competitor_id: str, competitor_name: str = None, platforms: List[str] = None) -> Dict[str, Any]:
-        """Run monitoring for a specific competitor using selected platforms"""
+        """Run monitoring for a specific competitor using the three core agents (youtube, browser, website)"""
         try:
             logger.info(f"🚀 Starting sequential monitoring for competitor {competitor_id}")
             
@@ -103,9 +103,9 @@ class SimpleMonitoringService:
             logger.info(f"   🌐 Website: {website_url}")
             logger.info(f"   📱 Social handles: {social_media_handles}")
             
-            # Default to all platforms if none specified
-            if platforms is None:
-                platforms = list(self.agents.keys())
+            # Always use the three core agents: youtube, browser, website
+            platforms = ["youtube", "browser", "website"]
+            logger.info(f"🎯 Using core monitoring platforms: {platforms}")
             
             results = {}
             errors = []
@@ -133,20 +133,6 @@ class SimpleMonitoringService:
                         elif platform == 'browser':
                             # Browser agent uses Tavily search for web content discovery
                             result = await agent.analyze_competitor(competitor_id, competitor_name)
-                        elif platform == 'instagram':
-                            # Get Instagram handle from social media handles, handle null case
-                            instagram_handle = None
-                            if social_media_handles and isinstance(social_media_handles, dict):
-                                instagram_handle = social_media_handles.get('instagram')
-                            instagram_handle = instagram_handle or competitor_name
-                            result = await agent.analyze_competitor(competitor_id, instagram_handle)
-                        elif platform == 'twitter':
-                            # Get Twitter handle from social media handles, handle null case
-                            twitter_handle = None
-                            if social_media_handles and isinstance(social_media_handles, dict):
-                                twitter_handle = social_media_handles.get('twitter')
-                            twitter_handle = twitter_handle or competitor_name
-                            result = await agent.analyze_competitor(competitor_id, twitter_handle)
                         
                         # Process and save monitoring data
                         if result and result.get('status') == 'completed':

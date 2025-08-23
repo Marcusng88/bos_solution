@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = Field(default="", env="GOOGLE_CLIENT_SECRET")
     
     # Monitoring settings
-    DEFAULT_SCAN_FREQUENCY_MINUTES: int = int(os.getenv("DEFAULT_SCAN_FREQUENCY", "60"))
+    DEFAULT_SCAN_FREQUENCY_MINUTES: int = int(os.getenv("DEFAULT_SCAN_FREQUENCY", "1440"))
     MAX_CONCURRENT_SCANS: int = int(os.getenv("MAX_CONCURRENT_SCANS", "5"))
     
     # Browser settings for browser-use

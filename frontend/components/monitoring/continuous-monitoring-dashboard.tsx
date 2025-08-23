@@ -78,7 +78,7 @@ export function ContinuousMonitoringDashboard() {
       
       // Test network connectivity first
       try {
-        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/health`);
+        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/health`);
         console.log('🌐 Network test response:', testResponse.status, testResponse.statusText);
       } catch (networkError) {
         console.error('❌ Network test failed:', networkError);
@@ -455,9 +455,9 @@ export function ContinuousMonitoringDashboard() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Platforms</p>
+                <p className="text-muted-foreground">Core Platforms</p>
                 <p className="font-medium">
-                  {Array.from(new Set(monitoringData.map(item => item.platform))).join(', ')}
+                  YouTube, Web Content, Website
                 </p>
               </div>
               <div>

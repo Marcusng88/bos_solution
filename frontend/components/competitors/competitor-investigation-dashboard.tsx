@@ -25,8 +25,14 @@ import {
   Eye,
   Activity,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Youtube,
+  Globe,
+  Search,
+  Loader2,
+  Clock
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export function CompetitorInvestigationDashboard() {
   const [competitors, setCompetitors] = useState<Competitor[]>([])
@@ -36,9 +42,9 @@ export function CompetitorInvestigationDashboard() {
   const [timeRange, setTimeRange] = useState("7d")
   const [selectedIndustry, setSelectedIndustry] = useState("all")
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null)
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false)
+  const [scanningStates, setScanningStates] = useState<Record<string, Record<string, boolean>>>({})
   const { user, isLoaded } = useUser()
+  const { toast } = useToast()
 
   // Fetch competitors data
   const fetchCompetitors = async () => {
@@ -76,10 +82,9 @@ export function CompetitorInvestigationDashboard() {
             name: "Demo Competitor 1",
             industry: "Technology",
             status: "active",
-            platforms: ["youtube", "website"],
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            scan_frequency_minutes: 60,
+            scan_frequency_minutes: 1440,
             user_id: "demo-user-1"
           },
           {
@@ -87,10 +92,9 @@ export function CompetitorInvestigationDashboard() {
             name: "Demo Competitor 2",
             industry: "E-commerce",
             status: "active",
-            platforms: ["instagram", "facebook"],
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            scan_frequency_minutes: 60,
+            scan_frequency_minutes: 1440,
             user_id: "demo-user-1"
           }
         ])
@@ -105,10 +109,9 @@ export function CompetitorInvestigationDashboard() {
           name: "Demo Competitor 1",
           industry: "Technology",
           status: "active",
-          platforms: ["youtube", "website"],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          scan_frequency_minutes: 60,
+          scan_frequency_minutes: 1440,
           user_id: "demo-user-1"
         },
         {
@@ -116,10 +119,9 @@ export function CompetitorInvestigationDashboard() {
           name: "Demo Competitor 2", 
           industry: "E-commerce",
           status: "active",
-          platforms: ["instagram", "facebook"],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          scan_frequency_minutes: 60,
+          scan_frequency_minutes: 1440,
           user_id: "demo-user-1"
         }
       ])
@@ -219,10 +221,73 @@ export function CompetitorInvestigationDashboard() {
     fetchCompetitors() // Refresh the competitors list
   }
 
-  // Handle competitor details dialog close
-  const handleDetailsDialogClose = () => {
-    setShowDetailsDialog(false)
-    setSelectedCompetitor(null)
+  // Handle agent invocation for specific platform
+  const handleAgentInvocation = async (competitorId: string, platform: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Authentication Error",
+        description: "Please sign in to use this feature",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Set scanning state for this specific competitor and platform
+    setScanningStates(prev => ({
+      ...prev,
+      [competitorId]: {
+        ...prev[competitorId],
+        [platform]: true
+      }
+    }))
+
+    try {
+      const response = await fetch(`/api/v1/monitoring/scan-platform/${platform}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id,
+        },
+        body: JSON.stringify({
+          competitor_id: competitorId
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        toast({
+          title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Scan Complete`,
+          description: result.message,
+          variant: "default"
+        })
+        
+        // Refresh monitoring data to show new results
+        await fetchMonitoringData()
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "Scan Failed",
+          description: errorData.detail || `Failed to scan ${platform}`,
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error(`Error invoking ${platform} agent:`, error)
+      toast({
+        title: "Scan Error",
+        description: `Failed to invoke ${platform} agent. Please try again.`,
+        variant: "destructive"
+      })
+    } finally {
+      // Clear scanning state
+      setScanningStates(prev => ({
+        ...prev,
+        [competitorId]: {
+          ...prev[competitorId],
+          [platform]: false
+        }
+      }))
+    }
   }
 
   useEffect(() => {
@@ -333,7 +398,6 @@ export function CompetitorInvestigationDashboard() {
         </Card>
       )}
 
-
       {/* Filters */}
       <div className="flex items-center gap-4">
         <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
@@ -355,7 +419,15 @@ export function CompetitorInvestigationDashboard() {
         <CardHeader>
           <CardTitle>Competitors ({filteredCompetitors.length})</CardTitle>
           <CardDescription>
-            Active competitors being monitored
+            Active competitors being monitored. Use the agent buttons to run specific monitoring scans:
+            <br />
+            <span className="text-xs text-muted-foreground">
+              • <strong>YouTube:</strong> Analyze video content, channels, and engagement metrics
+              <br />
+              • <strong>Browser:</strong> Search web content and analyze online presence  
+              <br />
+              • <strong>Website:</strong> Analyze website content, structure, and updates
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -367,37 +439,126 @@ export function CompetitorInvestigationDashboard() {
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center relative">
                       <span className="font-semibold text-primary">
                         {competitor.name.slice(0, 2).toUpperCase()}
                       </span>
+                      {/* Scanning indicator */}
+                      {Object.values(scanningStates[competitor.id] || {}).some(Boolean) && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                          <Loader2 className="h-2.5 w-2.5 text-white animate-spin" />
+                        </div>
+                      )}
                     </div>
                     <div>
                       <h3 className="font-medium">{competitor.name}</h3>
                       <p className="text-sm text-muted-foreground">{competitor.industry}</p>
+                      {/* Scanning status indicator */}
+                      {Object.entries(scanningStates[competitor.id] || {}).some(([platform, isScanning]) => isScanning) && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
+                          <span className="text-xs text-blue-600">
+                            Scanning: {Object.entries(scanningStates[competitor.id] || {})
+                              .filter(([platform, isScanning]) => isScanning)
+                              .map(([platform]) => platform.charAt(0).toUpperCase() + platform.slice(1))
+                              .join(", ")}
+                          </span>
+                        </div>
+                      )}
+                      {/* Last scan time indicator */}
+                      <div className="flex items-center gap-1 mt-1">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {competitor.last_scan_at 
+                            ? `Last scanned: ${new Date(competitor.last_scan_at).toLocaleDateString()}`
+                            : "No recent scans"
+                          }
+                        </span>
+                      </div>
+                      {/* Scan frequency indicator */}
+                      <div className="flex items-center gap-1 mt-1">
+                        <Activity className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          Auto-scan: every 24 hours
+                        </span>
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
-                        {(competitor.platforms || []).map((platform) => (
-                          <Badge key={platform} variant="secondary" className="text-xs">
-                            {platform}
-                          </Badge>
-                        ))}
+                        <Badge variant="secondary" className="text-xs">
+                          Core Monitoring
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          YouTube, Web, Website
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={competitor.status === 'active' ? 'default' : 'secondary'}>
-                      {competitor.status}
-                    </Badge>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCompetitor(competitor)
-                        setShowDetailsDialog(true)
-                      }}
-                    >
-                      View Details
-                    </Button>
+                  <div className="flex items-center gap-3">
+                    {/* Agent Invocation Buttons */}
+                    <div className="flex items-center gap-2 border-r pr-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAgentInvocation(competitor.id, "youtube")}
+                        disabled={scanningStates[competitor.id]?.["youtube"] || Object.values(scanningStates[competitor.id] || {}).some(Boolean)}
+                        className="flex items-center gap-2 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition-colors"
+                        title="Analyze YouTube content, channels, and engagement metrics"
+                      >
+                        <Youtube className="h-4 w-4" />
+                        {scanningStates[competitor.id]?.["youtube"] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "YouTube"
+                        )}
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAgentInvocation(competitor.id, "browser")}
+                        disabled={scanningStates[competitor.id]?.["browser"] || Object.values(scanningStates[competitor.id] || {}).some(Boolean)}
+                        className="flex items-center gap-2 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                        title="Search web content and analyze online presence"
+                      >
+                        <Search className="h-4 w-4" />
+                        {scanningStates[competitor.id]?.["browser"] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Browser"
+                        )}
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAgentInvocation(competitor.id, "website")}
+                        disabled={scanningStates[competitor.id]?.["website"] || Object.values(scanningStates[competitor.id] || {}).some(Boolean)}
+                        className="flex items-center gap-2 hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition-colors"
+                        title="Analyze website content, structure, and updates"
+                      >
+                        <Globe className="h-4 w-4" />
+                        {scanningStates[competitor.id]?.["website"] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Website"
+                        )}
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Badge variant={competitor.status === 'active' ? 'default' : 'secondary'}>
+                        {competitor.status}
+                      </Badge>
+                      <CompetitorDetailsDialog
+                        competitor={competitor}
+                        onCompetitorUpdated={handleCompetitorAdded}
+                        onCompetitorDeleted={handleCompetitorAdded}
+                        trigger={
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -447,14 +608,6 @@ export function CompetitorInvestigationDashboard() {
           />
         </TabsContent>
       </Tabs>
-
-      {/* Competitor Details Dialog */}
-      {selectedCompetitor && showDetailsDialog && (
-        <CompetitorDetailsDialog
-          competitor={selectedCompetitor}
-          onCompetitorUpdated={handleCompetitorAdded}
-        />
-      )}
 
       {/* Add Competitor Modal */}
       <AddCompetitorModal 

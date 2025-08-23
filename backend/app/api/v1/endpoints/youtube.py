@@ -7,7 +7,7 @@ import os
 from urllib.parse import urlencode, parse_qs, urlparse
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Load environment variables first
 from dotenv import load_dotenv
@@ -1083,7 +1083,7 @@ async def debug_full_youtube_test(
     Tests all major functionality with detailed console output
     """
     debug_results = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "access_token_preview": f"{access_token[:20]}..." if len(access_token) > 20 else access_token,
         "parameters": {
             "hours_back": hours_back,
@@ -1212,7 +1212,7 @@ async def debug_full_youtube_test(
                         "type": "video",
                         "order": "date",
                         "maxResults": 5,
-                        "publishedAfter": (datetime.utcnow() - timedelta(days=days_back)).strftime('%Y-%m-%dT%H:%M:%SZ')
+                        "publishedAfter": (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime('%Y-%m-%dT%H:%M:%SZ')
                     },
                     headers={"Authorization": f"Bearer {access_token}"},
                     timeout=30

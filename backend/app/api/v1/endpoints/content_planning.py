@@ -33,16 +33,17 @@ async def generate_content(request: ContentGenerationRequest) -> ContentGenerati
     Generate AI-optimized social media content based on competitor insights
     """
     try:
-        logger.info(f"📝 Content generation request for {request.platform} in {request.industry}")
+        logger.info(f"📝 Content generation request for {request.platform} for Clerk ID: {request.clerk_id}")
         
         result = await content_planning_service.generate_content(
-            industry=request.industry,
+            clerk_id=request.clerk_id,
             platform=request.platform,
             content_type=request.content_type,
             tone=request.tone,
             target_audience=request.target_audience,
             custom_requirements=request.custom_requirements,
-            generate_variations=request.generate_variations
+            generate_variations=request.generate_variations,
+            industry=request.industry  # Pass industry from request
         )
         
         return ContentGenerationResponse(**result)
@@ -314,6 +315,64 @@ async def get_content_suggestions(user_id: str = Query(..., description="User ID
         )
 
 
+@router.put("/update-content-suggestion/{suggestion_id}")
+async def update_content_suggestion(
+    suggestion_id: str,
+    request: dict
+):
+    """
+    Update an existing content suggestion with edited content
+    """
+    try:
+        suggested_content = request.get("suggested_content")
+        user_modifications = request.get("user_modifications", "")
+        
+        if not suggested_content:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Suggested content is required"
+            )
+        
+        logger.info(f"📝 Updating content suggestion {suggestion_id}")
+        logger.info(f"📝 New content: {suggested_content[:100]}...")
+        
+        supabase = supabase_client
+        
+        # Update the content suggestion
+        update_data = {
+            "suggested_content": suggested_content,
+            "user_modifications": user_modifications
+        }
+        
+        response = await supabase._make_request(
+            "PATCH",
+            f"ai_content_suggestions?id=eq.{suggestion_id}",
+            data=update_data
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Content suggestion {suggestion_id} updated successfully")
+            return {
+                "success": True,
+                "message": "Content suggestion updated successfully",
+                "suggestion_id": suggestion_id
+            }
+        else:
+            logger.error(f"❌ Failed to update content suggestion: {response.status_code}")
+            logger.error(f"❌ Response text: {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update content suggestion: {response.text}"
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Update content suggestion error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update content suggestion: {str(e)}"
+        )
+
+
 @router.post("/analyze-competitors", response_model=CompetitorAnalysisResponse)
 async def analyze_competitors(request: CompetitorAnalysisRequest) -> CompetitorAnalysisResponse:
     """
@@ -371,10 +430,10 @@ async def generate_content_strategy(request: ContentStrategyRequest) -> ContentS
     Generate comprehensive content strategy based on competitive analysis
     """
     try:
-        logger.info(f"📋 Content strategy request for {request.industry}")
+        logger.info(f"📋 Content strategy request for Clerk ID: {request.clerk_id}")
         
         result = await content_planning_service.generate_content_strategy(
-            industry=request.industry,
+            clerk_id=request.clerk_id,
             platforms=request.platforms,
             content_goals=request.content_goals,
             target_audience=request.target_audience
@@ -396,10 +455,10 @@ async def generate_content_calendar(request: ContentCalendarRequest) -> ContentC
     Generate AI-optimized content calendar
     """
     try:
-        logger.info(f"📅 Content calendar request for {request.industry}")
+        logger.info(f"📅 Content calendar request for Clerk ID: {request.clerk_id}")
         
         result = await content_planning_service.generate_content_calendar(
-            industry=request.industry,
+            clerk_id=request.clerk_id,
             platforms=request.platforms,
             duration_days=request.duration_days,
             posts_per_day=request.posts_per_day
@@ -421,10 +480,10 @@ async def identify_content_gaps(request: ContentGapsRequest) -> ContentGapsRespo
     Identify content gaps based on competitor analysis
     """
     try:
-        logger.info(f"🔍 Content gaps analysis request for {request.industry}")
+        logger.info(f"🔍 Content gaps analysis request for Clerk ID: {request.clerk_id}")
         
         result = await content_planning_service.identify_content_gaps(
-            industry=request.industry,
+            clerk_id=request.clerk_id,
             user_content_summary=request.user_content_summary
         )
         
@@ -444,10 +503,10 @@ async def optimize_posting_schedule(request: ScheduleOptimizationRequest) -> Sch
     Optimize posting schedule based on competitor timing analysis
     """
     try:
-        logger.info(f"⏰ Schedule optimization request for {request.industry}")
+        logger.info(f"⏰ Schedule optimization request for Clerk ID: {request.clerk_id}")
         
         result = await content_planning_service.optimize_posting_schedule(
-            industry=request.industry,
+            clerk_id=request.clerk_id,
             platforms=request.platforms
         )
         

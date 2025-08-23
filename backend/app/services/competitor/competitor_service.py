@@ -125,8 +125,8 @@ class CompetitorService:
             error_competitors = sum(1 for c in competitors if c.get("status") == "error")
             
             # Calculate average scan frequency
-            scan_frequencies = [c.get("scan_frequency_minutes", 60) for c in competitors]
-            avg_scan_frequency = sum(scan_frequencies) / len(scan_frequencies) if scan_frequencies else 60
+            scan_frequencies = [c.get("scan_frequency_minutes", 1440) for c in competitors]
+            avg_scan_frequency = sum(scan_frequencies) / len(scan_frequencies) if scan_frequencies else 1440
             
             # Get platforms being monitored
             all_platforms = set()

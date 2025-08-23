@@ -9,6 +9,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUser } from "@clerk/nextjs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +27,7 @@ interface AIContentGeneratorProps {
 }
 
 export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
+  const { user } = useUser()
   const [open, setOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<any>(null)
@@ -35,10 +37,9 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
   const { generateContent, supportedOptions } = useContentPlanning({ autoLoad: true })
 
   // Form state
-  const [formData, setFormData] = useState<ContentGenerationRequest>({
+  const [formData, setFormData] = useState<Omit<ContentGenerationRequest, 'clerk_id'>>({
     platform: 'instagram',
     content_type: 'promotional',
-    industry: 'technology',
     target_audience: 'professionals',
     tone: 'professional'
   })
@@ -47,12 +48,13 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
 
   // This function is ONLY called when user clicks "Generate Content" button
   const handleGenerate = async () => {
-    if (!topic.trim()) return
+    if (!topic.trim() || !user?.id) return
 
     try {
       setGenerating(true)
-      const requestData = {
+      const requestData: ContentGenerationRequest = {
         ...formData,
+        clerk_id: user.id,
         custom_requirements: `Topic: ${topic}. ${formData.custom_requirements || ''}`
       }
       // AI agent is invoked here - only when user explicitly requests it
@@ -83,7 +85,6 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
     setFormData({
       platform: 'instagram',
       content_type: 'promotional',
-      industry: 'technology',
       target_audience: 'professionals',
       tone: 'professional'
     })
@@ -162,29 +163,7 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="industry">Industry</Label>
-                <Select 
-                  value={formData.industry} 
-                  onValueChange={(value) => setFormData({...formData, industry: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {supportedOptions?.industries.map((industry: string) => (
-                      <SelectItem key={industry} value={industry}>
-                        {industry.charAt(0).toUpperCase() + industry.slice(1)}
-                      </SelectItem>
-                    )) || [
-                      <SelectItem key="technology" value="technology">Technology</SelectItem>,
-                      <SelectItem key="fashion" value="fashion">Fashion</SelectItem>,
-                      <SelectItem key="food" value="food">Food & Beverage</SelectItem>,
-                      <SelectItem key="fitness" value="fitness">Fitness</SelectItem>
-                    ]}
-                  </SelectContent>
-                </Select>
-              </div>
+
 
               <div className="space-y-2">
                 <Label htmlFor="tone">Tone</Label>
@@ -200,6 +179,24 @@ export function AIContentGenerator({ trigger }: AIContentGeneratorProps) {
                     <SelectItem value="casual">Casual</SelectItem>
                     <SelectItem value="humorous">Humorous</SelectItem>
                     <SelectItem value="inspirational">Inspirational</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="target_audience">Target Audience</Label>
+                <Select 
+                  value={formData.target_audience} 
+                  onValueChange={(value) => setFormData({...formData, target_audience: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="professionals">Professionals</SelectItem>
+                    <SelectItem value="students">Students</SelectItem>
+                    <SelectItem value="entrepreneurs">Entrepreneurs</SelectItem>
+                    <SelectItem value="general">General Audience</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

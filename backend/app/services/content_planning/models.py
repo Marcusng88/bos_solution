@@ -10,18 +10,19 @@ from typing import List, Optional, Dict, Any
 # Request Models
 class ContentGenerationRequest(BaseModel):
     """Request model for content generation"""
-    industry: str = Field(..., description="Target industry sector")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     platform: str = Field(..., description="Social media platform")
     content_type: str = Field(..., description="Type of content to generate")
     tone: str = Field(default="professional", description="Tone of voice")
     target_audience: str = Field(..., description="Target audience description")
     custom_requirements: Optional[str] = Field(None, description="Custom requirements")
     generate_variations: bool = Field(default=False, description="Generate multiple variations")
+    industry: Optional[str] = Field(None, description="User's industry sector")
 
 
 class CompetitorAnalysisRequest(BaseModel):
     """Request model for competitor analysis"""
-    industry: str = Field(..., description="Industry to analyze")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     competitor_ids: Optional[List[str]] = Field(None, description="Specific competitor IDs")
     analysis_type: str = Field(default="comprehensive_analysis", description="Type of analysis")
     time_period: str = Field(default="last_30_days", description="Analysis time period")
@@ -29,7 +30,7 @@ class CompetitorAnalysisRequest(BaseModel):
 
 class HashtagResearchRequest(BaseModel):
     """Request model for hashtag research"""
-    industry: str = Field(..., description="Target industry")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     content_type: str = Field(..., description="Content type")
     platform: str = Field(..., description="Social media platform")
     target_audience: str = Field(..., description="Target audience")
@@ -38,7 +39,7 @@ class HashtagResearchRequest(BaseModel):
 
 class ContentStrategyRequest(BaseModel):
     """Request model for content strategy generation"""
-    industry: str = Field(..., description="Target industry")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     platforms: List[str] = Field(..., description="Target platforms")
     content_goals: List[str] = Field(..., description="Content goals")
     target_audience: str = Field(..., description="Target audience")
@@ -46,7 +47,7 @@ class ContentStrategyRequest(BaseModel):
 
 class ContentCalendarRequest(BaseModel):
     """Request model for content calendar generation"""
-    industry: str = Field(..., description="Target industry")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     platforms: List[str] = Field(..., description="Target platforms")
     duration_days: int = Field(default=30, description="Calendar duration in days")
     posts_per_day: int = Field(default=2, description="Posts per day")
@@ -54,13 +55,13 @@ class ContentCalendarRequest(BaseModel):
 
 class ContentGapsRequest(BaseModel):
     """Request model for content gap identification"""
-    industry: str = Field(..., description="Target industry")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     user_content_summary: str = Field(..., description="Summary of user's current content")
 
 
 class ScheduleOptimizationRequest(BaseModel):
     """Request model for posting schedule optimization"""
-    industry: str = Field(..., description="Target industry")
+    clerk_id: str = Field(..., description="User's Clerk ID")
     platforms: List[str] = Field(..., description="Target platforms")
 
 

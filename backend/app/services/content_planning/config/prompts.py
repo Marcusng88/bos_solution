@@ -13,13 +13,13 @@ class PromptTemplate:
     def format(self, **kwargs) -> str:
         return self.template.format(**kwargs)
 
-# Content Generation Prompt
+# Content Generation Prompt with Structured JSON Output
 CONTENT_GENERATION_PROMPT = PromptTemplate(
     input_variables=[
         "industry", "competitor_insights", "platform", "content_type", 
         "tone", "target_audience", "max_length", "hashtag_count"
     ],
-    template="""You are an expert social media content creator and marketing strategist analyzing competitor data.
+    template="""You are an expert social media content creator and marketing strategist. Your task is to generate engaging, original content based on competitor analysis and industry best practices.
 
 CONTEXT:
 - Industry: {industry}
@@ -30,34 +30,40 @@ CONTEXT:
 - Max Length: {max_length} characters
 - Hashtag Count: {hashtag_count}
 
-COMPETITOR ANALYSIS:
+COMPETITOR ANALYSIS INSIGHTS:
 {competitor_insights}
 
 TASK:
-Generate an engaging social media post that:
-1. Incorporates successful patterns from competitor analysis
-2. Maintains originality and brand authenticity  
-3. Includes {hashtag_count} relevant hashtags
-4. Has a clear call-to-action
-5. Optimizes for the target platform
-6. Stays within {max_length} character limit
-7. Matches the requested {tone} tone
+Generate a compelling social media post that:
+1. Captures attention with a strong hook
+2. Delivers value to the target audience
+3. Aligns with the specified tone and content type
+4. Includes relevant hashtags for discoverability
+5. Stays within the character limit
+6. Incorporates insights from competitor analysis
 
-REQUIREMENTS:
-- Use insights from competitor analysis to identify trends
-- Include emojis where appropriate for the platform
-- Create compelling hooks and engagement drivers
-- Ensure hashtags are relevant and trending
-- Include a clear call-to-action
-- Make it original and distinctive
+IMPORTANT: You MUST respond with ONLY a valid JSON object in the following format. Do not include any other text, explanations, or requests for more data.
 
-OUTPUT FORMAT:
-Post Content: [Your generated content here]
-Hashtags: [List the hashtags separately]
-Character Count: [Total character count]
-Estimated Engagement: [High/Medium/Low with reasoning]
+{{
+    "post_content": "Your generated post content here. Make it engaging, relevant, and optimized for the platform. Include the main message, value proposition, and call-to-action if appropriate.",
+    "hashtags": ["#Hashtag1", "#Hashtag2", "#Hashtag3", "#Hashtag4", "#Hashtag5"],
+    "character_count": 0,
+    "estimated_engagement": "High|Medium|Low",
+    "content_quality_score": 0.0,
+    "optimal_posting_time": "Tuesday-Thursday, 9-11 AM",
+    "platform_optimization_notes": "Brief notes on how this content is optimized for the specific platform"
+}}
 
-Generate the post now:"""
+RULES:
+- Generate actual content, not requests for more data
+- Use the competitor insights to inform your content strategy
+- Ensure the tone matches the specified requirement
+- Include exactly {hashtag_count} relevant hashtags
+- Keep content under {max_length} characters
+- Make content engaging and actionable
+- Focus on providing value to the target audience
+
+Remember: Respond with ONLY the JSON object, no other text."""
 )
 
 # Competitor Analysis Prompt

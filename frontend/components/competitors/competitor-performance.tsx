@@ -1,16 +1,60 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { TrendingUp, TrendingDown, Target, Users, Heart, MessageCircle, BarChart3, AlertCircle, FileText } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
 interface CompetitorPerformanceProps {
   timeRange: string
   monitoringData?: any[]
 }
 
+interface Competitor {
+  id: string
+  name: string
+  status: string
+}
+
 export function CompetitorPerformance({ timeRange, monitoringData = [] }: CompetitorPerformanceProps) {
+  const { user } = useUser()
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
+
+  // Fetch competitor names when component mounts
+  useEffect(() => {
+    const fetchCompetitors = async () => {
+      if (!user?.id) return
+      
+      try {
+        const response = await fetch('/api/v1/competitors', {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': user.id,
+          },
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setCompetitors(data)
+        } else {
+          console.error('Failed to fetch competitors:', response.status)
+        }
+      } catch (error) {
+        console.error('Error fetching competitors:', error)
+      }
+    }
+
+    fetchCompetitors()
+  }, [user?.id])
+
+  // Helper function to get competitor name by ID
+  const getCompetitorName = (competitorId: string) => {
+    const competitor = competitors.find(c => c.id === competitorId)
+    return competitor?.name || `Competitor ${competitorId.slice(0, 8)}`
+  }
+
   // Calculate real performance data from actual monitoring data
   const calculatePerformanceData = () => {
     if (!monitoringData || monitoringData.length === 0) {
@@ -75,7 +119,7 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
       
       return {
         id: comp.id,
-        competitor: `Competitor ${comp.id.slice(0, 8)}`,
+        competitor: getCompetitorName(comp.id),
         metrics: {
           posts: comp.posts,
           engagement: avgEngagement > 0 ? avgEngagement.toFixed(1) : 'N/A',

@@ -6,74 +6,31 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Youtube, Instagram, Twitter, Facebook, Linkedin, Globe, Edit3, Save, X } from "lucide-react"
+import { Edit3, Save, X, Trash2, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { competitorAPI } from "@/lib/api-client"
-import { Competitor, CompetitorUpdate, Platform } from "@/lib/types"
+import { Competitor, CompetitorUpdate } from "@/lib/types"
 import { useUser } from "@clerk/nextjs"
 
 interface CompetitorDetailsDialogProps {
   competitor: Competitor
   onCompetitorUpdated: () => void
+  onCompetitorDeleted: () => void
   trigger?: React.ReactNode
 }
 
-const AVAILABLE_PLATFORMS: Platform[] = [
-  {
-    id: "youtube",
-    name: "YouTube",
-    icon: "🎥",
-    description: "Video content and channel monitoring"
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    icon: "📸",
-    description: "Photo and story content monitoring"
-  },
-  {
-    id: "twitter",
-    name: "Twitter/X",
-    icon: "🐦",
-    description: "Tweet and thread monitoring"
-  },
-  {
-    id: "facebook",
-    name: "Facebook",
-    icon: "📘",
-    description: "Page and post monitoring"
-  },
-  {
-    id: "linkedin",
-    name: "LinkedIn",
-    icon: "💼",
-    description: "Company page and content monitoring"
-  },
-  {
-    id: "website",
-    name: "Website",
-    icon: "🌐",
-    description: "Website changes and updates monitoring"
-  }
-]
-
-export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigger }: CompetitorDetailsDialogProps) {
+export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, onCompetitorDeleted, trigger }: CompetitorDetailsDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [formData, setFormData] = useState<CompetitorUpdate>({
     name: competitor.name,
     description: competitor.description || "",
     website_url: competitor.website_url || "",
-    industry: competitor.industry || "",
-    platforms: competitor.platforms || ["youtube"],
-    scan_frequency_minutes: competitor.scan_frequency_minutes
+    industry: competitor.industry || ""
   })
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(competitor.platforms || ["youtube"])
-  const [socialHandles, setSocialHandles] = useState<Record<string, string>>(competitor.social_media_handles || {})
   const { toast } = useToast()
   const { user } = useUser()
 
@@ -83,39 +40,14 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigg
       name: competitor.name,
       description: competitor.description || "",
       website_url: competitor.website_url || "",
-      industry: competitor.industry || "",
-      platforms: competitor.platforms || ["youtube"],
-      scan_frequency_minutes: competitor.scan_frequency_minutes
+      industry: competitor.industry || ""
     })
-    setSelectedPlatforms(competitor.platforms || ["youtube"])
-    setSocialHandles(competitor.social_media_handles || {})
   }, [competitor])
 
   const handleInputChange = (field: keyof CompetitorUpdate, value: string | number) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
-    }))
-  }
-
-  const handlePlatformToggle = (platformId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedPlatforms(prev => [...prev, platformId])
-    } else {
-      setSelectedPlatforms(prev => prev.filter(id => id !== platformId))
-      // Remove social handle for deselected platform
-      setSocialHandles(prev => {
-        const newHandles = { ...prev }
-        delete newHandles[platformId]
-        return newHandles
-      })
-    }
-  }
-
-  const handleSocialHandleChange = (platformId: string, handle: string) => {
-    setSocialHandles(prev => ({
-      ...prev,
-      [platformId]: handle
     }))
   }
 
@@ -145,10 +77,7 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigg
         name: formData.name.trim(),
         description: formData.description?.trim() || undefined,
         website_url: formData.website_url?.trim() || undefined,
-        industry: formData.industry?.trim() || undefined,
-        platforms: selectedPlatforms,
-        social_media_handles: Object.keys(socialHandles).length > 0 ? socialHandles : undefined,
-        scan_frequency_minutes: formData.scan_frequency_minutes
+        industry: formData.industry?.trim() || undefined
       }
 
       await competitorAPI.updateCompetitor(competitor.id, updateData, user.id)
@@ -185,24 +114,56 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigg
       name: competitor.name,
       description: competitor.description || "",
       website_url: competitor.website_url || "",
-      industry: competitor.industry || "",
-      platforms: competitor.platforms || ["youtube"],
-      scan_frequency_minutes: competitor.scan_frequency_minutes
+      industry: competitor.industry || ""
     })
-    setSelectedPlatforms(competitor.platforms || ["youtube"])
-    setSocialHandles(competitor.social_media_handles || {})
     setIsEditing(false)
   }
 
-  const getPlatformIcon = (platformId: string) => {
-    switch (platformId) {
-      case "youtube": return <Youtube className="h-4 w-4" />
-      case "instagram": return <Instagram className="h-4 w-4" />
-      case "twitter": return <Twitter className="h-4 w-4" />
-      case "facebook": return <Facebook className="h-4 w-4" />
-      case "linkedin": return <Linkedin className="h-4 w-4" />
-      case "website": return <Globe className="h-4 w-4" />
-      default: return <Globe className="h-4 w-4" />
+  const handleDelete = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Show confirmation dialog
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!user) return
+
+    setIsLoading(true)
+    try {
+      await competitorAPI.deleteCompetitor(competitor.id, user.id)
+      
+      toast({
+        title: "Success",
+        description: `Competitor "${competitor.name}" deleted successfully!`
+      })
+      
+      setOpen(false)
+      setShowDeleteConfirm(false)
+      onCompetitorDeleted()
+      
+    } catch (error) {
+      console.error("Error deleting competitor:", error)
+      
+      let errorMessage = "Failed to delete competitor. Please try again.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -226,19 +187,30 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigg
             <div>
               <DialogTitle>Competitor Details</DialogTitle>
               <DialogDescription>
-                {isEditing ? "Edit competitor information and monitoring settings" : "View and manage competitor details"}
+                {isEditing ? "Edit competitor information" : "View and manage competitor details"}
               </DialogDescription>
             </div>
             <div className="flex items-center gap-2">
               {!isEditing ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={isLoading}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button
@@ -351,82 +323,26 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigg
             
             <div className="space-y-2">
               <Label htmlFor="scan_frequency">Scan Frequency</Label>
-              {isEditing ? (
-                <Select
-                  value={formData.scan_frequency_minutes?.toString()}
-                  onValueChange={(value) => handleInputChange("scan_frequency_minutes", parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select scan frequency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">Every 15 minutes</SelectItem>
-                    <SelectItem value="30">Every 30 minutes</SelectItem>
-                    <SelectItem value="60">Every hour</SelectItem>
-                    <SelectItem value="240">Every 4 hours</SelectItem>
-                    <SelectItem value="480">Every 8 hours</SelectItem>
-                    <SelectItem value="1440">Daily</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="p-3 bg-muted rounded-md">
-                  <span>Every {competitor.scan_frequency_minutes} minutes</span>
+              <div className="p-3 bg-muted rounded-md">
+                <span>Every 24 hours (1440 minutes)</span>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Scan frequency is fixed at 24 hours for optimal performance
                 </div>
-              )}
+              </div>
             </div>
           </div>
           
-          {/* Platform Selection */}
+          {/* Monitoring Coverage */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Platforms to Monitor</h3>
-            <p className="text-sm text-muted-foreground">
-              {isEditing ? "Select the platforms you want to monitor for this competitor" : "Currently monitored platforms"}
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {AVAILABLE_PLATFORMS.map((platform) => (
-                <div key={platform.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                  {isEditing ? (
-                    <Checkbox
-                      id={platform.id}
-                      checked={selectedPlatforms.includes(platform.id)}
-                      onCheckedChange={(checked) => handlePlatformToggle(platform.id, checked as boolean)}
-                    />
-                  ) : (
-                    <div className="w-4 h-4 flex items-center justify-center">
-                      {selectedPlatforms.includes(platform.id) && (
-                        <div className="w-3 h-3 bg-primary rounded-full" />
-                      )}
-                    </div>
-                  )}
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">{platform.icon}</span>
-                      <Label htmlFor={platform.id} className="font-medium cursor-pointer">
-                        {platform.name}
-                      </Label>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{platform.description}</p>
-                    
-                    {selectedPlatforms.includes(platform.id) && platform.id !== "website" && (
-                      <div className="pt-2">
-                        {isEditing ? (
-                          <Input
-                            placeholder={`${platform.name} handle or username`}
-                            value={socialHandles[platform.id] || ""}
-                            onChange={(e) => handleSocialHandleChange(platform.id, e.target.value)}
-                            className="text-sm"
-                          />
-                        ) : (
-                          <div className="text-sm text-muted-foreground">
-                            Handle: {socialHandles[platform.id] || "Not specified"}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <h3 className="text-lg font-medium">Monitoring Coverage</h3>
+            <div className="text-sm text-muted-foreground bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="font-medium mb-2">🎯 Automatic Monitoring Includes:</p>
+              <ul className="space-y-1 ml-4">
+                <li>• <strong>YouTube:</strong> Video content, channel activity, and engagement metrics</li>
+                <li>• <strong>Web Content:</strong> Online mentions, news articles, and social media posts</li>
+                <li>• <strong>Website Changes:</strong> Updates to competitor websites and landing pages</li>
+              </ul>
+              <p className="mt-2 text-xs">No platform selection needed - all three monitoring agents run automatically!</p>
             </div>
           </div>
           
@@ -455,8 +371,50 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, trigg
               </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
+         </div>
+       </DialogContent>
+
+       {/* Delete Confirmation Dialog */}
+       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+         <DialogContent className="max-w-md">
+           <DialogHeader>
+             <DialogTitle className="flex items-center gap-2 text-destructive">
+               <Trash2 className="h-5 w-5" />
+               Delete Competitor
+             </DialogTitle>
+             <DialogDescription>
+               Are you sure you want to delete <strong>"{competitor.name}"</strong>? 
+               This action cannot be undone and will remove all monitoring data for this competitor.
+             </DialogDescription>
+           </DialogHeader>
+           <div className="flex items-center justify-end gap-3 pt-4">
+             <Button
+               variant="outline"
+               onClick={() => setShowDeleteConfirm(false)}
+               disabled={isLoading}
+             >
+               Cancel
+             </Button>
+             <Button
+               variant="destructive"
+               onClick={confirmDelete}
+               disabled={isLoading}
+             >
+               {isLoading ? (
+                 <>
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                   Deleting...
+                 </>
+               ) : (
+                 <>
+                   <Trash2 className="mr-2 h-4 w-4" />
+                   Delete
+                 </>
+               )}
+             </Button>
+           </div>
+         </DialogContent>
+       </Dialog>
+     </Dialog>
+   )
+ }

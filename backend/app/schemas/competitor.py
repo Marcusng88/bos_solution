@@ -5,7 +5,6 @@ Competitor schemas for API requests and responses
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from uuid import UUID
 
 
 class CompetitorBase(BaseModel):
@@ -17,16 +16,12 @@ class CompetitorBase(BaseModel):
         None, 
         description="Social media handles by platform"
     )
-    platforms: Optional[List[str]] = Field(
-        default=["youtube"], 
-        description="List of platforms to monitor (e.g., youtube, instagram, twitter)"
-    )
     industry: Optional[str] = Field(None, max_length=100, description="Industry category")
     scan_frequency_minutes: Optional[int] = Field(
-        60, 
+        1440, 
         ge=15, 
         le=1440, 
-        description="Scan frequency in minutes (15 min to 24 hours)"
+        description="Scan frequency in minutes (15 min to 24 hours, default: 24 hours)"
     )
 
 
@@ -34,7 +29,6 @@ class CompetitorCreateFrontend(BaseModel):
     """Frontend schema for creating a competitor (accepts frontend field names)"""
     name: str = Field(..., min_length=1, max_length=255, description="Competitor name")
     website: Optional[str] = Field(None, description="Competitor website URL")  # Frontend field name
-    platforms: Optional[list[str]] = Field(None, description="Array of platforms to monitor")
     description: Optional[str] = Field(None, description="Competitor description")
     industry: Optional[str] = Field(None, max_length=100, description="Industry category")
 
@@ -47,7 +41,6 @@ class CompetitorUpdateFrontend(BaseModel):
     """Frontend schema for updating a competitor (accepts frontend field names)"""
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     website: Optional[str] = Field(None, description="Competitor website URL")  # Frontend field name
-    platforms: Optional[list[str]] = Field(None, description="Array of platforms to monitor")
     description: Optional[str] = None
     industry: Optional[str] = Field(None, max_length=100)
 
@@ -57,7 +50,6 @@ class CompetitorUpdate(BaseModel):
     description: Optional[str] = None
     website_url: Optional[str] = None
     social_media_handles: Optional[Dict[str, str]] = None
-    platforms: Optional[List[str]] = None
     industry: Optional[str] = Field(None, max_length=100)
     status: Optional[str] = Field(None, pattern="^(active|paused|error)$")
     scan_frequency_minutes: Optional[int] = Field(None, ge=15, le=1440)
@@ -65,7 +57,7 @@ class CompetitorUpdate(BaseModel):
 
 class CompetitorResponse(CompetitorBase):
     """Schema for competitor response"""
-    id: UUID
+    id: str
     user_id: str  # Changed to str to match database VARCHAR field that references users.clerk_id
     status: str
     created_at: datetime
@@ -75,14 +67,13 @@ class CompetitorResponse(CompetitorBase):
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: str
+            datetime: lambda v: v.isoformat()
         }
 
 
 class Competitor(CompetitorBase):
     """Schema for competitor data (matches database model)"""
-    id: UUID
+    id: str
     user_id: str
     status: str
     created_at: datetime
@@ -92,6 +83,5 @@ class Competitor(CompetitorBase):
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: str
+            datetime: lambda v: v.isoformat()
         }

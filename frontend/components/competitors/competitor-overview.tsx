@@ -1,17 +1,65 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Target, FileText, Globe, BarChart3 } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
 interface CompetitorOverviewProps {
   timeRange: string
   monitoringData?: any[]
 }
 
+interface Competitor {
+  id: string
+  name: string
+  status: string
+}
+
 export function CompetitorOverview({ timeRange, monitoringData = [] }: CompetitorOverviewProps) {
+  const { user } = useUser()
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Fetch competitor names when component mounts
+  useEffect(() => {
+    const fetchCompetitors = async () => {
+      if (!user?.id) return
+      
+      setLoading(true)
+      try {
+        const response = await fetch('/api/v1/competitors', {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': user.id,
+          },
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setCompetitors(data)
+        } else {
+          console.error('Failed to fetch competitors:', response.status)
+        }
+      } catch (error) {
+        console.error('Error fetching competitors:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCompetitors()
+  }, [user?.id])
+
+  // Helper function to get competitor name by ID
+  const getCompetitorName = (competitorId: string) => {
+    const competitor = competitors.find(c => c.id === competitorId)
+    return competitor?.name || `Competitor ${competitorId.slice(0, 8)}`
+  }
+
   // Calculate real insights from actual monitoring data
   const calculateInsights = () => {
     if (!monitoringData || monitoringData.length === 0) {
@@ -111,6 +159,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
     // Convert to array and calculate averages
     return Object.values(competitorData).map((comp: any) => ({
       id: comp.id,
+      name: getCompetitorName(comp.id),
       posts: comp.posts,
       platforms: comp.platforms.size,
       contentTypes: comp.contentTypes.size,
@@ -139,10 +188,8 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Globe className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold">
-                {new Set(monitoringData.map(post => post.platform)).size}
-              </div>
-              <p className="text-sm text-muted-foreground">Platforms Monitored</p>
+              <div className="text-2xl font-bold">3</div>
+              <p className="text-sm text-muted-foreground">Core Platforms (YouTube, Web, Website)</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-purple-500" />
@@ -222,10 +269,10 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                 <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                      <span className="font-semibold text-xs">C{index + 1}</span>
+                      <span className="font-semibold text-xs">{competitor.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                      <h3 className="font-medium">Competitor {index + 1}</h3>
+                      <h3 className="font-medium">{competitor.name}</h3>
                       <div className="flex items-center gap-1">
                         {competitor.trend === "up" ? (
                           <TrendingUp className="h-3 w-3 text-green-500" />

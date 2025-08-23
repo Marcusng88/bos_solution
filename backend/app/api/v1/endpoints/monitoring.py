@@ -10,7 +10,7 @@ from app.schemas.monitoring import MonitoringDataResponse, MonitoringAlertRespon
 from app.core.supabase_client import SupabaseClient
 from app.services.monitoring.orchestrator import SimpleMonitoringService
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,7 +94,7 @@ async def get_user_monitoring_stats(
         last_scan_time = None
         
         # Calculate 24 hours ago timestamp
-        twenty_four_hours_ago = datetime.utcnow().replace(tzinfo=None) - timedelta(hours=24)
+        twenty_four_hours_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
         
         for competitor in competitors:
             competitor_data = await db.get_monitoring_data_by_competitor(competitor["id"], limit=1000)
@@ -112,9 +112,9 @@ async def get_user_monitoring_stats(
                         
                         # Ensure both dates are timezone-aware for comparison
                         if detected_dt.tzinfo is None:
-                            detected_dt = detected_dt.replace(tzinfo=datetime.timezone.utc)
+                            detected_dt = detected_dt.replace(tzinfo=timezone.utc)
                         
-                        if detected_dt > twenty_four_hours_ago.replace(tzinfo=datetime.timezone.utc):
+                        if detected_dt > twenty_four_hours_ago.replace(tzinfo=timezone.utc):
                             recent_activity_24h += 1
                         
                         # Track last scan time
@@ -125,7 +125,7 @@ async def get_user_monitoring_stats(
                         continue
             
             # Add platforms from competitor settings
-            competitor_platforms = competitor.get("platforms", [])
+            competitor_platforms = ["youtube", "browser", "website"]  # Core platforms for all competitors
             if isinstance(competitor_platforms, list):
                 platforms_monitored.update(competitor_platforms)
         
@@ -196,10 +196,8 @@ async def get_monitoring_status(
                     if last_scan:
                         last_scan_times.append(last_scan)
             
-            # Add platforms from competitor settings
-            competitor_platforms = competitor.get("platforms", [])
-            if isinstance(competitor_platforms, list):
-                platforms_monitored.update(competitor_platforms)
+            # Core platforms are always the same for all competitors
+            platforms_monitored.update(["youtube", "browser", "website"])
         
         # Calculate overall status
         overall_status = "active" if active_competitors > 0 else "inactive"
@@ -219,10 +217,10 @@ async def get_monitoring_status(
                 
                 # Ensure the datetime is timezone-aware
                 if latest_scan_dt.tzinfo is None:
-                    latest_scan_dt = latest_scan_dt.replace(tzinfo=datetime.timezone.utc)
+                    latest_scan_dt = latest_scan_dt.replace(tzinfo=timezone.utc)
                 
-                # Estimate next run based on average scan frequency (60 minutes)
-                next_scheduled_run = (latest_scan_dt + timedelta(minutes=60)).isoformat()
+                # Estimate next run based on average scan frequency (24 hours)
+                next_scheduled_run = (latest_scan_dt + timedelta(minutes=1440)).isoformat()
             except Exception as e:
                 logger.warning(f"Error calculating next scheduled run: {e}")
         
@@ -381,7 +379,7 @@ async def scan_platform(
     user_id: str = Depends(get_user_id_from_header),
     db: SupabaseClient = Depends(get_db)
 ):
-    """Scan a specific platform for a competitor"""
+    """Scan a specific platform for a competitor (legacy endpoint - now redirects to full competitor scan)"""
     try:
         competitor_id = scan_data.get("competitor_id")
         if not competitor_id:
@@ -392,8 +390,8 @@ async def scan_platform(
         if not competitor or competitor.get("user_id") != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Validate platform
-        valid_platforms = ["youtube", "website", "browser", "instagram", "twitter"]
+        # Validate platform (only allow core platforms)
+        valid_platforms = ["youtube", "browser", "website"]
         if platform not in valid_platforms:
             raise HTTPException(status_code=400, detail=f"Invalid platform. Must be one of: {', '.join(valid_platforms)}")
         
@@ -401,8 +399,7 @@ async def scan_platform(
         
         # Run the actual monitoring using the monitoring service
         result = await monitoring_service.run_monitoring_for_competitor(
-            competitor_id=competitor_id,
-            platforms=[platform]
+            competitor_id=competitor_id
         )
         
         if result.get("status") == "completed":
@@ -445,31 +442,25 @@ async def scan_competitor(
     user_id: str = Depends(get_user_id_from_header),
     db: SupabaseClient = Depends(get_db)
 ):
-    """Scan a specific competitor with optional platforms"""
+    """Scan a specific competitor using all three core agents (youtube, browser, website)"""
     try:
         # Verify the competitor belongs to the user
         competitor = await db.get_competitor_by_id(competitor_id)
         if not competitor or competitor.get("user_id") != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        platforms = scan_data.get("platforms", [])
-        if not platforms:
-            # Use competitor's default platforms if none specified
-            platforms = competitor.get("platforms", ["youtube"])
+        logger.info(f"🚀 Starting competitor scan for {competitor_id} with core agents (youtube, browser, website)")
         
-        logger.info(f"🚀 Starting competitor scan for {competitor_id} with platforms: {platforms}")
-        
-        # Run the actual monitoring using the monitoring service
+        # Run the actual monitoring using the monitoring service (automatically uses core agents)
         result = await monitoring_service.run_monitoring_for_competitor(
-            competitor_id=competitor_id,
-            platforms=platforms
+            competitor_id=competitor_id
         )
         
         if result.get("status") == "completed":
             return {
-                "message": f"Competitor scan completed successfully",
+                "message": f"Competitor scan completed successfully using core agents (youtube, browser, website)",
                 "competitor_id": competitor_id,
-                "platforms": platforms,
+                "platforms": ["youtube", "browser", "website"],
                 "status": "completed",
                 "platforms_analyzed": result.get("platforms_analyzed", []),
                 "monitoring_data_count": result.get("monitoring_data_count", 0)
@@ -485,7 +476,7 @@ async def scan_competitor(
             return {
                 "message": f"Competitor scan completed with warnings",
                 "competitor_id": competitor_id,
-                "platforms": platforms,
+                "platforms": ["youtube", "browser", "website"],
                 "status": "completed_with_warnings",
                 "platforms_analyzed": result.get("platforms_analyzed", []),
                 "warnings": result.get("errors", [])
@@ -518,7 +509,7 @@ async def start_continuous_monitoring(
         settings_data = {
             "user_id": user_id,
             "global_monitoring_enabled": True,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         result = await db.upsert_user_monitoring_settings(settings_data)
@@ -553,7 +544,7 @@ async def stop_continuous_monitoring(
         settings_data = {
             "user_id": user_id,
             "global_monitoring_enabled": False,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         result = await db.upsert_user_monitoring_settings(settings_data)
@@ -581,7 +572,7 @@ async def run_monitoring_for_all_competitors(
     user_id: str = Depends(get_user_id_from_header),
     db: SupabaseClient = Depends(get_db)
 ):
-    """Run monitoring scan for all user's competitors"""
+    """Run monitoring scan for all user's competitors using core agents (youtube, browser, website)"""
     try:
         # Get all competitors for the user
         competitors = await db.get_competitors_by_user(user_id)
@@ -592,14 +583,13 @@ async def run_monitoring_for_all_competitors(
                 "message": "No competitors found for this user"
             }
         
-        # Start monitoring for each competitor
+        # Start monitoring for each competitor using core agents
         results = []
         for competitor in competitors:
             try:
-                platforms = competitor.get("platforms", ["youtube"])
+                # Always use the three core agents: youtube, browser, website
                 result = await monitoring_service.run_monitoring_for_competitor(
-                    competitor_id=competitor["id"],
-                    platforms=platforms
+                    competitor_id=competitor["id"]
                 )
                 results.append({
                     "competitor_id": competitor["id"],
@@ -616,7 +606,7 @@ async def run_monitoring_for_all_competitors(
         
         return {
             "success": True,
-            "message": f"Monitoring scan completed for {len(competitors)} competitors",
+            "message": f"Monitoring scan completed for {len(competitors)} competitors using core agents (youtube, browser, website)",
             "results": results
         }
             

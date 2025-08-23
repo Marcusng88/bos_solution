@@ -6,7 +6,7 @@ Handles scheduling and triggering of continuous monitoring tasks
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 import signal
 import sys
@@ -167,7 +167,7 @@ class MonitoringScheduler:
             # - Updating statistics
             # - Health checks
             
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             
             # For now, just log maintenance cycle
             logger.debug(f"Maintenance cycle completed at {current_time}")

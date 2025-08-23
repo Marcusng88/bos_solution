@@ -6,7 +6,7 @@ Replaces SQLAlchemy models and provides direct database access
 import httpx
 import json
 from typing import Optional, List, Dict, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import logging
 import uuid
@@ -151,7 +151,7 @@ class SupabaseClient:
     async def update_competitor_scan_time(self, competitor_id: str) -> bool:
         """Update competitor last scan time"""
         try:
-            update_data = {"last_scan_at": datetime.utcnow().isoformat()}
+            update_data = {"last_scan_at": datetime.now(timezone.utc).isoformat()}
             response = await self._make_request(
                 "PATCH", 
                 f"competitors?id=eq.{competitor_id}", 
@@ -279,13 +279,13 @@ class SupabaseClient:
             logger.error(f"Error getting competitor by ID: {e}")
             return None
 
-    async def create_competitor(self, competitor_data: Dict[str, Any]) -> Optional[str]:
+    async def create_competitor(self, competitor_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Create new competitor"""
         try:
             competitor_data["id"] = str(uuid.uuid4())
             response = await self._make_request("POST", "competitors", data=competitor_data)
             if response.status_code == 201 and response.json():
-                return response.json()[0]["id"]
+                return response.json()[0]
             return None
         except Exception as e:
             logger.error(f"Error creating competitor: {e}")

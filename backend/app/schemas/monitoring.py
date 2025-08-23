@@ -104,7 +104,7 @@ class PlatformScanResponse(BaseModel):
 class MonitoringAlertResponse(MonitoringAlertBase):
     """Schema for monitoring alert response"""
     id: UUID
-    user_id: UUID
+    user_id: str  # Changed from UUID to str to match Clerk user IDs
     competitor_id: Optional[UUID] = None
     monitoring_data_id: Optional[UUID] = None
     is_read: bool

@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useUser } from '@clerk/nextjs'
 import { 
   contentPlanningAPI, 
   type DashboardData, 
@@ -17,19 +18,19 @@ import {
 } from '@/lib/content-planning-api'
 
 export interface UseContentPlanningOptions {
-  industry?: string
   autoLoad?: boolean // Only loads basic dashboard data, doesn't invoke AI agent
 }
 
 export function useContentPlanning(options: UseContentPlanningOptions = {}) {
-  const { industry = 'technology', autoLoad = true } = options
+  const { autoLoad = true } = options
+  const { user } = useUser()
 
   // State management
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [supportedOptions, setSupportedOptions] = useState<SupportedOptions | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedIndustry, setSelectedIndustry] = useState(industry)
+  const [selectedIndustry, setSelectedIndustry] = useState('technology') // Keep for dashboard data
 
   // Load supported options
   const loadSupportedOptions = useCallback(async () => {
@@ -116,13 +117,33 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [])
 
+  // Update content suggestion in database
+  const updateContentSuggestion = useCallback(async (suggestionId: string, request: { suggested_content: string; user_modifications?: string }) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await contentPlanningAPI.updateContentSuggestion(suggestionId, request)
+      return response
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update content suggestion'
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   // Analyze competitors - Only invoked when explicitly requested by user
   const analyzeCompetitors = useCallback(async (analysisType: string = 'trend_analysis') => {
+    if (!user?.id) {
+      throw new Error('User not authenticated')
+    }
+    
     try {
       setLoading(true)
       setError(null)
       const response = await contentPlanningAPI.analyzeCompetitors({
-        industry: selectedIndustry,
+        clerk_id: user.id,
         analysis_type: analysisType
       })
       return response
@@ -133,15 +154,19 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [selectedIndustry])
+  }, [user?.id])
 
   // Research hashtags - Only invoked when explicitly requested by user
   const researchHashtags = useCallback(async (platform: string, contentType: string = 'promotional') => {
+    if (!user?.id) {
+      throw new Error('User not authenticated')
+    }
+    
     try {
       setLoading(true)
       setError(null)
       const response = await contentPlanningAPI.researchHashtags({
-        industry: selectedIndustry,
+        clerk_id: user.id,
         content_type: contentType,
         platform,
         target_audience: 'professionals'
@@ -154,15 +179,19 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [selectedIndustry])
+  }, [user?.id])
 
   // Generate content strategy - Only invoked when explicitly requested by user
   const generateStrategy = useCallback(async (platforms: string[], goals: string[] = ['engagement', 'reach']) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated')
+    }
+    
     try {
       setLoading(true)
       setError(null)
       const response = await contentPlanningAPI.generateStrategy({
-        industry: selectedIndustry,
+        clerk_id: user.id,
         platforms,
         content_goals: goals,
         target_audience: 'professionals'
@@ -175,7 +204,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [selectedIndustry])
+  }, [user?.id])
 
   // Generate content calendar - Only invoked when explicitly requested by user
   const generateCalendar = useCallback(async (
@@ -183,11 +212,15 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     durationDays: number = 30, 
     postsPerDay: number = 2
   ) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated')
+    }
+    
     try {
       setLoading(true)
       setError(null)
       const response = await contentPlanningAPI.generateCalendar({
-        industry: selectedIndustry,
+        clerk_id: user.id,
         platforms,
         duration_days: durationDays,
         posts_per_day: postsPerDay
@@ -200,7 +233,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [selectedIndustry])
+  }, [user?.id])
 
   // Identify content gaps - Only invoked when explicitly requested by user
   const identifyContentGaps = useCallback(async (userContentSummary: string = 'Standard promotional and educational content') => {
@@ -253,6 +286,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     generateContent,
     saveContentSuggestion,
     getContentSuggestions,
+    updateContentSuggestion,
     analyzeCompetitors,
     researchHashtags,
     generateStrategy,

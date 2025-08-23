@@ -397,7 +397,7 @@ Example format:
             return []
     
     async def _filter_relevant_videos_ai(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[Dict[str, Any]]:
-        """Use AI to filter videos for relevance to the competitor"""
+        """Use AI to filter videos for relevance to the competitor in batches of 5"""
         try:
             if not videos:
                 return []
@@ -409,37 +409,71 @@ Example format:
             relevant_videos = []
             competitor_name_lower = competitor_name.lower()
             
-            logger.info(f"🧠 Using AI to filter {len(videos)} videos for relevance to {competitor_name}")
+            logger.info(f"🧠 Using AI to filter {len(videos)} videos for relevance to {competitor_name} in batches of 5")
             
-            for video in videos:
+            # Process videos in batches of 5
+            batch_size = 5
+            total_batches = (len(videos) + batch_size - 1) // batch_size
+            logger.info(f"📦 Starting batch processing: {len(videos)} videos in {total_batches} batches of {batch_size}")
+            
+            for i in range(0, len(videos), batch_size):
+                batch = videos[i:i + batch_size]
+                current_batch = i//batch_size + 1
+                batch_range = f"{i+1}-{min(i+batch_size, len(videos))}"
+                logger.info(f"📦 Processing batch {current_batch}/{total_batches}: videos {batch_range}")
+                
                 try:
-                    snippet = video.get('snippet', {})
-                    title = snippet.get('title', '')
-                    description = snippet.get('description', '')
-                    channel_title = snippet.get('channelTitle', '')
+                    # Process batch of 5 videos together
+                    batch_results = await self._ai_video_relevance_check_batch(batch, competitor_name)
                     
-                    # Use AI to determine relevance
-                    is_relevant = await self._ai_video_relevance_check(
-                        title, description, channel_title, competitor_name
-                    )
+                    # Add relevant videos from this batch
+                    batch_relevant = 0
+                    for j, is_relevant in enumerate(batch_results):
+                        if is_relevant:
+                            relevant_videos.append(batch[j])
+                            batch_relevant += 1
+                            title = batch[j].get('snippet', {}).get('title', 'Unknown')[:50]
+                            logger.info(f"   ✅ AI Relevant: {title}...")
+                        else:
+                            title = batch[j].get('snippet', {}).get('title', 'Unknown')[:50]
+                            logger.info(f"   ❌ AI Irrelevant: {title}...")
                     
-                    if is_relevant:
-                        relevant_videos.append(video)
-                        logger.info(f"   ✅ AI Relevant: {title[:50]}...")
-                    else:
-                        logger.info(f"   ❌ AI Irrelevant: {title[:50]}...")
-                        
+                    logger.info(f"   📊 Batch {current_batch} results: {batch_relevant}/{len(batch)} videos relevant")
+                            
                 except Exception as e:
-                    logger.error(f"   ❌ Error in AI relevance check: {e}")
-                    # Fallback to heuristic check
-                    if self._is_video_relevant_to_competitor_heuristic(
-                        title, description, channel_title, competitor_name_lower
-                    ):
-                        relevant_videos.append(video)
-                        logger.info(f"   ✅ Heuristic Relevant: {title[:50]}...")
-                    continue
+                    logger.error(f"   ❌ Error in AI relevance check for batch {current_batch}: {e}")
+                    # Fallback to individual heuristic checks for this batch
+                    logger.info(f"   🔄 Falling back to heuristic checks for batch {current_batch}")
+                    batch_relevant = 0
+                    for video in batch:
+                        try:
+                            snippet = video.get('snippet', {})
+                            title = snippet.get('title', '')
+                            description = snippet.get('description', '')
+                            channel_title = snippet.get('channelTitle', '')
+                            
+                            if self._is_video_relevant_to_competitor_heuristic(
+                                title, description, channel_title, competitor_name_lower
+                            ):
+                                relevant_videos.append(video)
+                                batch_relevant += 1
+                                logger.info(f"   ✅ Heuristic Relevant: {title[:50]}...")
+                            else:
+                                logger.info(f"   ❌ Heuristic Irrelevant: {title[:50]}...")
+                        except Exception as batch_e:
+                            logger.error(f"   ❌ Error in heuristic check: {batch_e}")
+                            continue
+                    
+                    logger.info(f"   📊 Batch {current_batch} heuristic results: {batch_relevant}/{len(batch)} videos relevant")
             
             logger.info(f"🧠 AI filtered {len(videos)} videos to {len(relevant_videos)} relevant ones")
+            
+            # Log batch processing efficiency
+            if len(videos) > 0:
+                efficiency = (len(relevant_videos) / len(videos)) * 100
+                logger.info(f"📊 Batch processing efficiency: {efficiency:.1f}% of videos were relevant")
+                logger.info(f"📊 Processed {len(videos)} videos in {total_batches} batches of {batch_size}")
+            
             return relevant_videos
             
         except Exception as e:
@@ -897,8 +931,98 @@ Be selective with alerts - only flag truly significant competitive intelligence.
         except Exception as e:
             logger.error(f"❌ Error creating intelligent alert: {e}")
 
+    async def _ai_video_relevance_check_batch(self, videos: List[Dict[str, Any]], competitor_name: str) -> List[bool]:
+        """Use AI to determine relevance for a batch of 5 videos at once"""
+        try:
+            if not videos or len(videos) == 0:
+                return []
+            
+            # Prepare batch data for AI analysis
+            batch_data = []
+            for i, video in enumerate(videos):
+                snippet = video.get('snippet', {})
+                title = snippet.get('title', '')
+                description = snippet.get('description', '')
+                channel_title = snippet.get('channelTitle', '')
+                
+                batch_data.append({
+                    'index': i + 1,
+                    'title': title,
+                    'description': description[:500] if description else '',
+                    'channel': channel_title
+                })
+            
+            # Create comprehensive prompt for batch analysis
+            prompt = f"""
+Analyze these 5 YouTube videos to determine if they are DIRECTLY relevant to the company "{competitor_name}".
+
+For each video, determine if it is ONLY relevant if it is:
+1. DIRECTLY about the company "{competitor_name}" (not just similar words)
+2. Contains official company announcements, news, or content
+3. Is a review or analysis specifically about the company
+4. Discusses the company's products, services, or business activities
+
+The video is NOT relevant if it:
+1. Only mentions similar words but is about different companies
+2. Is generic content that happens to use similar terminology
+3. Is unrelated content from a channel with a similar name
+
+VIDEO BATCH:
+"""
+            
+            # Add each video to the prompt
+            for video_data in batch_data:
+                prompt += f"""
+VIDEO {video_data['index']}:
+Title: {video_data['title']}
+Description: {video_data['description']}
+Channel: {video_data['channel']}
+"""
+            
+            prompt += f"""
+Respond with ONLY a JSON array of 5 boolean values (true/false) indicating relevance for each video in order.
+Example: [true, false, true, false, true]
+
+Be selective - only mark as relevant if the video is clearly and directly about "{competitor_name}".
+"""
+            
+            response = await self.llm.ainvoke(prompt)
+            
+            # Parse JSON response
+            try:
+                content = response.content.strip()
+                if content.startswith('[') and content.endswith(']'):
+                    results = json.loads(content)
+                else:
+                    # Extract JSON array from response
+                    start = content.find('[')
+                    end = content.rfind(']') + 1
+                    if start != -1 and end != 0:
+                        json_str = content[start:end]
+                        results = json.loads(json_str)
+                    else:
+                        raise ValueError("No JSON array found in response")
+                
+                # Validate response format
+                if isinstance(results, list) and len(results) == len(videos):
+                    # Ensure all values are boolean
+                    boolean_results = [bool(result) for result in results]
+                    logger.info(f"🧠 Batch AI relevance check completed for {len(videos)} videos")
+                    return boolean_results
+                else:
+                    logger.warning(f"⚠️  AI response format invalid, using fallback for batch")
+                    return [False] * len(videos)
+                    
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"❌ Failed to parse AI batch response: {e}")
+                return [False] * len(videos)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in AI batch relevance check: {e}")
+            return [False] * len(videos)
+
     async def _ai_video_relevance_check(self, title: str, description: str, channel_title: str, competitor_name: str) -> bool:
-        """Use AI to determine if a video is relevant to the competitor"""
+        """Use AI to determine if a video is relevant to the competitor (fallback for individual checks)"""
         try:
             prompt = f"""
 Determine if this YouTube video is DIRECTLY relevant to the company "{competitor_name}":

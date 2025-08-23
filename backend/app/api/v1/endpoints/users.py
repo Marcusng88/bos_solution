@@ -91,7 +91,7 @@ async def get_user_monitoring_settings(
             return UserMonitoringSettingsResponse(
                 user_id=user_id,
                 global_monitoring_enabled=True,
-                default_scan_frequency_minutes=60,
+                default_scan_frequency_minutes=1440,
                 alert_preferences={
                     "email_alerts": True,
                     "push_notifications": True,

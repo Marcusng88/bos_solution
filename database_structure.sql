@@ -123,7 +123,7 @@ CREATE TABLE competitors (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     last_scan_at TIMESTAMPTZ,
-    scan_frequency_minutes INTEGER DEFAULT 60 CHECK (scan_frequency_minutes >= 15),
+    scan_frequency_minutes INTEGER DEFAULT 1440 CHECK (scan_frequency_minutes >= 15),
     user_id VARCHAR NOT NULL,
     platforms TEXT[] DEFAULT '{}',
     FOREIGN KEY (user_id) REFERENCES users(clerk_id)

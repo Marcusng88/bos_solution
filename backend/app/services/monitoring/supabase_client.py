@@ -6,7 +6,7 @@ Direct database operations without SQLAlchemy sessions
 import os
 import logging
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -48,7 +48,7 @@ class SupabaseMonitoringClient:
     async def get_competitors_due_for_scan(self) -> List[Dict[str, Any]]:
         """Get all active competitors that are due for scanning"""
         try:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             
             # Get all active competitors
             response = self.client.table('competitors').select('*').eq('status', 'active').execute()
@@ -128,7 +128,7 @@ class SupabaseMonitoringClient:
     async def update_competitor_scan_time(self, competitor_id: str) -> bool:
         """Update competitor's last scan time"""
         try:
-            current_time = datetime.utcnow().isoformat()
+            current_time = datetime.now(timezone.utc).isoformat()
             
             response = self.client.table('competitors').update({
                 'last_scan_at': current_time,
@@ -169,7 +169,7 @@ class SupabaseMonitoringClient:
             stats["unread_alerts"] = alerts_response.count or 0
             
             # Get recent activity (last 24 hours)
-            yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
+            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
             recent_response = self.client.table('monitoring_data').select('id', count='exact').gte('detected_at', yesterday).execute()
             stats["recent_activity_24h"] = recent_response.count or 0
             

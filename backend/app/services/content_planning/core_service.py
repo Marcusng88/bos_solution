@@ -81,19 +81,33 @@ class ContentPlanningService:
                 return None
         return self._hashtag_researcher
     
+    @property
+    def supabase_client(self):
+        """Lazy initialization of SupabaseClient"""
+        if not hasattr(self, '_supabase_client') or self._supabase_client is None:
+            try:
+                from app.core.supabase_client import SupabaseClient
+                self._supabase_client = SupabaseClient()
+                logger.info("🗄️ SupabaseClient initialized for content planning")
+            except ImportError as e:
+                logger.warning(f"⚠️ SupabaseClient not available: {e}")
+                self._supabase_client = None
+        return self._supabase_client
+    
     async def generate_content(
         self,
-        industry: str,
+        clerk_id: str,
         platform: str,
         content_type: str,
         tone: str,
         target_audience: str,
         custom_requirements: Optional[str] = None,
-        generate_variations: bool = False
+        generate_variations: bool = False,
+        industry: Optional[str] = None  # Add industry parameter
     ) -> Dict[str, Any]:
         """Generate AI-optimized social media content based on competitor insights"""
         try:
-            logger.info(f"📝 Generating content for {platform} in {industry} industry")
+            logger.info(f"📝 Generating content for {platform} for Clerk ID: {clerk_id}")
             
             # Check if AI agents are available
             if not self.competitor_analyzer or not self.content_generator:
@@ -101,8 +115,8 @@ class ContentPlanningService:
                 return {
                     "success": True,
                     "content": {
-                        "post_content": f"🎯 {content_type.title()} content for {platform} in the {industry} industry. This is AI-generated content optimized for {target_audience} with a {tone} tone. {custom_requirements or ''}",
-                        "hashtags": [f"#{industry.title()}", f"#{platform.title()}", f"#{content_type.title()}"],
+                        "post_content": f"🎯 {content_type.title()} content for {platform}. This is AI-generated content optimized for {target_audience} with a {tone} tone. {custom_requirements or ''}",
+                        "hashtags": [f"#{platform.title()}", f"#{content_type.title()}"],
                         "optimal_posting_time": "Tuesday-Thursday, 9-11 AM",
                         "platform": platform,
                         "content_type": content_type,
@@ -110,17 +124,58 @@ class ContentPlanningService:
                     }
                 }
             
-            # First, get competitor insights for the industry
-            competitor_analysis = self.competitor_analyzer._run(
-                industry=industry,
+            # First, get competitor insights for the user
+            competitor_analysis = await self.competitor_analyzer._arun(
+                clerk_id=clerk_id,
                 analysis_type="trend_analysis"
             )
             
-            competitor_insights = json.dumps(competitor_analysis.get("analysis_data", {}))
+            # Log competitor analysis results for debugging
+            logger.info(f"🔍 Competitor analysis result: success={competitor_analysis.get('success')}, data_source={competitor_analysis.get('data_source')}")
+            logger.info(f"🔍 Analysis data keys: {list(competitor_analysis.get('analysis_data', {}).keys()) if competitor_analysis.get('analysis_data') else 'None'}")
+            
+            # Prepare competitor insights with better fallback handling
+            if competitor_analysis.get("success") and competitor_analysis.get("analysis_data"):
+                competitor_insights = json.dumps(competitor_analysis.get("analysis_data", {}))
+                logger.info(f"✅ Using competitor analysis data: {len(competitor_insights)} characters")
+            else:
+                # Create fallback competitor insights when no data is available
+                fallback_insights = {
+                    "content_trends": {
+                        "successful_content_types": ["educational", "promotional", "behind_the_scenes"],
+                        "common_themes": ["innovation", "growth", "industry_trends", "best_practices"],
+                        "engagement_drivers": ["practical_tips", "industry_insights", "success_stories"]
+                    },
+                    "hashtag_analysis": {
+                        "trending_hashtags": ["#Innovation", "#Growth", "#IndustryTrends", "#BestPractices", "#Success"],
+                        "high_performing": ["#Leadership", "#Technology", "#Business", "#Strategy", "#Future"]
+                    },
+                    "timing_insights": {
+                        "optimal_posting_times": ["Tuesday-Thursday, 9-11 AM", "Monday-Wednesday, 5-7 PM"],
+                        "best_days": ["Tuesday", "Wednesday", "Thursday"]
+                    },
+                    "tone_voice": {
+                        "successful_approaches": ["professional", "authentic", "helpful", "insightful"],
+                        "engagement_patterns": ["question_posts", "tip_sharing", "industry_commentary"]
+                    },
+                    "data_source": "fallback_insights",
+                    "note": "Using industry best practices and general social media insights"
+                }
+                competitor_insights = json.dumps(fallback_insights)
+                logger.info(f"⚠️ Using fallback competitor insights: {len(competitor_insights)} characters")
+            
+            # Get user's industry - use provided industry or fetch from preferences
+            user_industry = industry
+            if not user_industry:
+                user_industry = await self._get_user_industry(clerk_id)
+                if not user_industry:
+                    logger.warning(f"⚠️ Could not determine industry for user {clerk_id}, using default")
+                    user_industry = "technology"  # Default fallback
             
             # Generate content
-            content_result = self.content_generator._run(
-                industry=industry,
+            logger.info(f"🔧 Calling content generator with industry: {user_industry}, platform: {platform}")
+            content_result = await self.content_generator._arun(
+                industry=user_industry,  # Pass industry instead of clerk_id
                 platform=platform,
                 content_type=content_type,
                 tone=tone,
@@ -129,19 +184,41 @@ class ContentPlanningService:
                 custom_requirements=custom_requirements
             )
             
+            # Validate content result
+            if not content_result or not content_result.get("success"):
+                logger.error(f"❌ Content generation failed: {content_result}")
+                return {
+                    "success": False,
+                    "error": content_result.get("error", "Content generation failed") if content_result else "Content generation failed"
+                }
+            
+            # Ensure content has required fields
+            content = content_result.get("content", content_result)
+            if not content.get("post_content"):
+                logger.error(f"❌ Generated content missing post_content: {content}")
+                return {
+                    "success": False,
+                    "error": "Generated content is missing required fields"
+                }
+            
+            # Log successful content generation
+            logger.info(f"✅ Content generated successfully for {platform}")
+            logger.info(f"📝 Content length: {len(content.get('post_content', ''))} characters")
+            logger.info(f"🏷️ Hashtags count: {len(content.get('hashtags', []))}")
+            
             response_data = {
-                "success": content_result.get("success", False),
-                "content": content_result if content_result.get("success") else None,
-                "error": content_result.get("error") if not content_result.get("success") else None
+                "success": True,
+                "content": content,
+                "error": None
             }
             
             # Generate variations if requested
             if generate_variations and content_result.get("success"):
                 try:
                     from .tools.content_generator import generate_content_variations
-                    variations = generate_content_variations(
+                    variations = await generate_content_variations(
                         {
-                            "industry": industry,
+                            "industry": user_industry,  # Use actual industry instead of clerk_id
                             "platform": platform,
                             "content_type": content_type,
                             "target_audience": target_audience,
@@ -162,6 +239,38 @@ class ContentPlanningService:
                 "success": False,
                 "error": f"Content generation failed: {str(e)}"
             }
+    
+    async def _get_user_industry(self, clerk_id: str) -> Optional[str]:
+        """Get user's industry from preferences"""
+        try:
+            # Try to get from Supabase if available
+            if hasattr(self, 'supabase_client') and self.supabase_client:
+                # Query user_preferences table
+                response = await self.supabase_client.table('user_preferences').select('industry').eq('user_id', clerk_id).execute()
+                if response.data:
+                    return response.data[0].get('industry')
+            
+            # Fallback: try to get from competitor analysis if it contains industry info
+            try:
+                competitor_analysis = await self.competitor_analyzer._arun(
+                    clerk_id=clerk_id,
+                    analysis_type="trend_analysis"
+                )
+                
+                if competitor_analysis.get("success") and competitor_analysis.get("analysis_data"):
+                    # Look for industry in competitor data
+                    competitors = competitor_analysis.get("analysis_data", {}).get("competitors", [])
+                    for competitor in competitors:
+                        if competitor.get("industry") or competitor.get("industry_sector"):
+                            return competitor.get("industry") or competitor.get("industry_sector")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not extract industry from competitor analysis: {e}")
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fetch user industry: {e}")
+            return None
     
     async def analyze_competitors(
         self,
@@ -235,7 +344,7 @@ class ContentPlanningService:
         try:
             logger.info(f"🏷️ Researching hashtags for {platform} in {industry}")
             
-            hashtag_result = self.hashtag_researcher._run(
+            hashtag_result = await self.hashtag_researcher._arun(
                 industry=industry,
                 content_type=content_type,
                 platform=platform,
@@ -255,23 +364,23 @@ class ContentPlanningService:
     
     async def generate_content_strategy(
         self,
-        industry: str,
+        clerk_id: str,
         platforms: List[str],
         content_goals: List[str],
         target_audience: str
     ) -> Dict[str, Any]:
         """Generate comprehensive content strategy based on competitive analysis"""
         try:
-            logger.info(f"📋 Generating content strategy for {industry} across {len(platforms)} platforms")
+            logger.info(f"📋 Generating content strategy for Clerk ID: {clerk_id} across {len(platforms)} platforms")
             
             strategy_result = self.agent.generate_content_strategy(
-                industry=industry,
+                clerk_id=clerk_id,
                 platforms=platforms,
                 content_goals=content_goals,
                 target_audience=target_audience
             )
             
-            logger.info(f"✅ Content strategy generated for {industry}")
+            logger.info(f"✅ Content strategy generated for Clerk ID: {clerk_id}")
             return strategy_result
             
         except Exception as e:
@@ -283,23 +392,23 @@ class ContentPlanningService:
     
     async def generate_content_calendar(
         self,
-        industry: str,
+        clerk_id: str,
         platforms: List[str],
         duration_days: int = 30,
         posts_per_day: int = 2
     ) -> Dict[str, Any]:
         """Generate AI-optimized content calendar"""
         try:
-            logger.info(f"📅 Generating content calendar for {industry} ({duration_days} days)")
+            logger.info(f"📅 Generating content calendar for Clerk ID: {clerk_id} ({duration_days} days)")
             
             calendar_result = self.agent.generate_content_calendar(
-                industry=industry,
+                clerk_id=clerk_id,
                 platforms=platforms,
                 duration_days=duration_days,
                 posts_per_day=posts_per_day
             )
             
-            logger.info(f"✅ Content calendar generated for {industry}")
+            logger.info(f"✅ Content calendar generated for Clerk ID: {clerk_id}")
             return calendar_result
             
         except Exception as e:
@@ -311,19 +420,19 @@ class ContentPlanningService:
     
     async def identify_content_gaps(
         self,
-        industry: str,
+        clerk_id: str,
         user_content_summary: str
     ) -> Dict[str, Any]:
         """Identify content gaps based on competitor analysis"""
         try:
-            logger.info(f"🔍 Identifying content gaps for {industry}")
+            logger.info(f"🔍 Identifying content gaps for Clerk ID: {clerk_id}")
             
             gaps_result = self.agent.identify_content_gaps(
-                industry=industry,
+                clerk_id=clerk_id,
                 user_content_summary=user_content_summary
             )
             
-            logger.info(f"✅ Content gaps identified for {industry}")
+            logger.info(f"✅ Content gaps identified for Clerk ID: {clerk_id}")
             return gaps_result
             
         except Exception as e:
@@ -335,19 +444,19 @@ class ContentPlanningService:
     
     async def optimize_posting_schedule(
         self,
-        industry: str,
+        clerk_id: str,
         platforms: List[str]
     ) -> Dict[str, Any]:
         """Optimize posting schedule based on competitor timing analysis"""
         try:
-            logger.info(f"⏰ Optimizing posting schedule for {industry} on {len(platforms)} platforms")
+            logger.info(f"⏰ Optimizing posting schedule for Clerk ID: {clerk_id} on {len(platforms)} platforms")
             
             schedule_result = self.agent.optimize_posting_schedule(
-                industry=industry,
+                clerk_id=clerk_id,
                 platforms=platforms
             )
             
-            logger.info(f"✅ Posting schedule optimized for {industry}")
+            logger.info(f"✅ Posting schedule optimized for Clerk ID: {clerk_id}")
             return schedule_result
             
         except Exception as e:
