@@ -198,9 +198,14 @@ export function ContentPlanningDashboard() {
         </TabsList>
 
         <TabsContent value="calendar" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 w-full max-w-full overflow-hidden">
-            {/* Calendar Section */}
-            <div className="lg:col-span-2 min-w-0 overflow-hidden">
+          <div className="space-y-6 w-full max-w-full overflow-hidden">
+            {/* AI Suggestions Panel - Now above the calendar */}
+            <div className="w-full">
+              <AISuggestionsPanel selectedDate={selectedDate} />
+            </div>
+
+            {/* Calendar Section - Now below the suggestions */}
+            <div className="w-full">
               <Card className="w-full max-w-full">
                 <CardHeader>
                   <CardTitle>Content Calendar</CardTitle>
@@ -210,11 +215,6 @@ export function ContentPlanningDashboard() {
                   <ContentCalendar selectedDate={selectedDate} onDateSelect={setSelectedDate} />
                 </CardContent>
               </Card>
-            </div>
-
-            {/* AI Suggestions Panel */}
-            <div className="min-w-0 overflow-hidden">
-              <AISuggestionsPanel selectedDate={selectedDate} />
             </div>
           </div>
         </TabsContent>

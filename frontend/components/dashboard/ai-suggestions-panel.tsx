@@ -39,7 +39,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     
     try {
       setLoadingSuggestions(true)
-      const response = await getContentSuggestions(user.id, 3)
+      const response = await getContentSuggestions(user.id, 4) // Changed from 3 to 4
       
       if (response.success && response.suggestions) {
         // Transform database data to match component structure
@@ -347,23 +347,25 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         {loadingSuggestions ? (
-          Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="space-y-2 p-3 border rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-3 w-3" />
-                  <Skeleton className="h-3 w-20" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="space-y-2 p-3 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-3 w-3" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-5 w-10" />
                 </div>
-                <Skeleton className="h-5 w-10" />
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-16 w-full" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-6 w-12" />
+                </div>
               </div>
-              <Skeleton className="h-3 w-32" />
-              <Skeleton className="h-16 w-full" />
-              <div className="flex gap-2">
-                <Skeleton className="h-6 w-16" />
-                <Skeleton className="h-6 w-12" />
-              </div>
-            </div>
-          ))
+            ))}
+          </div>
         ) : suggestions.length === 0 ? (
           <div className="text-center py-8">
             <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -383,85 +385,143 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
             </Button>
           </div>
         ) : (
-          suggestions.map((suggestion) => (
-            <div key={suggestion.id} className="relative space-y-2 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors overflow-hidden">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <div className={`${getTypeColor(suggestion.type)} flex-shrink-0`}>
-                    {getTypeIcon(suggestion.type)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {suggestions.map((suggestion) => (
+              <div key={suggestion.id} className="relative space-y-2 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors overflow-hidden">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className={`${getTypeColor(suggestion.type)} flex-shrink-0`}>
+                      {getTypeIcon(suggestion.type)}
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground truncate">{suggestion.platform}</span>
+                    <Badge variant="outline" className="text-xs flex-shrink-0 px-1 py-0">
+                      {suggestion.confidence}%
+                    </Badge>
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground truncate">{suggestion.platform}</span>
-                  <Badge variant="outline" className="text-xs flex-shrink-0 px-1 py-0">
-                    {suggestion.confidence}%
+                  <Badge variant={suggestion.engagement === "Very High" ? "default" : "secondary"} className="flex-shrink-0 text-xs px-1 py-0">
+                    {suggestion.engagement}
                   </Badge>
                 </div>
-                <Badge variant={suggestion.engagement === "Very High" ? "default" : "secondary"} className="flex-shrink-0 text-xs px-1 py-0">
-                  {suggestion.engagement}
-                </Badge>
-              </div>
 
-              <h4 className="font-medium text-sm break-words leading-tight">{suggestion.title}</h4>
+                <h4 className="font-medium text-sm break-words leading-tight">{suggestion.title}</h4>
 
-              {editingId === suggestion.id ? (
-                <div className="space-y-3">
-                  <Textarea
-                    value={editedContent}
-                    onChange={(e) => setEditedContent(e.target.value)}
-                    // 📝 JUSTIFIED TEXT - Added text-justify for professional alignment in edit mode
-                    className="min-h-[80px] text-xs text-justify"
-                    placeholder="Edit your content..."
-                  />
-                  
-                  {/* Media Upload Section */}
+                {editingId === suggestion.id ? (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">Media</span>
-                      {!uploadedMedia[suggestion.id] && (
-                        <div className="relative">
-                          <Input
-                            type="file"
-                            accept="image/*,video/*"
-                            onChange={(e) => handleMediaUpload(suggestion.id, e)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            id={`media-upload-${suggestion.id}`}
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs px-2 py-1 h-7"
-                            asChild
-                          >
-                            <label htmlFor={`media-upload-${suggestion.id}`} className="cursor-pointer flex items-center">
-                              <Upload className="h-3 w-3 mr-1" />
-                              Upload
-                            </label>
-                          </Button>
+                    <Textarea
+                      value={editedContent}
+                      onChange={(e) => setEditedContent(e.target.value)}
+                      // 📝 JUSTIFIED TEXT - Added text-justify for professional alignment in edit mode
+                      className="min-h-[80px] text-xs text-justify"
+                      placeholder="Edit your content..."
+                    />
+                    
+                    {/* Media Upload Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Media</span>
+                        {!uploadedMedia[suggestion.id] && (
+                          <div className="relative">
+                            <Input
+                              type="file"
+                              accept="image/*,video/*"
+                              onChange={(e) => handleMediaUpload(suggestion.id, e)}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              id={`media-upload-${suggestion.id}`}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs px-2 py-1 h-7"
+                              asChild
+                            >
+                              <label htmlFor={`media-upload-${suggestion.id}`} className="cursor-pointer flex items-center">
+                                <Upload className="h-3 w-3 mr-1" />
+                                Upload
+                              </label>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Media Preview */}
+                      {uploadedMedia[suggestion.id] && (
+                        <div className="relative rounded-lg border bg-gray-50 dark:bg-gray-900/50 p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              {uploadedMedia[suggestion.id]?.type === 'image' ? (
+                                <ImageIcon className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Video className="h-4 w-4 text-purple-600" />
+                              )}
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {uploadedMedia[suggestion.id]?.file.name}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveMedia(suggestion.id)}
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          
+                          <div className="rounded-md overflow-hidden bg-white dark:bg-gray-800 border">
+                            {uploadedMedia[suggestion.id]?.type === 'image' ? (
+                              <img
+                                src={uploadedMedia[suggestion.id]?.preview}
+                                alt="Uploaded content"
+                                className="w-full h-32 object-cover"
+                              />
+                            ) : (
+                              <video
+                                src={uploadedMedia[suggestion.id]?.preview}
+                                className="w-full h-32 object-cover"
+                                controls
+                                preload="metadata"
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                            )}
+                          </div>
+                          
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {uploadedMedia[suggestion.id]?.type === 'image' ? 'Image' : 'Video'} • {
+                              uploadedMedia[suggestion.id]?.file.size && 
+                              (uploadedMedia[suggestion.id]!.file.size / 1024 / 1024).toFixed(1)
+                            } MB
+                          </div>
                         </div>
                       )}
                     </div>
 
-                    {/* Media Preview */}
+                    <div className="flex gap-1 pt-1">
+                      <Button size="sm" onClick={() => handleSave(suggestion.id)} className="text-xs px-2 py-1 h-7">
+                        Save
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="text-xs px-2 py-1 h-7">
+                        <X className="h-3 w-3 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {renderMarkdownContent(suggestion.content)}
+                    
+                    {/* Display uploaded media in view mode */}
                     {uploadedMedia[suggestion.id] && (
-                      <div className="relative rounded-lg border bg-gray-50 dark:bg-gray-900/50 p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            {uploadedMedia[suggestion.id]?.type === 'image' ? (
-                              <ImageIcon className="h-4 w-4 text-blue-600" />
-                            ) : (
-                              <Video className="h-4 w-4 text-purple-600" />
-                            )}
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {uploadedMedia[suggestion.id]?.file.name}
-                            </span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveMedia(suggestion.id)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                      <div className="rounded-lg border bg-gray-50 dark:bg-gray-900/50 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          {uploadedMedia[suggestion.id]?.type === 'image' ? (
+                            <ImageIcon className="h-4 w-4 text-blue-600" />
+                          ) : (
+                            <Video className="h-4 w-4 text-purple-600" />
+                          )}
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {uploadedMedia[suggestion.id]?.file.name}
+                          </span>
                         </div>
                         
                         <div className="rounded-md overflow-hidden bg-white dark:bg-gray-800 border">
@@ -482,95 +542,39 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
                             </video>
                           )}
                         </div>
-                        
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {uploadedMedia[suggestion.id]?.type === 'image' ? 'Image' : 'Video'} • {
-                            uploadedMedia[suggestion.id]?.file.size && 
-                            (uploadedMedia[suggestion.id]!.file.size / 1024 / 1024).toFixed(1)
-                          } MB
-                        </div>
                       </div>
                     )}
-                  </div>
-
-                  <div className="flex gap-1 pt-1">
-                    <Button size="sm" onClick={() => handleSave(suggestion.id)} className="text-xs px-2 py-1 h-7">
-                      Save
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="text-xs px-2 py-1 h-7">
-                      <X className="h-3 w-3 mr-1" />
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {renderMarkdownContent(suggestion.content)}
-                  
-                  {/* Display uploaded media in view mode */}
-                  {uploadedMedia[suggestion.id] && (
-                    <div className="rounded-lg border bg-gray-50 dark:bg-gray-900/50 p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        {uploadedMedia[suggestion.id]?.type === 'image' ? (
-                          <ImageIcon className="h-4 w-4 text-blue-600" />
-                        ) : (
-                          <Video className="h-4 w-4 text-purple-600" />
-                        )}
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {uploadedMedia[suggestion.id]?.file.name}
-                        </span>
+                    
+                    {suggestion.hashtags && suggestion.hashtags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {suggestion.hashtags.slice(0, 3).map((hashtag: string, index: number) => (
+                          <Badge key={index} variant="secondary" className="text-xs break-all px-1 py-0">
+                            {hashtag}
+                          </Badge>
+                        ))}
                       </div>
-                      
-                      <div className="rounded-md overflow-hidden bg-white dark:bg-gray-800 border">
-                        {uploadedMedia[suggestion.id]?.type === 'image' ? (
-                          <img
-                            src={uploadedMedia[suggestion.id]?.preview}
-                            alt="Uploaded content"
-                            className="w-full h-32 object-cover"
-                          />
-                        ) : (
-                          <video
-                            src={uploadedMedia[suggestion.id]?.preview}
-                            className="w-full h-32 object-cover"
-                            controls
-                            preload="metadata"
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {suggestion.hashtags && suggestion.hashtags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {suggestion.hashtags.slice(0, 3).map((hashtag: string, index: number) => (
-                        <Badge key={index} variant="secondary" className="text-xs break-all px-1 py-0">
-                          {hashtag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                    )}
 
-                  <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded text-xs">
-                    <p className="font-medium text-blue-900 dark:text-blue-100 text-xs mb-1">💡 AI Insight</p>
-                    <p className="text-blue-700 dark:text-blue-300 break-words text-xs leading-relaxed">{suggestion.competitorInsight}</p>
-                  </div>
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded text-xs">
+                      <p className="font-medium text-blue-900 dark:text-blue-100 text-xs mb-1">💡 AI Insight</p>
+                      <p className="text-blue-700 dark:text-blue-300 break-words text-xs leading-relaxed">{suggestion.competitorInsight}</p>
+                    </div>
 
-                  <div className="flex flex-col sm:flex-row gap-1">
-                    <Button size="sm" onClick={() => handleApprove(suggestion)} className="flex-1 text-xs px-2 py-1 h-7">
-                      <ThumbsUp className="h-3 w-3 mr-1" />
-                      <span className="truncate">Approve</span>
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleEdit(suggestion)} className="flex-shrink-0 text-xs px-2 py-1 h-7">
-                      <Edit3 className="h-3 w-3 mr-1" />
-                      Edit
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-1">
+                      <Button size="sm" onClick={() => handleApprove(suggestion)} className="flex-1 text-xs px-2 py-1 h-7">
+                        <ThumbsUp className="h-3 w-3 mr-1" />
+                        <span className="truncate">Approve</span>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleEdit(suggestion)} className="flex-shrink-0 text-xs px-2 py-1 h-7">
+                        <Edit3 className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>

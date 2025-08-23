@@ -5,10 +5,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bell, Eye, TrendingUp, Clock, Play, Pause, Loader2, Search, RefreshCw } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Bell, Eye, TrendingUp, Clock, Play, Pause, Loader2, Search, RefreshCw, Filter } from "lucide-react"
 import { MonitoringAlerts } from "./monitoring-alerts"
 import { ScanningStatus } from "./scanning-status"
 import { AnalysisResults } from "./analysis-results"
+import { MonitoringDataDetailsModal } from "./monitoring-data-details-modal"
 import { useApiClient, handleApiError, monitoringAPI } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -56,6 +58,9 @@ export function ContinuousMonitoringDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [isTogglingMonitoring, setIsTogglingMonitoring] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
+  const [selectedDataForQuickView, setSelectedDataForQuickView] = useState<MonitoringData | null>(null)
+  const [isQuickViewModalOpen, setIsQuickViewModalOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const { apiClient, userId } = useApiClient()
   const { toast } = useToast()
 
@@ -112,6 +117,9 @@ export function ContinuousMonitoringDashboard() {
       if (dataRes.data) {
         console.log('✅ Data response successful, setting monitoring data');
         setMonitoringData(dataRes.data);
+      } else if (Array.isArray(dataRes)) {
+        console.log('✅ Data response successful (array format), setting monitoring data');
+        setMonitoringData(dataRes);
       } else {
         console.log('❌ Data response not successful or no data:', dataRes);
       }
@@ -270,6 +278,20 @@ export function ContinuousMonitoringDashboard() {
     return "Never"
   }
 
+  // Filter monitoring data based on search query
+  const filteredMonitoringData = useMemo(() => {
+    if (!searchQuery.trim()) return monitoringData
+    
+    const query = searchQuery.toLowerCase()
+    return monitoringData.filter(item => 
+      item.content_text.toLowerCase().includes(query) ||
+      item.platform.toLowerCase().includes(query) ||
+      item.post_type.toLowerCase().includes(query) ||
+      (item.author_username && item.author_username.toLowerCase().includes(query)) ||
+      (item.author_display_name && item.author_display_name.toLowerCase().includes(query))
+    )
+  }, [monitoringData, searchQuery])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -412,6 +434,58 @@ export function ContinuousMonitoringDashboard() {
         </CardContent>
       </Card>
 
+      {/* Data Summary */}
+      {monitoringData.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Recent Activity Summary</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedDataForQuickView(monitoringData[0])
+                  setIsQuickViewModalOpen(true)
+                }}
+                className="text-xs"
+              >
+                <Eye className="h-3 w-3 mr-1" />
+                View Latest Details
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Platforms</p>
+                <p className="font-medium">
+                  {Array.from(new Set(monitoringData.map(item => item.platform))).join(', ')}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">New Posts</p>
+                <p className="font-medium">
+                  {monitoringData.filter(item => item.is_new_post).length}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Content Changes</p>
+                <p className="font-medium">
+                  {monitoringData.filter(item => item.is_content_change).length}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Latest Activity</p>
+                <p className="font-medium">
+                  {monitoringData.length > 0 
+                    ? new Date(monitoringData[0].detected_at).toLocaleDateString()
+                    : 'N/A'
+                  }
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Content */}
       <Tabs defaultValue="analysis-results" className="space-y-4">
         <TabsList>
@@ -421,12 +495,57 @@ export function ContinuousMonitoringDashboard() {
           <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
 
+        {/* Search and Filter */}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search monitoring data..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {filteredMonitoringData.length} of {monitoringData.length} results
+          </div>
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSearchQuery("")}
+              className="text-xs"
+            >
+              Clear Search
+            </Button>
+          )}
+          {searchQuery && filteredMonitoringData.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedDataForQuickView(filteredMonitoringData[0])
+                setIsQuickViewModalOpen(true)
+              }}
+              className="text-xs"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              View First Result
+            </Button>
+          )}
+        </div>
+
         <TabsContent value="analysis-results">
           <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Debug: {monitoringData.length} results loaded
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {monitoringData.length} results loaded
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Click "Details" button on any item to view full information
+              </div>
             </div>
-            <AnalysisResults results={monitoringData} />
+            <AnalysisResults results={filteredMonitoringData} />
           </div>
         </TabsContent>
 
@@ -453,6 +572,15 @@ export function ContinuousMonitoringDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Quick View Modal */}
+      {selectedDataForQuickView && (
+        <MonitoringDataDetailsModal
+          isOpen={isQuickViewModalOpen}
+          onClose={() => setIsQuickViewModalOpen(false)}
+          data={selectedDataForQuickView}
+        />
+      )}
     </div>
   )
 }

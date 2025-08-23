@@ -107,67 +107,6 @@ class SupabaseClient:
             logger.error(f"Error upserting user: {e}")
             return None
 
-    # Competitor Operations
-    async def get_competitors_by_user(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get all competitors for a user"""
-        try:
-            response = await self._make_request("GET", "competitors", params={"user_id": f"eq.{user_id}"})
-            if response.status_code == 200:
-                competitors = response.json()
-                # Transform data back to frontend format
-                return [comp for comp in competitors]
-            return []
-        except Exception as e:
-            logger.error(f"Error getting competitors: {e}")
-            return []
-
-    async def get_competitor_by_id(self, competitor_id: str) -> Optional[Dict[str, Any]]:
-        """Get competitor by ID"""
-        try:
-            response = await self._make_request("GET", f"competitors?id=eq.{competitor_id}")
-            if response.status_code == 200 and response.json():
-                return response.json()[0]
-            return None
-        except Exception as e:
-            logger.error(f"Error getting competitor: {e}")
-            return None
-
-    async def create_competitor(self, competitor_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Create new competitor"""
-        try:
-            competitor_data["id"] = str(uuid.uuid4())
-            response = await self._make_request("POST", "competitors", data=competitor_data)
-            if response.status_code == 201 and response.json():
-                return response.json()[0]
-            return None
-        except Exception as e:
-            logger.error(f"Error creating competitor: {e}")
-            return None
-
-    async def update_competitor(self, competitor_id: str, competitor_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Update competitor"""
-        try:
-            response = await self._make_request(
-                "PATCH", 
-                f"competitors?id=eq.{competitor_id}", 
-                data=competitor_data
-            )
-            if response.status_code == 200 and response.json():
-                return response.json()[0]
-            return None
-        except Exception as e:
-            logger.error(f"Error updating competitor: {e}")
-            return None
-
-    async def delete_competitor(self, competitor_id: str) -> bool:
-        """Delete competitor"""
-        try:
-            response = await self._make_request("DELETE", f"competitors?id=eq.{competitor_id}")
-            return response.status_code == 204
-        except Exception as e:
-            logger.error(f"Error deleting competitor: {e}")
-            return False
-
     # Monitoring Operations
     async def save_monitoring_data(self, monitoring_data: Dict[str, Any]) -> Optional[str]:
         """Save monitoring data"""
@@ -316,6 +255,65 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error upserting user preferences: {e}")
             return None
+
+    # Competitor Operations
+    async def get_competitors_by_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all competitors for a user"""
+        try:
+            response = await self._make_request("GET", "competitors", params={"user_id": f"eq.{user_id}"})
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            logger.error(f"Error getting competitors by user: {e}")
+            return []
+
+    async def get_competitor_by_id(self, competitor_id: str) -> Optional[Dict[str, Any]]:
+        """Get competitor by ID"""
+        try:
+            response = await self._make_request("GET", f"competitors?id=eq.{competitor_id}")
+            if response.status_code == 200 and response.json():
+                return response.json()[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting competitor by ID: {e}")
+            return None
+
+    async def create_competitor(self, competitor_data: Dict[str, Any]) -> Optional[str]:
+        """Create new competitor"""
+        try:
+            competitor_data["id"] = str(uuid.uuid4())
+            response = await self._make_request("POST", "competitors", data=competitor_data)
+            if response.status_code == 201 and response.json():
+                return response.json()[0]["id"]
+            return None
+        except Exception as e:
+            logger.error(f"Error creating competitor: {e}")
+            return None
+
+    async def update_competitor(self, competitor_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update competitor"""
+        try:
+            response = await self._make_request(
+                "PATCH", 
+                f"competitors?id=eq.{competitor_id}", 
+                data=update_data
+            )
+            if response.status_code == 200 and response.json():
+                return response.json()[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error updating competitor: {e}")
+            return None
+
+    async def delete_competitor(self, competitor_id: str) -> bool:
+        """Delete competitor"""
+        try:
+            response = await self._make_request("DELETE", f"competitors?id=eq.{competitor_id}")
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Error deleting competitor: {e}")
+            return False
 
     # Generic Operations
     async def execute_raw_sql(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:

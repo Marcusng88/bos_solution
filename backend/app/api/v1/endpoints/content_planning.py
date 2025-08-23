@@ -79,16 +79,126 @@ async def save_content_suggestion(
                 detail="Missing required parameters"
             )
         
+        # Validate and clean data
+        if not isinstance(hashtags, list):
+            hashtags = [hashtags] if hashtags else []
+        
+        if not isinstance(platform, str):
+            platform = str(platform)
+        
+        # Ensure platform is not empty
+        if not platform.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Platform cannot be empty"
+            )
+        
         logger.info(f"💾 Saving content suggestion for user {user_id}")
+        logger.info(f"📝 Platform: {platform}, Industry: {industry}, Content Type: {content_type}")
         
         supabase = supabase_client
         
+        # First, verify that the user exists
+        logger.info(f"🔍 Verifying user exists: {user_id}")
+        user_check_response = await supabase._make_request(
+            "GET",
+            "users",
+            params={"clerk_id": f"eq.{user_id}"}
+        )
+        
+        if user_check_response.status_code != 200 or not user_check_response.json():
+            logger.error(f"❌ User not found: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User not found"
+            )
+        
+        logger.info(f"✅ User verified: {user_id}")
+        
+        # First, create a user_post record
+        user_post_data = {
+            "user_id": user_id,
+            "content_text": suggested_content,
+            "hashtags": hashtags,
+            "is_ai_generated": True,
+            "ai_prompt": f"Generate {content_type} content for {platform} in {industry} industry with {tone} tone for {target_audience}",
+            "ai_model_used": "content_planning_agent",
+            "target_platforms": [platform],
+            "post_status": "ai_suggested",
+            "competitor_sources": {
+                "industry": industry,
+                "platform": platform,
+                "content_type": content_type,
+                "tone": tone,
+                "target_audience": target_audience,
+                "custom_requirements": custom_requirements
+            }
+        }
+        
+        logger.info(f"📋 Creating user_post with data: {user_post_data}")
+        
+        # Create user_post record
+        user_post_response = await supabase._make_request(
+            "POST",
+            "user_posts",
+            data=user_post_data
+        )
+        
+        logger.info(f"📤 User post response status: {user_post_response.status_code}")
+        logger.info(f"📤 User post response: {user_post_response.text}")
+        
+        if user_post_response.status_code != 201:
+            logger.error(f"❌ Failed to create user_post: {user_post_response.status_code}")
+            logger.error(f"❌ Response text: {user_post_response.text}")
+            
+            # Try to provide a more helpful error message
+            if "target_platforms" in user_post_response.text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid target_platforms format. Must be a non-empty array."
+                )
+            elif "user_id" in user_post_response.text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid user_id format or user does not exist."
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to create user post record: {user_post_response.text}"
+                )
+        
+        user_post_response_data = user_post_response.json() if user_post_response.json() else []
+        logger.info(f"📋 User post response data: {user_post_response_data}")
+        
+        user_post_id = user_post_response_data[0]["id"] if user_post_response_data else None
+        if not user_post_id:
+            logger.error("❌ No user_post_id returned from user_posts creation")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get user post ID from response"
+            )
+        
+        logger.info(f"✅ User post created successfully with ID: {user_post_id}")
+        
+        # Double-check that user_post_id is a valid UUID
+        try:
+            import uuid
+            uuid.UUID(str(user_post_id))
+        except ValueError:
+            logger.error(f"❌ Invalid UUID format for user_post_id: {user_post_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Invalid user post ID format"
+            )
+        
         # Prepare data for ai_content_suggestions table
         suggestion_data = {
+            "user_post_id": str(user_post_id),  # Ensure it's a string
             "user_id": user_id,
             "suggestion_version": 1,
             "suggested_content": suggested_content,
-            "suggested_hashtags": hashtags or [],
+            "suggested_hashtags": hashtags,
             "suggested_media_types": ["text"],  # Default to text for now
             "model_used": "content_planning_agent",
             "prompt_used": f"Generate {content_type} content for {platform} in {industry} industry with {tone} tone for {target_audience}",
@@ -117,6 +227,8 @@ async def save_content_suggestion(
             "processing_time_ms": 2000  # Mock processing time
         }
         
+        logger.info(f"📋 Saving AI content suggestion with data: {suggestion_data}")
+        
         # Insert into ai_content_suggestions table
         response = await supabase._make_request(
             "POST",
@@ -124,19 +236,32 @@ async def save_content_suggestion(
             data=suggestion_data
         )
         
+        logger.info(f"📤 AI suggestion response status: {response.status_code}")
+        logger.info(f"📤 AI suggestion response: {response.text}")
+        
         if response.status_code == 201:
             logger.info(f"✅ Content suggestion saved successfully for user {user_id}")
             return {
                 "success": True,
                 "message": "Content suggestion saved successfully",
-                "suggestion_id": response.json()[0]["id"] if response.json() else None
+                "suggestion_id": response.json()[0]["id"] if response.json() else None,
+                "user_post_id": user_post_id
             }
         else:
             logger.error(f"❌ Failed to save content suggestion: {response.status_code}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save content suggestion"
-            )
+            logger.error(f"❌ Response text: {response.text}")
+            
+            # Try to provide a more helpful error message
+            if "user_post_id" in response.text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid user_post_id format or user_post does not exist."
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to save content suggestion: {response.text}"
+                )
             
     except Exception as e:
         logger.error(f"❌ Save content suggestion error: {str(e)}")

@@ -331,21 +331,21 @@ export class ApiClient {
   }
 
   async startContinuousMonitoring(userId: string) {
-    return this.request('/monitoring/start', {
+    return this.request('/monitoring/start-continuous-monitoring', {
       userId,
       method: 'POST',
     });
   }
 
   async stopContinuousMonitoring(userId: string) {
-    return this.request('/monitoring/stop', {
+    return this.request('/monitoring/stop-continuous-monitoring', {
       userId,
       method: 'POST',
     });
   }
 
   async runMonitoringForAllCompetitors(userId: string) {
-    return this.request('/monitoring/scan-all', {
+    return this.request('/monitoring/run-monitoring-for-all-competitors', {
       userId,
       method: 'POST',
     });
@@ -620,6 +620,97 @@ export const monitoringAPI = {
 
     const responseData = await response.json();
     console.log(`✅ Monitoring Stats API Response data:`, responseData);
+    return responseData;
+  },
+
+  // Get monitoring status
+  getMonitoringStatus: async (userId: string): Promise<any> => {
+    const url = `${API_BASE_URL}/monitoring/status`;
+    
+    console.log(`🌐 Monitoring Status API Request: ${url}`);
+    console.log(`🔑 Monitoring Status API Headers:`, createApiHeaders(userId));
+    
+    const response = await fetch(url, {
+      headers: createApiHeaders(userId),
+    });
+    
+    console.log(`📡 Monitoring Status API Response: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch monitoring status');
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ Monitoring Status API Response data:`, responseData);
+    return responseData;
+  },
+
+  // Start continuous monitoring
+  startContinuousMonitoring: async (userId: string): Promise<any> => {
+    const url = `${API_BASE_URL}/monitoring/start-continuous-monitoring`;
+    
+    console.log(`🌐 Start Continuous Monitoring API Request: ${url}`);
+    console.log(`🔑 Start Continuous Monitoring API Headers:`, createApiHeaders(userId));
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: createApiHeaders(userId),
+    });
+    
+    console.log(`📡 Start Continuous Monitoring API Response: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to start continuous monitoring');
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ Start Continuous Monitoring API Response data:`, responseData);
+    return responseData;
+  },
+
+  // Stop continuous monitoring
+  stopContinuousMonitoring: async (userId: string): Promise<any> => {
+    const url = `${API_BASE_URL}/monitoring/stop-continuous-monitoring`;
+    
+    console.log(`🌐 Stop Continuous Monitoring API Request: ${url}`);
+    console.log(`🔑 Stop Continuous Monitoring API Headers:`, createApiHeaders(userId));
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: createApiHeaders(userId),
+    });
+    
+    console.log(`📡 Stop Continuous Monitoring API Response: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to stop continuous monitoring');
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ Stop Continuous Monitoring API Response data:`, responseData);
+    return responseData;
+  },
+
+  // Run monitoring for all competitors
+  runMonitoringForAllCompetitors: async (userId: string): Promise<any> => {
+    const url = `${API_BASE_URL}/monitoring/run-monitoring-for-all-competitors`;
+    
+    console.log(`🌐 Run Monitoring For All Competitors API Request: ${url}`);
+    console.log(`🔑 Run Monitoring For All Competitors API Headers:`, createApiHeaders(userId));
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: createApiHeaders(userId),
+    });
+    
+    console.log(`📡 Run Monitoring For All Competitors API Response: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to run monitoring for all competitors');
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ Run Monitoring For All Competitors API Response data:`, responseData);
     return responseData;
   },
 
