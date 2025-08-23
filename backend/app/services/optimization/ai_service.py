@@ -13,9 +13,6 @@ from sqlalchemy import text
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 from app.core.config import settings
-from app.models.campaign import CampaignData
-from app.models.competitor import Competitor
-from app.models.monitoring import MonitoringData
 import uuid
 
 def convert_decimal_to_float(obj):

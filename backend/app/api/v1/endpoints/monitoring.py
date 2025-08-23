@@ -4,11 +4,9 @@ Monitoring endpoints for continuous monitoring and alerts
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import text
 from app.core.database import get_db
 from app.core.auth_utils import get_user_id_from_header
-from app.models.user_settings import UserMonitoringSettings
-from app.models.monitoring import MonitoringAlert
 from app.schemas.monitoring import (
     UserMonitoringSettingsCreate, UserMonitoringSettingsResponse, UserMonitoringSettingsUpdate,
     MonitoringAlertCreate, MonitoringAlertResponse

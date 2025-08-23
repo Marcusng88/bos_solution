@@ -7,11 +7,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, desc, distinct, text
+from sqlalchemy import text
 
-from app.models.campaign import (
-    CampaignData, OptimizationAlert, RiskPattern, OptimizationRecommendation
-)
 from app.schemas.campaign import (
     DashboardMetrics, CampaignStatsResponse, BudgetMonitoringResponse,
     CampaignPerformanceResponse
@@ -28,15 +25,14 @@ class OptimizationService:
         """Get dashboard metrics for active/ongoing campaigns"""
         
         try:
-            # 1. Get active spend and budget from ongoing campaigns
-            # Since campaign_data doesn't have user_id, we get ALL ongoing campaigns
+            # 1. Get active spend and budget from ongoing campaigns for this user
             result = await self.db.execute(text("""
                 SELECT 
                     COALESCE(SUM(spend), 0) as active_spend,
                     COALESCE(SUM(budget), 0) as active_budget
                 FROM campaign_data 
-                WHERE ongoing = 'Yes'
-            """))
+                WHERE ongoing = 'Yes' AND user_id = :user_id
+            """), {"user_id": user_id})
             
             row = result.first()
             active_spend = float(row[0]) if row and row[0] else 0.0
@@ -131,7 +127,7 @@ class OptimizationService:
             )
     
     async def get_campaigns(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get list of campaigns with their data including net_profit and other metrics"""
+        """Get list of campaigns with their data including net_profit and other metrics for the user"""
         result = await self.db.execute(text("""
             SELECT 
                 name, 
@@ -145,13 +141,14 @@ class OptimizationService:
                 net_profit,
                 impressions
             FROM campaign_data c1
-            WHERE date = (
+            WHERE user_id = :user_id 
+            AND date = (
                 SELECT MAX(date) 
                 FROM campaign_data c2 
-                WHERE c2.name = c1.name
+                WHERE c2.name = c1.name AND c2.user_id = :user_id
             )
             ORDER BY name
-        """))
+        """), {"user_id": user_id})
         campaigns = []
         for row in result.fetchall():
             campaigns.append({
@@ -394,17 +391,10 @@ class OptimizationService:
         """Get campaign statistics for specified period"""
         start_date = date.today() - timedelta(days=days)
         
-        # Get campaign stats using raw SQL with correct FLOAT data types
+        # Get campaign stats using raw SQL with correct FLOAT data types and user filtering
         # This query gets data for:
-        # 1. All campaigns that started within the selected time period (date >= start_date)
-        # 2. All ongoing campaigns regardless of start date (ongoing = 'Yes')
-        # 
-        # IMPORTANT: campaign_data does NOT have user_id, so no user_id filter here
-        # Example: If user selects 7 days and today is 2025-08-17:
-        # - start_date = 2025-08-10
-        # - Will include campaigns with date >= 2025-08-10
-        # - Will include ALL campaigns with ongoing = 'Yes' (regardless of date)
-        # - This ensures we get comprehensive data without missing ongoing campaigns
+        # 1. All campaigns for this user that started within the selected time period (date >= start_date)
+        # 2. All ongoing campaigns for this user regardless of start date (ongoing = 'Yes')
         result = await self.db.execute(text("""
             SELECT 
                 COUNT(DISTINCT name) as total_campaigns,
@@ -414,17 +404,16 @@ class OptimizationService:
                 COALESCE(AVG(cpc), 0) as avg_cpc,
                 COALESCE(SUM(conversions), 0) as total_conversions
             FROM campaign_data 
-            WHERE date >= :start_date OR ongoing = 'Yes'
-        """), {"start_date": start_date})
+            WHERE user_id = :user_id AND (date >= :start_date OR ongoing = 'Yes')
+        """), {"user_id": user_id, "start_date": start_date})
         stats = result.first()
         
-        # Get active campaigns count using raw SQL
-        # IMPORTANT: campaign_data does NOT have user_id, so no user_id filter here
+        # Get active campaigns count using raw SQL with user filtering
         active_result = await self.db.execute(text("""
             SELECT COUNT(DISTINCT name) 
             FROM campaign_data 
-            WHERE ongoing = 'Yes'
-        """))
+            WHERE ongoing = 'Yes' AND user_id = :user_id
+        """), {"user_id": user_id})
         active_campaigns = active_result.scalar() or 0
         
         total_spend = stats.total_spend if stats else Decimal('0')
@@ -450,21 +439,22 @@ class OptimizationService:
         """Get performance trends for a specific campaign"""
         start_date = date.today() - timedelta(days=days)
         
-        result = await self.db.execute(
-            select(CampaignData).where(
-                and_(
-                    CampaignData.name == campaign_name,
-                    CampaignData.date >= start_date
-                )
-            ).order_by(CampaignData.date)
-        )
-        campaign_data = result.scalars().all()
+        result = await self.db.execute(text("""
+            SELECT date, spend, ctr, cpc, conversions
+            FROM campaign_data
+            WHERE name = :campaign_name 
+            AND date >= :start_date 
+            AND user_id = :user_id
+            ORDER BY date
+        """), {"campaign_name": campaign_name, "start_date": start_date, "user_id": user_id})
         
-        dates = [data.date.isoformat() for data in campaign_data]
-        spend_trend = [data.spend for data in campaign_data]
-        ctr_trend = [data.ctr for data in campaign_data]
-        cpc_trend = [data.cpc for data in campaign_data]
-        conversions_trend = [data.conversions for data in campaign_data]
+        campaign_data = result.fetchall()
+        
+        dates = [row[0].isoformat() for row in campaign_data]
+        spend_trend = [float(row[1]) if row[1] is not None else 0.0 for row in campaign_data]
+        ctr_trend = [float(row[2]) if row[2] is not None else 0.0 for row in campaign_data]
+        cpc_trend = [float(row[3]) if row[3] is not None else 0.0 for row in campaign_data]
+        conversions_trend = [int(row[4]) if row[4] is not None else 0 for row in campaign_data]
         
         return CampaignPerformanceResponse(
             campaign_name=campaign_name,
@@ -481,21 +471,22 @@ class OptimizationService:
         """Get budget monitoring data"""
         start_date = date.today() - timedelta(days=days)
         
-        result = await self.db.execute(
-            select(
-                CampaignData.name,
-                CampaignData.date,
-                func.coalesce(func.sum(CampaignData.spend), 0).label('spend'),
-                func.coalesce(func.sum(CampaignData.budget), 0).label('budget')
-            ).where(CampaignData.date >= start_date)
-            .group_by(CampaignData.name, CampaignData.date)
-            .order_by(desc(CampaignData.date))
-        )
+        result = await self.db.execute(text("""
+            SELECT 
+                name,
+                date,
+                COALESCE(SUM(spend), 0) as spend,
+                COALESCE(SUM(budget), 0) as budget
+            FROM campaign_data 
+            WHERE date >= :start_date AND user_id = :user_id
+            GROUP BY name, date
+            ORDER BY date DESC
+        """), {"start_date": start_date, "user_id": user_id})
         
         monitoring_data = []
-        for row in result:
-            spend = row.spend or Decimal('0')
-            budget = row.budget or Decimal('0')
+        for row in result.fetchall():
+            spend = Decimal(str(row[2])) if row[2] else Decimal('0')
+            budget = Decimal(str(row[3])) if row[3] else Decimal('0')
             utilization_pct = Decimal('0')
             if budget > 0:
                 utilization_pct = (spend / budget) * 100
@@ -508,8 +499,8 @@ class OptimizationService:
                 status = "warning"
             
             monitoring_data.append(BudgetMonitoringResponse(
-                campaign_name=row.name,
-                date=row.date,
+                campaign_name=row[0],
+                date=row[1],
                 spend=spend,
                 budget=budget,
                 utilization_pct=utilization_pct,
@@ -520,75 +511,150 @@ class OptimizationService:
     
     async def get_optimization_alerts(
         self, user_id: str, unread_only: bool = False, limit: int = 50
-    ) -> List[OptimizationAlert]:
-        """Get optimization alerts"""
-        query = select(OptimizationAlert).order_by(desc(OptimizationAlert.created_at))
+    ) -> List[Dict[str, Any]]:
+        """Get optimization alerts for the user"""
+        query = """
+            SELECT id, user_id, campaign_name, alert_type, priority, title, message, 
+                   recommendation, alert_data, is_read, is_dismissed, created_at, read_at, dismissed_at
+            FROM optimization_alerts 
+            WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
         
         if unread_only:
-            query = query.where(OptimizationAlert.is_read == False)
+            query += " AND is_read = false"
         
-        query = query.limit(limit)
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        query += " ORDER BY created_at DESC LIMIT :limit"
+        params["limit"] = limit
+        
+        result = await self.db.execute(text(query), params)
+        
+        alerts = []
+        for row in result.fetchall():
+            alerts.append({
+                "id": str(row[0]),
+                "user_id": row[1],
+                "campaign_name": row[2],
+                "alert_type": row[3],
+                "priority": row[4],
+                "title": row[5],
+                "message": row[6],
+                "recommendation": row[7],
+                "alert_data": row[8],
+                "is_read": row[9],
+                "is_dismissed": row[10],
+                "created_at": row[11],
+                "read_at": row[12],
+                "dismissed_at": row[13]
+            })
+        
+        return alerts
     
     async def mark_alert_as_read(self, user_id: str, alert_id: str) -> bool:
-        """Mark alert as read"""
+        """Mark alert as read for the user"""
         try:
-            result = await self.db.execute(
-                select(OptimizationAlert).where(OptimizationAlert.id == alert_id)
-            )
-            alert = result.scalar_one_or_none()
+            result = await self.db.execute(text("""
+                UPDATE optimization_alerts 
+                SET is_read = true, read_at = NOW()
+                WHERE id = :alert_id AND user_id = :user_id
+            """), {"alert_id": alert_id, "user_id": user_id})
             
-            if alert:
-                alert.is_read = True
-                alert.read_at = datetime.utcnow()
-                await self.db.commit()
-                return True
-            return False
+            await self.db.commit()
+            return result.rowcount > 0
         except Exception:
             await self.db.rollback()
             return False
     
     async def get_risk_patterns(
         self, user_id: str, unresolved_only: bool = False, limit: int = 50
-    ) -> List[RiskPattern]:
-        """Get risk patterns"""
-        query = select(RiskPattern).order_by(desc(RiskPattern.detected_at))
+    ) -> List[Dict[str, Any]]:
+        """Get risk patterns for the user"""
+        query = """
+            SELECT id, user_id, campaign_name, pattern_type, severity, detected_at, 
+                   pattern_data, resolved, resolved_at
+            FROM risk_patterns 
+            WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
         
         if unresolved_only:
-            query = query.where(RiskPattern.resolved == False)
+            query += " AND resolved = false"
         
-        query = query.limit(limit)
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        query += " ORDER BY detected_at DESC LIMIT :limit"
+        params["limit"] = limit
+        
+        result = await self.db.execute(text(query), params)
+        
+        patterns = []
+        for row in result.fetchall():
+            patterns.append({
+                "id": str(row[0]),
+                "user_id": row[1],
+                "campaign_name": row[2],
+                "pattern_type": row[3],
+                "severity": row[4],
+                "detected_at": row[5],
+                "pattern_data": row[6],
+                "resolved": row[7],
+                "resolved_at": row[8]
+            })
+        
+        return patterns
     
     async def get_recommendations(
         self, user_id: str, unapplied_only: bool = False, limit: int = 50
-    ) -> List[OptimizationRecommendation]:
-        """Get optimization recommendations"""
-        query = select(OptimizationRecommendation).order_by(desc(OptimizationRecommendation.created_at))
+    ) -> List[Dict[str, Any]]:
+        """Get optimization recommendations for the user"""
+        query = """
+            SELECT id, user_id, campaign_name, recommendation_type, priority, title, description, 
+                   action_items, potential_impact, confidence_score, is_applied, applied_at, created_at
+            FROM optimization_recommendations 
+            WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
         
         if unapplied_only:
-            query = query.where(OptimizationRecommendation.is_applied == False)
+            query += " AND is_applied = false"
         
-        query = query.limit(limit)
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        query += " ORDER BY created_at DESC LIMIT :limit"
+        params["limit"] = limit
+        
+        result = await self.db.execute(text(query), params)
+        
+        recommendations = []
+        for row in result.fetchall():
+            recommendations.append({
+                "id": str(row[0]),
+                "user_id": row[1],
+                "campaign_name": row[2],
+                "recommendation_type": row[3],
+                "priority": row[4],
+                "title": row[5],
+                "description": row[6],
+                "action_items": row[7],
+                "potential_impact": row[8],
+                "confidence_score": float(row[9]) if row[9] else 0.0,
+                "is_applied": row[10],
+                "applied_at": row[11],
+                "created_at": row[12]
+            })
+        
+        return recommendations
     
     async def apply_recommendation(self, user_id: str, recommendation_id: str) -> bool:
-        """Apply a recommendation"""
+        """Apply a recommendation for the user"""
         try:
-            result = await self.db.execute(
-                select(OptimizationRecommendation).where(OptimizationRecommendation.id == recommendation_id)
-            )
-            recommendation = result.scalar_one_or_none()
+            result = await self.db.execute(text("""
+                UPDATE optimization_recommendations 
+                SET is_applied = true, applied_at = NOW()
+                WHERE id = :recommendation_id AND user_id = :user_id
+            """), {"recommendation_id": recommendation_id, "user_id": user_id})
             
-            if recommendation:
-                recommendation.is_applied = True
-                recommendation.applied_at = datetime.utcnow()
-                await self.db.commit()
-                return True
-            return False
+            await self.db.commit()
+            return result.rowcount > 0
         except Exception:
             await self.db.rollback()
             return False

@@ -4,16 +4,13 @@ Self-optimization endpoints for campaign analysis and recommendations
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc, text
-from typing import List, Optional
+from sqlalchemy import text
+from typing import List, Optional, Dict, Any
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from app.core.database import get_db
 from app.core.auth_utils import get_user_id_from_header
-from app.models.campaign import (
-    CampaignData, OptimizationAlert, RiskPattern, OptimizationRecommendation
-)
 from app.schemas.campaign import (
     CampaignDataCreate, CampaignDataResponse, CampaignDataUpdate,
     OptimizationAlertResponse, RiskPatternResponse, OptimizationRecommendationResponse,
@@ -278,7 +275,7 @@ async def get_budget_monitoring(
         )
 
 
-@router.get("/alerts", response_model=List[OptimizationAlertResponse])
+@router.get("/alerts")
 async def get_optimization_alerts(
     user_id: str = Depends(get_user_id_from_header),
     db: AsyncSession = Depends(get_db),
@@ -323,7 +320,7 @@ async def mark_alert_as_read(
         )
 
 
-@router.get("/risk-patterns", response_model=List[RiskPatternResponse])
+@router.get("/risk-patterns")
 async def get_risk_patterns(
     user_id: str = Depends(get_user_id_from_header),
     db: AsyncSession = Depends(get_db),
@@ -342,7 +339,7 @@ async def get_risk_patterns(
         )
 
 
-@router.get("/recommendations", response_model=List[OptimizationRecommendationResponse])
+@router.get("/recommendations")
 async def get_optimization_recommendations(
     user_id: str = Depends(get_user_id_from_header),
     db: AsyncSession = Depends(get_db),

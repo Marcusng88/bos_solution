@@ -5,9 +5,7 @@ Monitoring service for business logic
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
-from app.models.monitoring import MonitoringData, MonitoringAlert, CompetitorMonitoringStatus
-from app.models.competitor import Competitor
+from sqlalchemy import text
 from app.schemas.monitoring import MonitoringDataCreate, MonitoringAlertCreate
 import hashlib
 import logging
