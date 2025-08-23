@@ -12,12 +12,14 @@ import { CostAnalysis } from "./cost-analysis"
 import { ProfitabilityMetrics } from "./profitability-metrics"
 import { ROITrends } from "./roi-trends"
 import { ChannelPerformance } from "./channel-performance"
-import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Download } from "lucide-react"
+import { ReportGenerator } from "./report-generator"
+import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Download, FileText } from "lucide-react"
 
 export function ROIDashboard() {
   const { user } = useUser()
   const [range, setRange] = useState<TimeRange>("30d")
   const [overview, setOverview] = useState<any>(null)
+  const [showReportGenerator, setShowReportGenerator] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -43,12 +45,33 @@ export function ROIDashboard() {
               <SelectItem value="1y">Last year</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowReportGenerator(!showReportGenerator)}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              {showReportGenerator ? "Hide Report" : "Generate Report"}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => window.open('/dashboard/roi/reports', '_blank')}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Full Report
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Report Generator */}
+      {showReportGenerator && (
+        <div className="mb-6">
+          <ReportGenerator />
+        </div>
+      )}
 
       {/* Key Metrics Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

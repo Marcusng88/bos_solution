@@ -21,6 +21,30 @@ export const roiApi = {
   cac: (userId: string, range: TimeRange) => get(`${'/roi/profitability/cac'}`, { user_id: userId, range }),
   roiTrends: (userId: string, range: TimeRange) => get(`${'/roi/roi/trends'}`, { user_id: userId, range }),
   channelPerformance: (userId: string, range: TimeRange) => get(`${'/roi/channel/performance'}`, { user_id: userId, range }),
+  generateReport: (userId: string) => {
+    const url = new URL(`${API_BASE}/roi/generate-report`)
+    url.searchParams.set('user_id', userId)
+    return fetch(url.toString(), { 
+      method: 'POST',
+      cache: 'no-store' 
+    }).then(async res => {
+      if (!res.ok) {
+        // Try to get error details from response
+        let errorMessage = `POST /roi/generate-report failed: ${res.status}`
+        try {
+          const errorData = await res.json()
+          if (errorData.detail) {
+            errorMessage = errorData.detail
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the status text
+          errorMessage = `POST /roi/generate-report failed: ${res.status} ${res.statusText}`
+        }
+        throw new Error(errorMessage)
+      }
+      return res.json()
+    })
+  },
 }
 
 /**

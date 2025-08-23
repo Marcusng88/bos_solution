@@ -24,3 +24,4 @@ echo ✅ Sample data generation completed!
 echo 🎉 Your ROI dashboard should now have beautiful data to display
 echo.
 pause
+

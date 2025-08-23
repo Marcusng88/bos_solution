@@ -803,3 +803,487 @@ async def export_pdf(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"export_pdf failed: {e}")
 
+
+@router.post("/generate-report", tags=["roi"])
+async def generate_ai_report(
+    user_id: str = Query(..., description="User ID (not used for data filtering)"),
+    db = Depends(get_db),
+):
+    """
+    Generate an AI-powered ROI report using Gemini.
+    Retrieves ALL data from roi_metrics table, processes by platform,
+    and generates a comprehensive report with insights and recommendations.
+    Note: This endpoint accesses all data in roi_metrics table without user filtering or date restrictions.
+    """
+    try:
+        # Try to import google.generativeai with better error handling
+        try:
+            import google.generativeai as genai
+        except ImportError as e:
+            print(f"Failed to import google.generativeai: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail="Google Generative AI library not installed. Please run: pip install google-generativeai"
+            )
+        
+        import os
+        from datetime import datetime, timedelta, timezone
+        
+        # Configure Gemini API
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        
+        try:
+            genai.configure(api_key=gemini_api_key)
+            # Try gemini-1.5-flash first, fallback to gemini-pro
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                print("Using Gemini 1.5 Flash model")
+            except Exception as flash_error:
+                print(f"Gemini 1.5 Flash not available, trying Gemini Pro: {flash_error}")
+                model = genai.GenerativeModel('gemini-pro')
+                print("Using Gemini Pro model")
+        except Exception as e:
+            print(f"Failed to configure Gemini API: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to configure Gemini API: {str(e)}"
+            )
+        
+        print("Fetching ALL data from roi_metrics table (no date or user filtering)...")
+        
+        # Fetch ALL data without date filtering
+        all_data = await _fetch_all_roi_data()
+        
+        print(f"Total records retrieved: {len(all_data)}")
+        
+        if len(all_data) == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No data found in roi_metrics table. Please ensure the table has data before generating reports."
+            )
+        
+        # Process and summarize data by platform
+        platform_summary = _summarize_data_by_platform(all_data)
+        
+        # Calculate overall totals
+        overall_totals = _calculate_totals(platform_summary)
+        
+        # Prepare data for Gemini
+        report_data = {
+            "all_data": {
+                "period": "All available data",
+                "platforms": platform_summary,
+                "totals": overall_totals,
+                "total_records": len(all_data)
+            }
+        }
+        
+        # Generate report using Gemini
+        prompt = _create_report_prompt_all_data(report_data)
+        
+        print("Generating report with Gemini...")
+        try:
+            response = model.generate_content(prompt)
+            report_content = response.text
+            
+            if not report_content:
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Gemini API returned empty response"
+                )
+                
+        except Exception as e:
+            print(f"Failed to generate content with Gemini: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to generate report with Gemini: {str(e)}"
+            )
+        
+        # Parse the report into structured sections
+        structured_report = _parse_report_sections(report_content)
+        
+        return {
+            "success": True,
+            "report": structured_report,
+            "raw_data": report_data,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in generate_ai_report: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"generate_ai_report failed: {str(e)}")
+
+
+async def _fetch_all_roi_data() -> list:
+    """Fetch ALL ROI metrics data without any filtering"""
+    try:
+        print("Fetching all data from roi_metrics table...")
+        
+        # Query all data without any filters
+        response = await supabase_client._make_request(
+            "GET",
+            "roi_metrics",
+            params={
+                "select": "platform,views,likes,comments,shares,clicks,ad_spend,revenue_generated,roi_percentage,content_type,content_category,update_timestamp",
+                "order": "platform.asc",
+                "limit": "1000"  # Get up to 1000 records
+            }
+        )
+        
+        if response.status_code != 200:
+            print(f"Query failed with status {response.status_code}")
+            return []
+        
+        data = response.json()
+        print(f"Retrieved {len(data)} records from roi_metrics")
+        return data
+        
+    except Exception as e:
+        print(f"Error in _fetch_all_roi_data: {str(e)}")
+        return []
+
+
+def _summarize_data_by_platform(data: list) -> dict:
+    """Summarize ROI data by platform"""
+    from collections import defaultdict
+    
+    platform_summary = defaultdict(lambda: {
+        "total_views": 0,
+        "total_likes": 0,
+        "total_comments": 0,
+        "total_shares": 0,
+        "total_clicks": 0,
+        "total_spend": 0.0,
+        "total_revenue": 0.0,
+        "roi_values": [],
+        "content_types": defaultdict(int),
+        "content_categories": defaultdict(int),
+        "post_count": 0
+    })
+    
+    for row in data:
+        try:
+            platform = row.get("platform", "unknown")
+            summary = platform_summary[platform]
+            
+            # Safely convert values with error handling
+            summary["total_views"] += int(row.get("views", 0) or 0)
+            summary["total_likes"] += int(row.get("likes", 0) or 0)
+            summary["total_comments"] += int(row.get("comments", 0) or 0)
+            summary["total_shares"] += int(row.get("shares", 0) or 0)
+            summary["total_clicks"] += int(row.get("clicks", 0) or 0)
+            summary["total_spend"] += float(row.get("ad_spend", 0) or 0)
+            summary["total_revenue"] += float(row.get("revenue_generated", 0) or 0)
+            summary["post_count"] += 1
+            
+            if row.get("roi_percentage") is not None:
+                try:
+                    roi_value = float(row["roi_percentage"])
+                    summary["roi_values"].append(roi_value)
+                except (ValueError, TypeError):
+                    pass  # Skip invalid ROI values
+            
+            content_type = row.get("content_type", "unknown")
+            summary["content_types"][content_type] += 1
+            
+            content_category = row.get("content_category", "unknown")
+            summary["content_categories"][content_category] += 1
+            
+        except Exception as e:
+            print(f"Error processing row: {e}")
+            continue
+    
+    # Calculate derived metrics
+    result = {}
+    for platform, summary in platform_summary.items():
+        try:
+            total_engagement = summary["total_likes"] + summary["total_comments"] + summary["total_shares"]
+            total_impressions = summary["total_views"]
+            
+            avg_roi = sum(summary["roi_values"]) / len(summary["roi_values"]) if summary["roi_values"] else 0
+            engagement_rate = (total_engagement / total_impressions * 100) if total_impressions > 0 else 0
+            ctr = (summary["total_clicks"] / total_impressions * 100) if total_impressions > 0 else 0
+            profit = summary["total_revenue"] - summary["total_spend"]
+            profit_margin = (profit / summary["total_revenue"] * 100) if summary["total_revenue"] > 0 else 0
+            
+            result[platform] = {
+                **summary,
+                "avg_roi": avg_roi,
+                "total_engagement": total_engagement,
+                "engagement_rate": engagement_rate,
+                "click_through_rate": ctr,
+                "profit": profit,
+                "profit_margin": profit_margin,
+                "roas": summary["total_revenue"] / summary["total_spend"] if summary["total_spend"] > 0 else 0
+            }
+        except Exception as e:
+            print(f"Error calculating metrics for platform {platform}: {e}")
+            continue
+    
+    return result
+
+
+def _calculate_totals(platform_summary: dict) -> dict:
+    """Calculate totals across all platforms"""
+    totals = {
+        "total_views": 0,
+        "total_engagement": 0,
+        "total_clicks": 0,
+        "total_spend": 0.0,
+        "total_revenue": 0.0,
+        "total_profit": 0.0,
+        "post_count": 0
+    }
+    
+    for platform_data in platform_summary.values():
+        totals["total_views"] += platform_data["total_views"]
+        totals["total_engagement"] += platform_data["total_engagement"]
+        totals["total_clicks"] += platform_data["total_clicks"]
+        totals["total_spend"] += platform_data["total_spend"]
+        totals["total_revenue"] += platform_data["total_revenue"]
+        totals["total_profit"] += platform_data["profit"]
+        totals["post_count"] += platform_data["post_count"]
+    
+    if totals["total_spend"] > 0:
+        totals["overall_roi"] = (totals["total_profit"] / totals["total_spend"]) * 100
+        totals["overall_roas"] = totals["total_revenue"] / totals["total_spend"]
+    else:
+        totals["overall_roi"] = 0
+        totals["overall_roas"] = 0
+    
+    if totals["total_views"] > 0:
+        totals["overall_engagement_rate"] = (totals["total_engagement"] / totals["total_views"]) * 100
+        totals["overall_ctr"] = (totals["total_clicks"] / totals["total_views"]) * 100
+    else:
+        totals["overall_engagement_rate"] = 0
+        totals["overall_ctr"] = 0
+    
+    return totals
+
+
+def _calculate_month_over_month_changes(current: dict, previous: dict) -> dict:
+    """Calculate month-over-month changes"""
+    changes = {}
+    
+    # Calculate changes for each platform
+    all_platforms = set(current.keys()) | set(previous.keys())
+    
+    for platform in all_platforms:
+        current_data = current.get(platform, {})
+        previous_data = previous.get(platform, {})
+        
+        changes[platform] = {
+            "revenue_change": _calculate_percentage_change(
+                previous_data.get("total_revenue", 0),
+                current_data.get("total_revenue", 0)
+            ),
+            "spend_change": _calculate_percentage_change(
+                previous_data.get("total_spend", 0),
+                current_data.get("total_spend", 0)
+            ),
+            "roi_change": _calculate_percentage_change(
+                previous_data.get("avg_roi", 0),
+                current_data.get("avg_roi", 0)
+            ),
+            "engagement_change": _calculate_percentage_change(
+                previous_data.get("engagement_rate", 0),
+                current_data.get("engagement_rate", 0)
+            ),
+            "views_change": _calculate_percentage_change(
+                previous_data.get("total_views", 0),
+                current_data.get("total_views", 0)
+            )
+        }
+    
+    # Calculate overall changes
+    current_totals = _calculate_totals(current)
+    previous_totals = _calculate_totals(previous)
+    
+    changes["overall"] = {
+        "revenue_change": _calculate_percentage_change(
+            previous_totals.get("total_revenue", 0),
+            current_totals.get("total_revenue", 0)
+        ),
+        "spend_change": _calculate_percentage_change(
+            previous_totals.get("total_spend", 0),
+            current_totals.get("total_spend", 0)
+        ),
+        "roi_change": _calculate_percentage_change(
+            previous_totals.get("overall_roi", 0),
+            current_totals.get("overall_roi", 0)
+        ),
+        "engagement_change": _calculate_percentage_change(
+            previous_totals.get("overall_engagement_rate", 0),
+            current_totals.get("overall_engagement_rate", 0)
+        )
+    }
+    
+    return changes
+
+
+def _calculate_percentage_change(previous: float, current: float) -> float:
+    """Calculate percentage change between two values"""
+    if previous == 0:
+        return 100.0 if current > 0 else 0.0
+    return ((current - previous) / previous) * 100
+
+
+def _create_report_prompt_all_data(data: dict) -> str:
+    """Create a comprehensive prompt for Gemini to generate the report from all available data"""
+    
+    prompt = f"""
+You are a marketing analytics expert. Generate a comprehensive ROI report based on ALL available data from the roi_metrics table.
+
+REPORT DATA:
+{data}
+
+Please create a professional marketing ROI report with the following structure:
+
+# Executive Summary
+- Brief overview of overall performance
+- Key highlights and achievements
+- Total data analyzed and scope
+
+# Performance Overview
+- Total revenue, spend, and profit analysis
+- Overall ROI and ROAS metrics
+- Platform distribution and performance
+
+# Platform Performance Analysis
+For each platform, provide:
+- Revenue and spend breakdown
+- ROI and engagement metrics
+- Performance insights and trends
+- Content type and category analysis
+- Post count and average performance
+
+# Key Insights
+- Top performing platforms
+- Areas of concern or opportunity
+- Notable trends and patterns
+- Content performance insights
+- Engagement rate analysis
+
+# Recommendations
+- Strategic recommendations for improvement
+- Platform-specific optimization suggestions
+- Budget allocation recommendations
+- Content strategy suggestions
+- Performance optimization opportunities
+
+# Action Items
+- Priority actions for improvement
+- Specific metrics to focus on
+- Testing opportunities
+- Next steps for optimization
+
+Please format the report professionally with clear sections, bullet points where appropriate, and actionable insights. Focus on providing valuable business intelligence that can drive decision-making. Since this is analyzing all available data, provide comprehensive insights across all platforms and content types.
+"""
+    
+    return prompt
+
+
+def _create_report_prompt(data: dict) -> str:
+    """Create a comprehensive prompt for Gemini to generate the report"""
+    
+    prompt = f"""
+You are a marketing analytics expert. Generate a comprehensive ROI report based on the following data.
+
+REPORT DATA:
+{data}
+
+Please create a professional marketing ROI report with the following structure:
+
+# Executive Summary
+- Brief overview of performance
+- Key highlights and achievements
+- Overall ROI performance
+
+# Performance Overview
+- Total revenue, spend, and profit analysis
+- Overall ROI and ROAS metrics
+- Month-over-month performance comparison
+
+# Platform Performance Analysis
+For each platform, provide:
+- Revenue and spend breakdown
+- ROI and engagement metrics
+- Performance trends and insights
+- Content type and category analysis
+
+# Key Insights
+- Top performing platforms
+- Areas of concern
+- Notable trends and patterns
+- Content performance insights
+
+# Recommendations
+- Strategic recommendations for improvement
+- Platform-specific optimization suggestions
+- Budget allocation recommendations
+- Content strategy suggestions
+
+# Action Items
+- Priority actions for next month
+- Specific metrics to focus on
+- Testing opportunities
+
+Please format the report professionally with clear sections, bullet points where appropriate, and actionable insights. Focus on providing valuable business intelligence that can drive decision-making.
+"""
+    
+    return prompt
+
+
+def _parse_report_sections(report_content: str) -> dict:
+    """Parse the generated report into structured sections"""
+    sections = {
+        "executive_summary": "",
+        "performance_overview": "",
+        "platform_analysis": "",
+        "key_insights": "",
+        "recommendations": "",
+        "action_items": ""
+    }
+    
+    current_section = None
+    lines = report_content.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Detect section headers
+        if line.startswith('# Executive Summary'):
+            current_section = "executive_summary"
+            continue
+        elif line.startswith('# Performance Overview'):
+            current_section = "performance_overview"
+            continue
+        elif line.startswith('# Platform Performance Analysis'):
+            current_section = "platform_analysis"
+            continue
+        elif line.startswith('# Key Insights'):
+            current_section = "key_insights"
+            continue
+        elif line.startswith('# Recommendations'):
+            current_section = "recommendations"
+            continue
+        elif line.startswith('# Action Items'):
+            current_section = "action_items"
+            continue
+        
+        # Add content to current section
+        if current_section and current_section in sections:
+            if sections[current_section]:
+                sections[current_section] += "\n"
+            sections[current_section] += line
+    
+    return sections
+
