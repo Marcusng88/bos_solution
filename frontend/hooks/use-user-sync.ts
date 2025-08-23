@@ -21,6 +21,7 @@ interface UserStatusResponse {
   redirect_to: string;
   user: any;
   message: string;
+  onboarding_complete?: boolean;
 }
 
 export function useUserSync() {
@@ -44,27 +45,54 @@ export function useUserSync() {
     
     try {
       console.log('🔍 Checking user status...');
+      console.log('👤 User ID:', user.id);
+      console.log('📧 User email:', user.emailAddresses?.[0]?.emailAddress);
+      
       const response = await apiClient.checkUserStatus(user.id);
       const statusData = response as UserStatusResponse;
       
       console.log('✅ User status response:', statusData);
+      console.log('🎯 Redirect path:', statusData.redirect_to);
+      console.log('✅ Onboarding complete:', statusData.onboarding_complete);
       
       if (statusData.exists) {
-        // User exists - they can go to dashboard
-        setSyncState({
-          isSyncing: false,
-          isSynced: true,
-          error: null,
-          user: statusData.user,
-          redirectPath: statusData.redirect_to,
-        });
-        
-        // Only redirect if not already on dashboard or a dashboard sub-route
-        if (statusData.redirect_to === 'dashboard' && !window.location.pathname.startsWith('/dashboard')) {
-          router.push('/dashboard');
+        // User exists - check if they should go to dashboard or onboarding
+        if (statusData.onboarding_complete) {
+          // User has completed onboarding - they can go to dashboard
+          console.log('🚀 User exists and onboarding complete, redirecting to dashboard');
+          setSyncState({
+            isSyncing: false,
+            isSynced: true,
+            error: null,
+            user: statusData.user,
+            redirectPath: 'dashboard',
+          });
+          
+          // Only redirect if not already on dashboard or a dashboard sub-route
+          if (!window.location.pathname.startsWith('/dashboard')) {
+            console.log('🔄 Redirecting to dashboard...');
+            router.push('/dashboard');
+          }
+        } else {
+          // User exists but hasn't completed onboarding
+          console.log('📝 User exists but onboarding incomplete, redirecting to onboarding');
+          setSyncState({
+            isSyncing: false,
+            isSynced: true,
+            error: null,
+            user: statusData.user,
+            redirectPath: 'onboarding',
+          });
+          
+          // Only redirect if not already on onboarding or an onboarding sub-route
+          if (!window.location.pathname.startsWith('/onboarding')) {
+            console.log('🔄 Redirecting to onboarding...');
+            router.push('/onboarding');
+          }
         }
       } else {
         // User doesn't exist - they need onboarding
+        console.log('🆕 New user, redirecting to onboarding');
         setSyncState({
           isSyncing: false,
           isSynced: true, // Mark as synced to prevent infinite loading
@@ -74,7 +102,8 @@ export function useUserSync() {
         });
         
         // Only redirect if not already on onboarding or an onboarding sub-route
-        if (statusData.redirect_to === 'onboarding' && !window.location.pathname.startsWith('/onboarding')) {
+        if (!window.location.pathname.startsWith('/onboarding')) {
+          console.log('🔄 Redirecting to onboarding...');
           router.push('/onboarding');
         }
       }

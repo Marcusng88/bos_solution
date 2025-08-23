@@ -64,17 +64,17 @@ const PlatformIcon = ({ platform }: { platform: string }) => {
 
 const SentimentBadge = ({ score }: { score: number }) => {
   let variant: "default" | "secondary" | "destructive" | "outline" = "outline"
-  let color = "text-gray-600"
+  let color = "text-gray-600 dark:text-gray-300"
   
   if (score > 0.3) {
     variant = "default"
-    color = "text-green-600"
+    color = "text-green-600 dark:text-green-400"
   } else if (score < -0.3) {
     variant = "destructive"
-    color = "text-red-600"
+    color = "text-red-600 dark:text-red-400"
   } else {
     variant = "secondary"
-    color = "text-yellow-600"
+    color = "text-yellow-600 dark:text-yellow-400"
   }
 
   return (
@@ -131,20 +131,20 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm whitespace-pre-wrap">{data.content_text}</p>
+              <div className="bg-muted/50 dark:bg-muted/30 p-4 rounded-lg border">
+                <p className="text-sm whitespace-pre-wrap text-foreground">{data.content_text}</p>
               </div>
               
               {data.post_type && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Type:</span>
+                  <span className="text-sm font-medium text-foreground">Type:</span>
                   <Badge variant="secondary">{data.post_type}</Badge>
                 </div>
               )}
 
               {data.language && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Language:</span>
+                  <span className="text-sm font-medium text-foreground">Language:</span>
                   <Badge variant="outline">{data.language}</Badge>
                 </div>
               )}
@@ -174,7 +174,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
                     />
                   )}
                   <div>
-                    <p className="font-medium">{data.author_display_name || 'Unknown'}</p>
+                    <p className="font-medium text-foreground">{data.author_display_name || 'Unknown'}</p>
                     {data.author_username && (
                       <p className="text-sm text-muted-foreground">@{data.author_username}</p>
                     )}
@@ -197,7 +197,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">Detected At</p>
+                    <p className="text-sm font-medium text-foreground">Detected At</p>
                     <p className="text-sm text-muted-foreground">
                       {detectedDate.formatted}
                     </p>
@@ -208,7 +208,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-sm font-medium">Posted At</p>
+                      <p className="text-sm font-medium text-foreground">Posted At</p>
                       <p className="text-sm text-muted-foreground">
                         {postedDate.formatted}
                       </p>
@@ -231,16 +231,16 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
               <CardContent className="space-y-4">
                 {data.sentiment_score !== undefined && (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Sentiment Score:</span>
+                    <span className="text-sm font-medium text-foreground">Sentiment Score:</span>
                     <SentimentBadge score={data.sentiment_score} />
                   </div>
                 )}
 
                 {data.engagement_metrics && (
                   <div>
-                    <p className="text-sm font-medium mb-2">Engagement Metrics:</p>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <pre className="text-xs overflow-x-auto">
+                    <p className="text-sm font-medium mb-2 text-foreground">Engagement Metrics:</p>
+                    <div className="bg-muted/50 dark:bg-muted/30 p-3 rounded-lg border">
+                      <pre className="text-xs overflow-x-auto text-foreground">
                         {JSON.stringify(data.engagement_metrics, null, 2)}
                       </pre>
                     </div>
@@ -249,9 +249,9 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
 
                 {data.media_urls && (
                   <div>
-                    <p className="text-sm font-medium mb-2">Media URLs:</p>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <pre className="text-xs overflow-x-auto">
+                    <p className="text-sm font-medium mb-2 text-foreground">Media URLs:</p>
+                    <div className="bg-muted/50 dark:bg-muted/30 p-3 rounded-lg border">
+                      <pre className="text-xs overflow-x-auto text-foreground">
                         {JSON.stringify(data.media_urls, null, 2)}
                       </pre>
                     </div>
@@ -272,7 +272,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="font-medium">Content Hash:</p>
+                  <p className="font-medium text-foreground">Content Hash:</p>
                   <p className="text-muted-foreground font-mono text-xs break-all">
                     {data.content_hash || 'N/A'}
                   </p>
@@ -280,7 +280,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
                 
                 {data.previous_content_hash && (
                   <div>
-                    <p className="font-medium">Previous Hash:</p>
+                    <p className="font-medium text-foreground">Previous Hash:</p>
                     <p className="text-muted-foreground font-mono text-xs break-all">
                       {data.previous_content_hash}
                     </p>
@@ -289,7 +289,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
 
                 {data.post_id && (
                   <div>
-                    <p className="font-medium">Post ID:</p>
+                    <p className="font-medium text-foreground">Post ID:</p>
                     <p className="text-muted-foreground font-mono text-xs break-all">
                       {data.post_id}
                     </p>
@@ -297,7 +297,7 @@ export function MonitoringDataDetailsModal({ data, isOpen, onClose }: Monitoring
                 )}
 
                 <div>
-                  <p className="font-medium">Competitor ID:</p>
+                  <p className="font-medium text-foreground">Competitor ID:</p>
                   <p className="text-muted-foreground font-mono text-xs break-all">
                     {data.competitor_id}
                   </p>

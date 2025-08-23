@@ -103,9 +103,12 @@ class SimpleMonitoringService:
             logger.info(f"   🌐 Website: {website_url}")
             logger.info(f"   📱 Social handles: {social_media_handles}")
             
-            # Always use the three core agents: youtube, browser, website
-            platforms = ["youtube", "browser", "website"]
-            logger.info(f"🎯 Using core monitoring platforms: {platforms}")
+            # Use provided platforms or default to all three core agents
+            if platforms is None:
+                platforms = ["youtube", "browser", "website"]
+                logger.info(f"🎯 Using default core monitoring platforms: {platforms}")
+            else:
+                logger.info(f"🎯 Using specified monitoring platforms: {platforms}")
             
             results = {}
             errors = []

@@ -1,7 +1,6 @@
 import type React from "react"
 import Link from "next/link"
 import { Brain, Users, BarChart3, Clock, Target, Globe, TrendingUp, Zap, Mail, Shield, Lightbulb, ArrowUpRight } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 interface AuthLayoutProps {
   children: React.ReactNode
@@ -191,9 +190,6 @@ export function AuthLayout({ children, title, subtitle, footerText, footerLinkTe
         </div>
       </div>
       
-      <div className="absolute top-6 right-6 z-10">
-        <ThemeToggle />
-      </div>
 
       <div className="w-full max-w-md mx-auto px-6 py-12 relative z-10">
         {/* Mobile branding */}

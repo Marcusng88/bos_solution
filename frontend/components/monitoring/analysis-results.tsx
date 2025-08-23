@@ -90,7 +90,7 @@ export function AnalysisResults({ results }: AnalysisResultsProps) {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-2">
                 <PlatformIcon platform={result.platform} />
-                <CardTitle className="text-sm font-medium capitalize">{result.platform} Analysis</CardTitle>
+                <CardTitle className="text-sm font-medium capitalize text-foreground">{result.platform} Analysis</CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-xs text-muted-foreground">
@@ -133,7 +133,7 @@ export function AnalysisResults({ results }: AnalysisResultsProps) {
                     href={result.post_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-blue-500 hover:underline flex items-center gap-1"
+                    className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1 transition-colors"
                   >
                     <ExternalLink className="h-3 w-3" />
                     View Source
@@ -144,7 +144,7 @@ export function AnalysisResults({ results }: AnalysisResultsProps) {
                 {result.author_username && (
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      <strong>Author:</strong> {result.author_display_name || result.author_username}
+                      <strong className="text-foreground">Author:</strong> {result.author_display_name || result.author_username}
                     </p>
                   </div>
                 )}
@@ -153,10 +153,10 @@ export function AnalysisResults({ results }: AnalysisResultsProps) {
                 {result.sentiment_score !== undefined && (
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      <strong>Sentiment:</strong> 
+                      <strong className="text-foreground">Sentiment:</strong> 
                       <span className={`ml-1 ${
-                        result.sentiment_score > 0.3 ? 'text-green-600' : 
-                        result.sentiment_score < -0.3 ? 'text-red-600' : 'text-yellow-600'
+                        result.sentiment_score > 0.3 ? 'text-green-600 dark:text-green-400' : 
+                        result.sentiment_score < -0.3 ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
                       }`}>
                         {result.sentiment_score.toFixed(2)}
                       </span>

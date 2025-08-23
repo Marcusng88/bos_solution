@@ -8,25 +8,43 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta, timezone
 import asyncio
-from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+# Conditional import of Supabase client
+try:
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
+    logger.info("✅ Supabase client imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ Supabase client not available: {e}")
+    logger.warning("⚠️ Install supabase package to enable monitoring features")
+    SUPABASE_AVAILABLE = False
+    create_client = None
+    Client = None
 
 
 class SupabaseMonitoringClient:
     """Direct Supabase client for monitoring operations"""
     
     def __init__(self):
+        if not SUPABASE_AVAILABLE:
+            raise ValueError("Supabase client not available. Install supabase package to enable monitoring features.")
+        
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
         
-        self.client: Client = create_client(self.supabase_url, self.supabase_key)
-        logger.info("✅ Supabase monitoring client initialized")
+        try:
+            self.client = create_client(self.supabase_url, self.supabase_key)
+            logger.info("✅ Supabase monitoring client initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Supabase client: {e}")
+            raise ValueError(f"Failed to initialize Supabase client: {e}")
     
     async def get_competitor_details(self, competitor_id: str) -> Optional[Dict[str, Any]]:
         """Get competitor details by ID"""
@@ -213,5 +231,14 @@ class SupabaseMonitoringClient:
             return False
 
 
-# Global client instance
-supabase_client = SupabaseMonitoringClient()
+# Global client instance - only create if dependencies are available
+try:
+    if SUPABASE_AVAILABLE:
+        supabase_client = SupabaseMonitoringClient()
+        logger.info("✅ Global Supabase monitoring client initialized successfully")
+    else:
+        logger.warning("⚠️ Supabase not available, global client set to None")
+        supabase_client = None
+except Exception as e:
+    logger.error(f"❌ Could not initialize Supabase monitoring client: {e}")
+    supabase_client = None

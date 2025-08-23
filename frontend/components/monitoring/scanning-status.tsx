@@ -75,7 +75,7 @@ export function ScanningStatus({ userId }: ScanningStatusProps) {
     try {
       setRunningScans(prev => new Set([...prev, competitorId]))
       
-      const response = await apiClient.runMonitoringForCompetitor(userId, competitorId)
+      const response = await apiClient.runMonitoringForAllCompetitors(userId)
       
       if ((response as any).success) {
         toast({
@@ -173,15 +173,15 @@ export function ScanningStatus({ userId }: ScanningStatusProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "scanning":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300"
       case "complete":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-300"
       case "pending":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 text-orange-800 dark:bg-orange-950/20 dark:text-orange-300"
       case "error":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-300"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800 dark:bg-gray-950/20 dark:text-gray-300"
     }
   }
 
@@ -218,12 +218,12 @@ export function ScanningStatus({ userId }: ScanningStatusProps) {
                   <div className="flex items-center gap-3">
                     {getStatusIcon(status)}
                     <div>
-                      <p className="font-medium">{competitor.name}</p>
+                      <p className="font-medium text-foreground">{competitor.name}</p>
                       <p className="text-sm text-muted-foreground">
                         Last scan: {getLastScanTime(competitor)}
                       </p>
                       {competitor.monitoring_status?.scan_error_message && (
-                        <p className="text-xs text-red-500 mt-1">
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
                           {competitor.monitoring_status.scan_error_message}
                         </p>
                       )}
@@ -271,7 +271,7 @@ export function ScanningStatus({ userId }: ScanningStatusProps) {
             <div key={scanType.name} className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{scanType.name}</span>
+                  <span className="font-medium text-foreground">{scanType.name}</span>
                   <Badge className={getStatusColor(scanType.status)}>{scanType.status}</Badge>
                 </div>
                 <span className="text-sm text-muted-foreground">{scanType.progress}%</span>

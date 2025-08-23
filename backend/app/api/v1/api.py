@@ -3,7 +3,7 @@ Main API router - includes all endpoint routers
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import competitors, monitoring, users, auth, youtube, user_preferences, social_media, content_planning
+from app.api.v1.endpoints import competitors, monitoring, users, auth, youtube, user_preferences, social_media, content_planning, self_optimization, ai_insights
 
 api_router = APIRouter()
 
@@ -22,3 +22,5 @@ api_router.include_router(youtube.router, prefix="/youtube", tags=["youtube"])
 api_router.include_router(user_preferences.router, prefix="/user-preferences", tags=["user-preferences"])
 api_router.include_router(social_media.router, prefix="/social-media", tags=["social-media"])
 api_router.include_router(content_planning.router, prefix="/content-planning", tags=["content-planning"])
+api_router.include_router(self_optimization.router, prefix="/self-optimization", tags=["self-optimization"])
+api_router.include_router(ai_insights.router, prefix="/ai-insights", tags=["ai-insights"])

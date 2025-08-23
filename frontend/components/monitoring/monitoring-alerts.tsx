@@ -124,30 +124,30 @@ export function MonitoringAlerts({ userId }: MonitoringAlertsProps) {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "critical":
-        return "bg-red-200 text-red-900 border-red-300"
+        return "bg-red-200 text-red-900 border-red-300 dark:bg-red-950/30 dark:text-red-200 dark:border-red-800"
       case "high":
-        return "bg-red-100 text-red-800 border-red-200"
+        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/20 dark:text-red-300 dark:border-red-700"
       case "medium":
-        return "bg-orange-100 text-orange-800 border-orange-200"
+        return "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/20 dark:text-orange-300 dark:border-orange-700"
       case "low":
-        return "bg-blue-100 text-blue-800 border-blue-200"
+        return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/20 dark:text-blue-300 dark:border-blue-700"
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-950/20 dark:text-gray-300 dark:border-gray-700"
     }
   }
 
   const getBorderColor = (priority: string) => {
     switch (priority) {
       case "critical":
-        return "border-l-red-600"
+        return "border-l-red-600 dark:border-l-red-500"
       case "high":
-        return "border-l-red-500"
+        return "border-l-red-500 dark:border-l-red-400"
       case "medium":
-        return "border-l-orange-500"
+        return "border-l-orange-500 dark:border-l-orange-400"
       case "low":
-        return "border-l-blue-500"
+        return "border-l-blue-500 dark:border-l-blue-400"
       default:
-        return "border-l-gray-500"
+        return "border-l-gray-500 dark:border-l-gray-400"
     }
   }
 
@@ -181,18 +181,18 @@ export function MonitoringAlerts({ userId }: MonitoringAlertsProps) {
           <Card 
             key={alert.id} 
             className={`border-l-4 ${getBorderColor(alert.priority)} ${
-              !alert.is_read ? 'bg-blue-50/30' : ''
+              !alert.is_read ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
             }`}
           >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <Icon className="h-5 w-5 text-blue-600" />
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                    <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <CardTitle className="text-lg">{alert.title}</CardTitle>
+                      <CardTitle className="text-lg text-foreground">{alert.title}</CardTitle>
                       <Badge className={getPriorityColor(alert.priority)}>
                         {alert.priority}
                       </Badge>
@@ -227,7 +227,7 @@ export function MonitoringAlerts({ userId }: MonitoringAlertsProps) {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-sm">{alert.message}</p>
+              <p className="text-sm text-foreground">{alert.message}</p>
             </CardContent>
           </Card>
         )

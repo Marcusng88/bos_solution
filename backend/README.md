@@ -4,12 +4,14 @@ Business Operations System - Continuous Monitoring and Competitor Intelligence B
 
 ## Overview
 
-This backend provides a RESTful API for the BOS Solution platform, handling competitor intelligence, continuous monitoring, and user management. The backend is designed to work with a Clerk-authenticated frontend and stores all data directly in Supabase using the REST API.
+This backend provides a RESTful API for the BOS Solution platform, handling competitor intelligence, continuous monitoring, user management, and AI-powered insights. The backend is designed to work with a Clerk-authenticated frontend and stores all data directly in Supabase using the REST API.
 
 ## Architecture
 
 - **FastAPI**: Modern, fast web framework for building APIs
 - **Supabase**: Direct PostgreSQL database integration via REST API
+- **LangChain**: AI framework for intelligent analysis and recommendations
+- **Gemini API**: Google's AI model for natural language processing
 - **Authentication**: Header-based user identification (frontend handles Clerk auth)
 - **No Local Database**: All data operations go directly to Supabase
 
@@ -19,6 +21,22 @@ This backend provides a RESTful API for the BOS Solution platform, handling comp
 - **Direct Supabase Integration**: All database operations use Supabase REST API
 - **Simplified Architecture**: Cleaner, more maintainable codebase
 - **Better Performance**: No local database overhead
+
+## AI Features
+
+The backend includes advanced AI capabilities powered by LangChain and Google's Gemini API:
+
+### AI Insights
+- **Campaign Analysis**: Intelligent analysis of campaign performance data
+- **Recommendations**: Actionable optimization suggestions
+- **Risk Assessment**: Automated risk detection and mitigation strategies
+- **Competitive Intelligence**: AI-powered competitor analysis
+
+### AI Chat Assistant
+- **Natural Language Queries**: Ask questions about campaigns in plain English
+- **Context Awareness**: AI has access to campaign data, competitor info, and business documentation
+- **Real-time Responses**: Instant answers to business questions
+- **Global Availability**: Available across all application pages
 
 ## Authentication
 
@@ -58,6 +76,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 HOST=0.0.0.0
 PORT=8000
 DEBUG=true
+
+# AI Configuration
+GEMINI_API_KEY=your_gemini_api_key_here
 
 # Social Media API Keys
 INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token_here

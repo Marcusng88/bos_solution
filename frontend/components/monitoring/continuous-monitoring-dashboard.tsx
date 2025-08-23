@@ -99,19 +99,42 @@ export function ContinuousMonitoringDashboard() {
         dataRes: JSON.stringify(dataRes, null, 2) 
       });
 
-      if ((statusRes as any).success) {
+      if ((statusRes as any).success && (statusRes as any).status) {
         console.log('✅ Status response successful, setting monitoring status');
-        setMonitoringStatus((statusRes as any).status);
-        setIsMonitoring((statusRes as any).status.running);
+        const statusData = (statusRes as any).status;
+        setMonitoringStatus({
+          running: statusData.running || false,
+          total_active_jobs: statusData.total_active_jobs || 0,
+          next_scheduled_run: statusData.next_scheduled_run
+        });
+        setIsMonitoring(statusData.running || false);
       } else {
         console.log('❌ Status response not successful:', statusRes);
+        setMonitoringStatus({
+          running: false,
+          total_active_jobs: 0,
+          next_scheduled_run: undefined
+        });
+        setIsMonitoring(false);
       }
       
-      if ((statsRes as any).success) {
+      if ((statsRes as any).success && (statsRes as any).stats) {
         console.log('✅ Stats response successful, setting monitoring stats');
-        setMonitoringStats((statsRes as any).stats);
+        const statsData = (statsRes as any).stats;
+        setMonitoringStats({
+          total_competitors: statsData.total_competitors || 0,
+          unread_alerts: statsData.unread_alerts || 0,
+          recent_activity_24h: statsData.recent_activity_24h || 0,
+          last_scan_time: statsData.last_scan_time
+        });
       } else {
         console.log('❌ Stats response not successful:', statsRes);
+        setMonitoringStats({
+          total_competitors: 0,
+          unread_alerts: 0,
+          recent_activity_24h: 0,
+          last_scan_time: undefined
+        });
       }
       
       if (dataRes.data) {
@@ -162,37 +185,50 @@ export function ContinuousMonitoringDashboard() {
     try {
       setIsTogglingMonitoring(true)
       
-      let response
       if (enabled) {
-        response = await memoizedApiClient.startContinuousMonitoring(userId)
-      } else {
-        response = await memoizedApiClient.stopContinuousMonitoring(userId)
-      }
-
-      if ((response as any).success) {
-        setIsMonitoring(enabled)
-        toast({
-          title: "Success",
-          description: (response as any).message,
-        })
-        
-        // Refresh monitoring status
-        const statusResponse = await memoizedApiClient.getMonitoringStatus(userId)
-        if ((statusResponse as any).success) {
-          setMonitoringStatus((statusResponse as any).status)
+        // Start continuous monitoring
+        const result = await apiClient.startContinuousMonitoring(userId) as any
+        if (result.success) {
+          setIsMonitoring(true)
+          toast({
+            title: "Success",
+            description: result.message || "Monitoring started successfully",
+          })
+          
+          // Update monitoring status
+          setMonitoringStatus({
+            running: true,
+            total_active_jobs: 1,
+            next_scheduled_run: new Date(Date.now() + 300000).toISOString() // 5 minutes from now
+          })
+        } else {
+          throw new Error(result.message || "Failed to start monitoring")
         }
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to toggle monitoring",
-          variant: "destructive",
-        })
+        // Stop continuous monitoring
+        const result = await apiClient.stopContinuousMonitoring(userId) as any
+        if (result.success) {
+          setIsMonitoring(false)
+          toast({
+            title: "Success",
+            description: result.message || "Monitoring stopped successfully",
+          })
+          
+          // Update monitoring status
+          setMonitoringStatus({
+            running: false,
+            total_active_jobs: 0,
+            next_scheduled_run: undefined
+          })
+        } else {
+          throw new Error(result.message || "Failed to stop monitoring")
+        }
       }
     } catch (error) {
       console.error('Error toggling monitoring:', error)
       toast({
         title: "Error",
-        description: handleApiError(error),
+        description: error instanceof Error ? error.message : "Failed to toggle monitoring",
         variant: "destructive",
       })
     } finally {
@@ -218,16 +254,16 @@ export function ContinuousMonitoringDashboard() {
         description: "Initiating comprehensive competitor scan across all platforms...",
       });
 
-      // Start the scan for all competitors
-      const response = await memoizedApiClient.runMonitoringForAllCompetitors(userId);
+      // Call the actual API to run monitoring for all competitors
+      const result = await apiClient.runMonitoringForAllCompetitors(userId) as any;
       
-      if ((response as any).success) {
+      if (result.success) {
         toast({
           title: "Scan Initiated",
-          description: "Competitor monitoring scan has been started. This may take several minutes to complete.",
+          description: result.message || "Competitor monitoring scan has been started. This may take several minutes to complete.",
         });
 
-        // Wait a bit then refresh the data to show progress
+        // Refresh data after a short delay to show initial results
         setTimeout(() => {
           fetchAllData();
         }, 2000);
@@ -242,19 +278,15 @@ export function ContinuousMonitoringDashboard() {
           clearInterval(refreshInterval);
           fetchAllData(); // Final refresh
         }, 120000);
-
       } else {
-        toast({
-          title: "Scan Failed",
-          description: "Failed to initiate competitor scan. Please try again.",
-          variant: "destructive",
-        });
+        throw new Error(result.message || "Failed to start scan");
       }
+
     } catch (error) {
       console.error('Error starting scan:', error);
       toast({
         title: "Scan Error",
-        description: handleApiError(error),
+        description: error instanceof Error ? error.message : "Failed to initiate competitor scan. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -421,18 +453,7 @@ export function ContinuousMonitoringDashboard() {
         </Card>
       </div>
 
-      {/* Debug Info */}
-      <Card className="bg-gray-50">
-        <CardContent className="p-4">
-          <h3 className="font-semibold mb-2 text-sm">Debug Info</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-            <div><strong>User ID:</strong> {userId}</div>
-            <div><strong>Loading:</strong> {isLoading ? 'Yes' : 'No'}</div>
-            <div><strong>Data Count:</strong> {monitoringData.length}</div>
-            <div><strong>Monitoring:</strong> {isMonitoring ? 'On' : 'Off'}</div>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Data Summary */}
       {monitoringData.length > 0 && (
@@ -492,7 +513,6 @@ export function ContinuousMonitoringDashboard() {
           <TabsTrigger value="analysis-results">Analysis Results</TabsTrigger>
           <TabsTrigger value="alerts">Recent Alerts</TabsTrigger>
           <TabsTrigger value="scanning">Scanning Status</TabsTrigger>
-          <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
 
         {/* Search and Filter */}
@@ -555,21 +575,6 @@ export function ContinuousMonitoringDashboard() {
 
         <TabsContent value="scanning">
           <ScanningStatus userId={userId} />
-        </TabsContent>
-
-        <TabsContent value="debug">
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-2">Debug Information</h3>
-              <div className="space-y-2 text-sm">
-                <div><strong>User ID:</strong> {userId}</div>
-                <div><strong>Monitoring Status:</strong> {JSON.stringify(monitoringStatus, null, 2)}</div>
-                <div><strong>Monitoring Stats:</strong> {JSON.stringify(monitoringStats, null, 2)}</div>
-                <div><strong>Data Count:</strong> {monitoringData.length}</div>
-                <div><strong>First Data Item:</strong> {monitoringData.length > 0 ? JSON.stringify(monitoringData[0], null, 2) : 'No data'}</div>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 

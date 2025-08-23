@@ -137,7 +137,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
             <Lightbulb className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{contentGaps.length}</div>
+            <div className="text-2xl font-bold text-foreground">{contentGaps.length}</div>
             <p className="text-xs text-muted-foreground">
               {contentGaps.filter(gap => gap.potential === "High").length} high-priority opportunities
             </p>
@@ -149,7 +149,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{monitoringData.length}</div>
+            <div className="text-2xl font-bold text-foreground">{monitoringData.length}</div>
             <p className="text-xs text-muted-foreground">Posts monitored across platforms</p>
           </CardContent>
         </Card>
@@ -159,7 +159,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               {new Set(monitoringData.map(post => post.platform)).size}
             </div>
             <p className="text-xs text-muted-foreground">Different platforms monitored</p>
@@ -181,7 +181,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold">{gap.category}</h3>
+                        <h3 className="text-lg font-semibold text-foreground">{gap.category}</h3>
                         <Badge variant="destructive">{gap.opportunity}</Badge>
                         <Badge variant={gap.potential === "High" ? "default" : "secondary"}>
                           {gap.potential} Potential
@@ -199,7 +199,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
                   </div>
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium mb-2">Suggested Topics:</h4>
+                    <h4 className="text-sm font-medium mb-2 text-foreground">Suggested Topics:</h4>
                     <div className="flex flex-wrap gap-2">
                       {gap.topics.map((topic, topicIndex) => (
                         <Badge key={topicIndex} variant="secondary">
@@ -213,7 +213,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
                     <div className="flex items-center gap-4">
                       <div className="text-sm">
                         <span className="text-muted-foreground">Estimated Impact: </span>
-                        <span className="font-medium">+{Math.floor(Math.random() * 30 + 10)}% coverage</span>
+                        <span className="font-medium text-foreground">+{Math.floor(Math.random() * 30 + 10)}% coverage</span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -266,8 +266,8 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
                 <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-medium">{trend.topic}</h3>
-                      <Badge variant="outline" className="text-green-600 border-green-600">
+                      <h3 className="font-medium text-foreground">{trend.topic}</h3>
+                      <Badge variant="outline" className="text-green-600 border-green-600 dark:text-green-400 dark:border-green-400">
                         {trend.growth}
                       </Badge>
                     </div>

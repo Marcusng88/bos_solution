@@ -397,9 +397,10 @@ async def scan_platform(
         
         logger.info(f"🚀 Starting {platform} scan for competitor {competitor_id}")
         
-        # Run the actual monitoring using the monitoring service
+        # Run the actual monitoring using the monitoring service with specific platform
         result = await monitoring_service.run_monitoring_for_competitor(
-            competitor_id=competitor_id
+            competitor_id=competitor_id,
+            platforms=[platform]
         )
         
         if result.get("status") == "completed":

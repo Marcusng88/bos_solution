@@ -212,26 +212,26 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 border rounded-lg">
               <FileText className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-              <div className="text-2xl font-bold">{monitoringData.length}</div>
+              <div className="text-2xl font-bold text-foreground">{monitoringData.length}</div>
               <p className="text-sm text-muted-foreground">Total Posts</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-foreground">
                 {new Set(monitoringData.map(post => post.competitor_id)).size}
               </div>
               <p className="text-sm text-muted-foreground">Competitors</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Target className="h-8 w-8 mx-auto mb-2 text-purple-500" />
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-foreground">
                 {new Set(monitoringData.map(post => post.platform)).size}
               </div>
               <p className="text-sm text-muted-foreground">Platforms</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Heart className="h-8 w-8 mx-auto mb-2 text-red-500" />
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-foreground">
                 {monitoringData.filter(post => post.engagement_metrics).length}
               </div>
               <p className="text-sm text-muted-foreground">With Engagement</p>
@@ -252,11 +252,11 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
               {benchmarkMetrics.map((benchmark, index) => (
                 <div key={index} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{benchmark.metric}</span>
+                    <span className="font-medium text-foreground">{benchmark.metric}</span>
                     <div className="flex items-center gap-4 text-sm">
                       <span>
                         Current:{" "}
-                        <strong>
+                        <strong className="text-foreground">
                           {benchmark.yourValue}
                           {benchmark.unit}
                         </strong>
@@ -265,7 +265,7 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
                         Industry: {benchmark.industry}
                         {benchmark.unit}
                       </span>
-                      <span className="text-blue-600">
+                      <span className="text-blue-600 dark:text-blue-400">
                         Leader: {benchmark.leader}
                         {benchmark.unit}
                       </span>
@@ -317,10 +317,10 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                      <span className="font-semibold text-sm">{competitor.competitor.slice(0, 2)}</span>
+                      <span className="font-semibold text-sm text-foreground">{competitor.competitor.slice(0, 2)}</span>
                     </div>
                     <div>
-                      <CardTitle>{competitor.competitor}</CardTitle>
+                      <CardTitle className="text-foreground">{competitor.competitor}</CardTitle>
                       <CardDescription>{competitor.metrics.posts} posts monitored</CardDescription>
                     </div>
                   </div>
@@ -342,34 +342,34 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Key Metrics */}
                   <div className="space-y-4">
-                    <h3 className="font-medium">Key Metrics</h3>
+                    <h3 className="font-medium text-foreground">Key Metrics</h3>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">Posts</span>
+                          <span className="text-sm text-foreground">Posts</span>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{competitor.metrics.posts}</div>
-                          <div className="text-xs text-green-600">{competitor.trends.posts}</div>
+                          <div className="font-medium text-foreground">{competitor.metrics.posts}</div>
+                          <div className="text-xs text-green-600 dark:text-green-400">{competitor.trends.posts}</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Heart className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">Engagement</span>
+                          <span className="text-sm text-foreground">Engagement</span>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{competitor.metrics.engagement}</div>
+                          <div className="font-medium text-foreground">{competitor.metrics.engagement}</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Target className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">Platforms</span>
+                          <span className="text-sm text-foreground">Platforms</span>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{competitor.metrics.platforms}</div>
+                          <div className="font-medium text-foreground">{competitor.metrics.platforms}</div>
                         </div>
                       </div>
                     </div>
@@ -377,7 +377,7 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
 
                   {/* Strengths */}
                   <div className="space-y-4">
-                    <h3 className="font-medium">Strengths</h3>
+                    <h3 className="font-medium text-foreground">Strengths</h3>
                     <div className="space-y-2">
                       {competitor.strengths.map((strength, strengthIndex) => (
                         <Badge key={strengthIndex} variant="default" className="mr-2 mb-2">
@@ -389,7 +389,7 @@ export function CompetitorPerformance({ timeRange, monitoringData = [] }: Compet
 
                   {/* Opportunities */}
                   <div className="space-y-4">
-                    <h3 className="font-medium">Opportunities</h3>
+                    <h3 className="font-medium text-foreground">Opportunities</h3>
                     <div className="space-y-2">
                       {competitor.opportunities.length > 0 ? (
                         competitor.opportunities.map((opportunity, opportunityIndex) => (

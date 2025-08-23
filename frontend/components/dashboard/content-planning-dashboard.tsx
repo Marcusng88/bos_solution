@@ -28,7 +28,6 @@ export function ContentPlanningDashboard() {
     refreshData,
     isReady
   } = useContentPlanning({ 
-    industry: 'technology', 
     autoLoad: true // This only loads basic dashboard data, not AI agent
   })
 

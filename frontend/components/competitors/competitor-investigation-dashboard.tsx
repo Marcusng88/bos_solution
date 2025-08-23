@@ -457,7 +457,7 @@ export function CompetitorInvestigationDashboard() {
                       {Object.entries(scanningStates[competitor.id] || {}).some(([platform, isScanning]) => isScanning) && (
                         <div className="flex items-center gap-1 mt-1">
                           <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
-                          <span className="text-xs text-blue-600">
+                          <span className="text-xs text-blue-600 dark:text-blue-400">
                             Scanning: {Object.entries(scanningStates[competitor.id] || {})
                               .filter(([platform, isScanning]) => isScanning)
                               .map(([platform]) => platform.charAt(0).toUpperCase() + platform.slice(1))

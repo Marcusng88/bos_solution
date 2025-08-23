@@ -183,17 +183,17 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 border rounded-lg">
               <FileText className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-              <div className="text-2xl font-bold">{monitoringData.length}</div>
+              <div className="text-2xl font-bold text-foreground">{monitoringData.length}</div>
               <p className="text-sm text-muted-foreground">Total Posts Monitored</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Globe className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold">3</div>
+              <div className="text-2xl font-bold text-foreground">3</div>
               <p className="text-sm text-muted-foreground">Core Platforms (YouTube, Web, Website)</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-purple-500" />
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-foreground">
                 {new Set(monitoringData.map(post => post.competitor_id)).size}
               </div>
               <p className="text-sm text-muted-foreground">Competitors Tracked</p>
@@ -220,7 +220,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium">{insight.title}</h3>
+                      <h3 className="font-medium text-foreground">{insight.title}</h3>
                       <Badge variant={insight.impact === "High" ? "destructive" : "secondary"}>
                         {insight.impact} Impact
                       </Badge>
@@ -229,7 +229,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Confidence:</span>
                       <Progress value={insight.confidence} className="w-20 h-2" />
-                      <span className="text-xs font-medium">{insight.confidence}%</span>
+                      <span className="text-xs font-medium text-foreground">{insight.confidence}%</span>
                     </div>
                   </div>
                   <Button variant="outline" size="sm">
@@ -269,10 +269,10 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                 <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                      <span className="font-semibold text-xs">{competitor.name.charAt(0).toUpperCase()}</span>
+                      <span className="font-semibold text-xs text-foreground">{competitor.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                      <h3 className="font-medium">{competitor.name}</h3>
+                      <h3 className="font-medium text-foreground">{competitor.name}</h3>
                       <div className="flex items-center gap-1">
                         {competitor.trend === "up" ? (
                           <TrendingUp className="h-3 w-3 text-green-500" />
@@ -286,20 +286,20 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium">Posts</div>
-                    <div className="text-lg font-bold">{competitor.posts}</div>
+                    <div className="text-sm font-medium text-foreground">Posts</div>
+                    <div className="text-lg font-bold text-foreground">{competitor.posts}</div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium">Platforms</div>
-                    <div className="text-lg font-bold">{competitor.platforms}</div>
+                    <div className="text-sm font-medium text-foreground">Platforms</div>
+                    <div className="text-lg font-bold text-foreground">{competitor.platforms}</div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium">Content Types</div>
-                    <div className="text-lg font-bold">{competitor.contentTypes}</div>
+                    <div className="text-sm font-medium text-foreground">Content Types</div>
+                    <div className="text-lg font-bold text-foreground">{competitor.contentTypes}</div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium">Avg. Sentiment</div>
-                    <div className="text-lg font-bold">{competitor.avgSentiment}</div>
+                    <div className="text-sm font-medium text-foreground">Avg. Sentiment</div>
+                    <div className="text-lg font-bold text-foreground">{competitor.avgSentiment}</div>
                   </div>
                 </div>
               ))}
@@ -333,7 +333,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="h-4 w-4 text-blue-500" />
-                <h3 className="font-medium">Expand Monitoring</h3>
+                <h3 className="font-medium text-foreground">Expand Monitoring</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
                 {monitoringData.length > 0 
@@ -348,7 +348,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="h-4 w-4 text-green-500" />
-                <h3 className="font-medium">Review Insights</h3>
+                <h3 className="font-medium text-foreground">Review Insights</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
                 {insights.length > 0 

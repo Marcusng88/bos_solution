@@ -2,9 +2,10 @@ import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider } from "@/components/optimization/theme-provider"
 import { ClerkProviderWrapper } from "@/components/providers/clerk-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { AIChatWidget } from "@/components/optimization/ai-chat-widget"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -56,10 +57,11 @@ html {
           }}
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <ClerkProviderWrapper>
             {children}
+            <AIChatWidget />
             <Toaster />
           </ClerkProviderWrapper>
         </ThemeProvider>

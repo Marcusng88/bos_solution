@@ -49,20 +49,53 @@ async def check_user_status(
         
         if user:
             # User exists - check if they have completed onboarding
-            # You can add additional checks here for onboarding completion
-            # For now, if user exists, they can go to dashboard
-            return {
-                "exists": True,
-                "redirect_to": "dashboard",
-                "user": user,
-                "message": "User found, redirecting to dashboard"
-            }
+            # Check if user has completed onboarding by looking for user preferences
+            preferences = await db.get_user_preferences(user_id)
+            
+            # Check if user has competitors (another indicator of onboarding completion)
+            competitors = await db.get_competitors_by_user(user_id)
+            
+            # Consider onboarding complete if user has:
+            # 1. User preferences (industry, goals, etc.)
+            # 2. OR has set up competitors
+            # 3. OR has monitoring settings
+            has_preferences = bool(preferences and preferences.get("industry") and preferences.get("marketing_goals"))
+            has_competitors = bool(competitors and len(competitors) > 0)
+            
+            # Try to get monitoring settings as well
+            try:
+                monitoring_settings = await db.get_user_monitoring_settings(user_id)
+                has_monitoring_settings = bool(monitoring_settings)
+            except:
+                has_monitoring_settings = False
+            
+            onboarding_complete = has_preferences or has_competitors or has_monitoring_settings
+            
+            if onboarding_complete:
+                # User has completed onboarding - they can go to dashboard
+                return {
+                    "exists": True,
+                    "redirect_to": "dashboard",
+                    "user": user,
+                    "onboarding_complete": True,
+                    "message": "User found and onboarding completed, redirecting to dashboard"
+                }
+            else:
+                # User exists but hasn't completed onboarding
+                return {
+                    "exists": True,
+                    "redirect_to": "onboarding",
+                    "user": user,
+                    "onboarding_complete": False,
+                    "message": "User found but onboarding incomplete, redirecting to onboarding"
+                }
         else:
             # User doesn't exist - they need to go through onboarding
             return {
                 "exists": False,
                 "redirect_to": "onboarding",
                 "user": None,
+                "onboarding_complete": False,
                 "message": "New user, redirecting to onboarding"
             }
             

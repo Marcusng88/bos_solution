@@ -168,19 +168,19 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 border rounded-lg">
               <FileText className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-              <div className="text-2xl font-bold">{monitoringData.length}</div>
+              <div className="text-2xl font-bold text-foreground">{monitoringData.length}</div>
               <p className="text-sm text-muted-foreground">Total Posts Monitored</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-foreground">
                 {new Set(monitoringData.map(post => post.platform)).size}
               </div>
               <p className="text-sm text-muted-foreground">Platforms Monitored</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Clock className="h-8 w-8 mx-auto mb-2 text-purple-500" />
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-foreground">
                 {new Set(monitoringData.map(post => post.competitor_id)).size}
               </div>
               <p className="text-sm text-muted-foreground">Competitors Tracked</p>
@@ -201,17 +201,17 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
               {platformMetrics.map((platform, index) => (
                 <div key={index} className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium">{platform.platform}</h3>
+                    <h3 className="font-medium text-foreground">{platform.platform}</h3>
                     <Badge variant="outline">{platform.posts} posts</Badge>
                   </div>
                   <div className="space-y-2">
                     <div>
                       <span className="text-sm text-muted-foreground">Avg. Engagement: </span>
-                      <span className="font-medium">{platform.avgEngagement}</span>
+                      <span className="font-medium text-foreground">{platform.avgEngagement}</span>
                     </div>
                     <div>
                       <span className="text-sm text-muted-foreground">Competitors: </span>
-                      <span className="font-medium">{platform.competitorCount}</span>
+                      <span className="font-medium text-foreground">{platform.competitorCount}</span>
                     </div>
                   </div>
                 </div>
@@ -249,11 +249,11 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback>{post.competitor.slice(0, 2)}</AvatarFallback>
+                        <AvatarFallback className="text-foreground">{post.competitor.slice(0, 2)}</AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">Competitor {post.competitor.slice(0, 8)}</span>
+                          <span className="font-medium text-foreground">Competitor {post.competitor.slice(0, 8)}</span>
                           <Badge variant="outline">{post.platform}</Badge>
                           <Badge variant="secondary">{post.postType}</Badge>
                         </div>
@@ -271,7 +271,7 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
                     </div>
                   </div>
 
-                  <p className="text-sm mb-3 leading-relaxed">
+                  <p className="text-sm mb-3 leading-relaxed text-foreground">
                     {post.content.length > 200 ? `${post.content.substring(0, 200)}...` : post.content}
                   </p>
 
@@ -327,7 +327,7 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
               {contentThemes.map((theme, index) => (
                 <div key={index} className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium">{theme.theme}</h3>
+                    <h3 className="font-medium text-foreground">{theme.theme}</h3>
                     {getPerformanceBadge(theme.engagement)}
                   </div>
                   <div className="text-sm text-muted-foreground">{theme.frequency} posts monitored</div>

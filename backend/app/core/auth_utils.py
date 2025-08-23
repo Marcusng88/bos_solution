@@ -45,7 +45,7 @@ async def get_db_user_id(clerk_user_id: str, db) -> str:
     
     Args:
         clerk_user_id: Clerk user ID
-        db: Database client (Supabase client)
+        db: Supabase client
         
     Returns:
         Database user ID string
@@ -86,7 +86,7 @@ async def get_current_user(
     
     Args:
         user_id: User ID from header
-        db: Database client (Supabase client)
+        db: Supabase client
         
     Returns:
         User object from database
