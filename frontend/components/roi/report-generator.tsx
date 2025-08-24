@@ -34,8 +34,15 @@ interface ReportData {
 
 interface ReportResponse {
   success: boolean
-  report: ReportData
-  raw_data: any
+  message?: string
+  files?: {
+    text: string
+    html: string
+    pdf: string
+    json: string
+  }
+  report?: ReportData
+  raw_data?: any
   generated_at: string
 }
 
@@ -67,19 +74,16 @@ export function ReportGenerator() {
       if (response.success) {
         setReport(response)
         
-        // Check if there's any data
-        const hasData = response.raw_data?.current_month?.platforms && 
-                       Object.keys(response.raw_data.current_month.platforms).length > 0
-        
-        if (hasData) {
+        // Check if the new format response has files
+        if (response.files) {
           toast({
             title: "Report Generated",
-            description: "Your AI-powered ROI report is ready!",
+            description: "Your AI-powered ROI report is ready in multiple formats!",
           })
         } else {
           toast({
             title: "Report Generated",
-            description: "Report generated, but no ROI data found for the specified period.",
+            description: "Report generated successfully.",
             variant: "default",
           })
         }
@@ -110,38 +114,31 @@ export function ReportGenerator() {
     }
   }
 
-  const downloadReport = () => {
-    if (!report) return
+  const downloadReport = (format: 'text' | 'html' | 'pdf' | 'json' = 'text') => {
+    if (!report || !report.files) return
 
-    const reportText = `
-ROI REPORT - Generated on ${new Date(report.generated_at).toLocaleDateString()}
+    const fileName = report.files[format]
+    if (!fileName) {
+      toast({
+        title: "Error",
+        description: `${format.toUpperCase()} format not available`,
+        variant: "destructive",
+      })
+      return
+    }
 
-${report.report.executive_summary}
-
-${report.report.performance_overview}
-
-${report.report.platform_analysis}
-
-${report.report.key_insights}
-
-${report.report.recommendations}
-
-${report.report.action_items}
-    `.trim()
-
-    const blob = new Blob([reportText], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
+    // Create download link for the generated file
     const a = document.createElement('a')
-    a.href = url
-    a.download = `roi-report-${new Date().toISOString().split('T')[0]}.txt`
+    a.href = `/api/download-report?file=${encodeURIComponent(fileName)}`
+    a.download = fileName
+    a.target = '_blank'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
 
     toast({
       title: "Report Downloaded",
-      description: "Your report has been downloaded successfully.",
+      description: `Your ${format.toUpperCase()} report has been downloaded successfully.`,
     })
   }
 
@@ -198,11 +195,25 @@ ${report.report.action_items}
               </>
             )}
           </Button>
-          {report && (
-            <Button onClick={downloadReport} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </Button>
+          {report && report.files && (
+            <div className="flex items-center gap-2">
+              <Button onClick={() => downloadReport('text')} variant="outline" size="sm">
+                <FileText className="h-4 w-4 mr-2" />
+                TXT
+              </Button>
+              <Button onClick={() => downloadReport('html')} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                HTML
+              </Button>
+              <Button onClick={() => downloadReport('pdf')} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                PDF
+              </Button>
+              <Button onClick={() => downloadReport('json')} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                JSON
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -226,7 +237,9 @@ ${report.report.action_items}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-800">Report Generated Successfully</span>
+                  <span className="font-medium text-green-800">
+                    {report.message || "Report Generated Successfully"}
+                  </span>
                 </div>
                 <Badge variant="secondary">
                   {formatDate(report.generated_at)}
@@ -235,64 +248,101 @@ ${report.report.action_items}
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="summary" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="summary">Summary</TabsTrigger>
-              <TabsTrigger value="performance">Performance</TabsTrigger>
-              <TabsTrigger value="platforms">Platforms</TabsTrigger>
-              <TabsTrigger value="insights">Insights</TabsTrigger>
-              <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
-              <TabsTrigger value="actions">Actions</TabsTrigger>
-            </TabsList>
+          {report.files && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Download Options</CardTitle>
+                <CardDescription>
+                  Choose your preferred format to download the report
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Button onClick={() => downloadReport('text')} variant="outline" className="flex flex-col items-center gap-2 h-auto py-4">
+                    <FileText className="h-6 w-6" />
+                    <span>Text Report</span>
+                    <span className="text-xs text-muted-foreground">Simple format</span>
+                  </Button>
+                  <Button onClick={() => downloadReport('html')} variant="outline" className="flex flex-col items-center gap-2 h-auto py-4">
+                    <Download className="h-6 w-6" />
+                    <span>HTML Report</span>
+                    <span className="text-xs text-muted-foreground">Professional design</span>
+                  </Button>
+                  <Button onClick={() => downloadReport('pdf')} variant="outline" className="flex flex-col items-center gap-2 h-auto py-4">
+                    <Download className="h-6 w-6" />
+                    <span>PDF Report</span>
+                    <span className="text-xs text-muted-foreground">Print ready</span>
+                  </Button>
+                  <Button onClick={() => downloadReport('json')} variant="outline" className="flex flex-col items-center gap-2 h-auto py-4">
+                    <Download className="h-6 w-6" />
+                    <span>JSON Data</span>
+                    <span className="text-xs text-muted-foreground">Raw data</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-            <TabsContent value="summary" className="space-y-4">
-              {renderSection(
-                "Executive Summary",
-                report.report.executive_summary,
-                <FileText className="h-4 w-4" />
-              )}
-            </TabsContent>
+          {report.report && (
+            <Tabs defaultValue="summary" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-6">
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="performance">Performance</TabsTrigger>
+                <TabsTrigger value="platforms">Platforms</TabsTrigger>
+                <TabsTrigger value="insights">Insights</TabsTrigger>
+                <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+                <TabsTrigger value="actions">Actions</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="performance" className="space-y-4">
-              {renderSection(
-                "Performance Overview",
-                report.report.performance_overview,
-                <TrendingUp className="h-4 w-4" />
-              )}
-            </TabsContent>
+              <TabsContent value="summary" className="space-y-4">
+                {renderSection(
+                  "Executive Summary",
+                  report.report.executive_summary,
+                  <FileText className="h-4 w-4" />
+                )}
+              </TabsContent>
 
-            <TabsContent value="platforms" className="space-y-4">
-              {renderSection(
-                "Platform Performance Analysis",
-                report.report.platform_analysis,
-                <Target className="h-4 w-4" />
-              )}
-            </TabsContent>
+              <TabsContent value="performance" className="space-y-4">
+                {renderSection(
+                  "Performance Overview",
+                  report.report.performance_overview,
+                  <TrendingUp className="h-4 w-4" />
+                )}
+              </TabsContent>
 
-            <TabsContent value="insights" className="space-y-4">
-              {renderSection(
-                "Key Insights",
-                report.report.key_insights,
-                <Lightbulb className="h-4 w-4" />
-              )}
-            </TabsContent>
+              <TabsContent value="platforms" className="space-y-4">
+                {renderSection(
+                  "Platform Performance Analysis",
+                  report.report.platform_analysis,
+                  <Target className="h-4 w-4" />
+                )}
+              </TabsContent>
 
-            <TabsContent value="recommendations" className="space-y-4">
-              {renderSection(
-                "Strategic Recommendations",
-                report.report.recommendations,
-                <TrendingUp className="h-4 w-4" />
-              )}
-            </TabsContent>
+              <TabsContent value="insights" className="space-y-4">
+                {renderSection(
+                  "Key Insights",
+                  report.report.key_insights,
+                  <Lightbulb className="h-4 w-4" />
+                )}
+              </TabsContent>
 
-            <TabsContent value="actions" className="space-y-4">
-              {renderSection(
-                "Action Items",
-                report.report.action_items,
-                <CheckCircle className="h-4 w-4" />
-              )}
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="recommendations" className="space-y-4">
+                {renderSection(
+                  "Strategic Recommendations",
+                  report.report.recommendations,
+                  <TrendingUp className="h-4 w-4" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="actions" className="space-y-4">
+                {renderSection(
+                  "Action Items",
+                  report.report.action_items,
+                  <CheckCircle className="h-4 w-4" />
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
 
           <Separator />
 

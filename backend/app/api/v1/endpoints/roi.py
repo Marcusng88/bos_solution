@@ -810,105 +810,56 @@ async def generate_ai_report(
     db = Depends(get_db),
 ):
     """
-    Generate an AI-powered ROI report using Gemini.
+    Generate an AI-powered ROI report using Gemini with multiple formats (TXT, HTML, PDF).
     Retrieves ALL data from roi_metrics table, processes by platform,
     and generates a comprehensive report with insights and recommendations.
     Note: This endpoint accesses all data in roi_metrics table without user filtering or date restrictions.
     """
     try:
-        # Try to import google.generativeai with better error handling
-        try:
-            import google.generativeai as genai
-        except ImportError as e:
-            print(f"Failed to import google.generativeai: {e}")
-            raise HTTPException(
-                status_code=500, 
-                detail="Google Generative AI library not installed. Please run: pip install google-generativeai"
-            )
-        
+        # Import the report generation function from the standalone script
+        import sys
         import os
-        from datetime import datetime, timedelta, timezone
+        from pathlib import Path
         
-        # Configure Gemini API
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        # Add the backend directory to the path to import the report generation module
+        backend_dir = Path(__file__).parent.parent.parent.parent
+        sys.path.append(str(backend_dir))
         
         try:
-            genai.configure(api_key=gemini_api_key)
-            # Try gemini-1.5-flash first, fallback to gemini-pro
-            try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                print("Using Gemini 1.5 Flash model")
-            except Exception as flash_error:
-                print(f"Gemini 1.5 Flash not available, trying Gemini Pro: {flash_error}")
-                model = genai.GenerativeModel('gemini-pro')
-                print("Using Gemini Pro model")
-        except Exception as e:
-            print(f"Failed to configure Gemini API: {e}")
+            from generate_roi_report import generate_roi_report
+        except ImportError as e:
+            print(f"Failed to import generate_roi_report: {e}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to configure Gemini API: {str(e)}"
+                detail="Report generation module not available. Please ensure generate_roi_report.py is in the backend directory."
             )
         
-        print("Fetching ALL data from roi_metrics table (no date or user filtering)...")
+        print("Generating comprehensive ROI report with multiple formats...")
         
-        # Fetch ALL data without date filtering
-        all_data = await _fetch_all_roi_data()
+        # Generate the report using the standalone function
+        success = await generate_roi_report()
         
-        print(f"Total records retrieved: {len(all_data)}")
-        
-        if len(all_data) == 0:
+        if not success:
             raise HTTPException(
-                status_code=404,
-                detail="No data found in roi_metrics table. Please ensure the table has data before generating reports."
+                status_code=500,
+                detail="Failed to generate ROI report. Please check the logs for more details."
             )
         
-        # Process and summarize data by platform
-        platform_summary = _summarize_data_by_platform(all_data)
+        # Find the latest generated files
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         
-        # Calculate overall totals
-        overall_totals = _calculate_totals(platform_summary)
-        
-        # Prepare data for Gemini
-        report_data = {
-            "all_data": {
-                "period": "All available data",
-                "platforms": platform_summary,
-                "totals": overall_totals,
-                "total_records": len(all_data)
-            }
-        }
-        
-        # Generate report using Gemini
-        prompt = _create_report_prompt_all_data(report_data)
-        
-        print("Generating report with Gemini...")
-        try:
-            response = model.generate_content(prompt)
-            report_content = response.text
-            
-            if not report_content:
-                raise HTTPException(
-                    status_code=500, 
-                    detail="Gemini API returned empty response"
-                )
-                
-        except Exception as e:
-            print(f"Failed to generate content with Gemini: {e}")
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Failed to generate report with Gemini: {str(e)}"
-            )
-        
-        # Parse the report into structured sections
-        structured_report = _parse_report_sections(report_content)
-        
+        # Return success response with file information
         return {
             "success": True,
-            "report": structured_report,
-            "raw_data": report_data,
-            "generated_at": datetime.now(timezone.utc).isoformat()
+            "message": "ROI report generated successfully in multiple formats",
+            "files": {
+                "text": f"roi_report_{timestamp}.txt",
+                "html": f"roi_report_{timestamp}.html", 
+                "pdf": f"roi_report_{timestamp}.pdf",
+                "json": f"roi_data_{timestamp}.json"
+            },
+            "generated_at": datetime.now().isoformat()
         }
         
     except HTTPException:
