@@ -153,9 +153,9 @@ export function RevenueOverview({ range = "30d" }: RevenueOverviewProps) {
     
     // Convert to chart format and filter platforms
     const result = Object.keys(platformRevenue)
-      .filter(platform => ['Facebook', 'Instagram', 'YouTube'].includes(platform))
+      .filter(platform => ['facebook', 'youtube', 'instagram'].includes(platform))
       .map(platform => ({
-        platform,
+        platform: platform.charAt(0).toUpperCase() + platform.slice(1), // Capitalize first letter
         revenue: platformRevenue[platform]
       }))
     
@@ -180,16 +180,6 @@ export function RevenueOverview({ range = "30d" }: RevenueOverviewProps) {
       {!loading && !error && trends.length === 0 && bySource.length === 0 && (
         <div className="lg:col-span-2 text-center py-8">
           <div className="text-muted-foreground">No revenue data available for the selected range</div>
-        </div>
-      )}
-      
-      {/* Debug Info - Remove this after fixing */}
-      {!loading && !error && (
-        <div className="lg:col-span-2 p-4 bg-gray-100 rounded-lg text-xs">
-          <div className="font-semibold">Debug Info:</div>
-          <div>Trends data: {trends.length} rows</div>
-          <div>By Source data: {bySource.length} rows</div>
-          <div>By Source content: {JSON.stringify(bySource.slice(0, 2))}</div>
         </div>
       )}
       
@@ -379,35 +369,23 @@ export function RevenueOverview({ range = "30d" }: RevenueOverviewProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart 
-                data={bySource.map(s => ({ source: s.platform, revenue: Number(s.revenue||0) }))} 
-                layout="horizontal"
-                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                data={bySource} 
+                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
               >
-                <defs>
-                  {bySource.map((s, index) => (
-                    <linearGradient key={s.platform} id={`revenue-gradient-${index}`} x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="5%" stopColor={getColor(s.platform, index)} stopOpacity={0.9}/>
-                      <stop offset="95%" stopColor={getColor(s.platform, index)} stopOpacity={0.4}/>
-                    </linearGradient>
-                  ))}
-                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
                 <XAxis 
-                  type="number" 
+                  dataKey="platform" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: '#64748b' }}
+                />
+                <YAxis 
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
                   tickFormatter={(value) => `$${Number(value / 1000).toFixed(0)}k`}
-                />
-                <YAxis 
-                  dataKey="source" 
-                  type="category" 
-                  width={80}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
                 />
                 <Tooltip 
                   contentStyle={{
@@ -421,14 +399,9 @@ export function RevenueOverview({ range = "30d" }: RevenueOverviewProps) {
                 />
                 <Bar 
                   dataKey="revenue" 
-                  radius={[0, 8, 8, 0]}
-                  stroke="#ffffff"
-                  strokeWidth={1}
-                >
-                  {bySource.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={`url(#revenue-gradient-${index})`} />
-                  ))}
-                </Bar>
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

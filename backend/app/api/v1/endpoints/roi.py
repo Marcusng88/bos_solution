@@ -312,6 +312,7 @@ async def get_revenue_by_source(
         # Build query params - include user_id filter only if provided
         query_params = {
             "select": "platform,revenue_generated,created_at",
+            "order": "created_at.asc",
             "limit": "999999"  # Get all rows
         }
         
@@ -334,6 +335,14 @@ async def get_revenue_by_source(
             
         rows = response.json()
         print(f"📊 Revenue by Source rows returned: {len(rows)} (ALL data)")
+        
+        # Add detailed logging for debugging
+        if len(rows) > 0:
+            print(f"📊 Sample row data: {rows[0]}")
+            print(f"📊 Platform values found: {list(set(row.get('platform', 'unknown') for row in rows))}")
+        else:
+            print("❌ No rows returned from Supabase query")
+            print(f"🔍 Query params used: {query_params}")
         
         # Return ALL data - frontend will handle filtering
         # This eliminates all timestamp parsing issues!
