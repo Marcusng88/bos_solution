@@ -199,123 +199,58 @@ async def get_most_recent_user() -> str | None:
         return None
 
 async def execute_roi_update() -> int:
-    """Execute ROI update using Supabase client"""
+    """Execute ROI update using Supabase client - NOW USES LIVE 10-MINUTE UPDATE LOGIC"""
     try:
         # Resolve a single focus user from DB: prefer users with connected accounts.
         only_user: str | None = await get_most_recent_user()
 
-        # Fetch latest per user+platform scoped to the resolved user if available
-        if only_user:
-            print(f"🎯 ROI Writer targeting user: {only_user}")
-            rows = await get_latest_roi_metrics_user(only_user)
-        else:
+        if not only_user:
             print("⚠️  No target user found, processing all users")
-            rows = await get_latest_roi_metrics_all()
+            # For now, use a default user if none found
+            only_user = "user_31e00osZQfX9vuQiZyjTiuKAM0s"
 
-        # If there are no rows at all, or if some users/platforms have never been seeded,
-        # create a single base row with default metrics to start the growth chain.
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        print(f"🎯 ROI Writer targeting user: {only_user}")
+        print("🔄 Using NEW LIVE 10-MINUTE UPDATE LOGIC!")
+        print("   📊 Fetches latest 3 rows (1 per platform)")
+        print("   📈 Applies growth multipliers to existing values")
+        print("   ⏰ Inserts 3 new rows every 10 minutes")
+        
+        # Use the new live update logic
+        data_service = DataGeneratorService()
+        next_updates = await data_service.generate_live_10min_update(supabase_client, only_user)
+        
         inserted = 0
-
-        # Build a set of (user_id, platform) that already have at least one row
-        existing_pairs = {(r["user_id"], r["platform"]) for r in rows}
-
-        # Build seed list: only the resolved user (if any)
-        user_rows = [{"clerk_id": only_user}] if only_user else []
-
-        # Seed missing (user, platform) combinations with base values (all 1s) and zero finances
-        for ur in user_rows:
-            uid = ur["clerk_id"]
-            for pf in PLATFORMS:
-                if (uid, pf) in existing_pairs:
-                    continue
-                seed_content_type = "reel" if pf == "instagram" else ("video" if pf == "youtube" else "post")
-                seed_id = await insert_roi_metric(
-                    uid,
-                    pf,
-                    None,  # campaign_id
-                    seed_content_type,
-                    1,  # views
-                    1,  # likes
-                    1,  # comments
-                    1,  # shares
-                    1,  # clicks
-                    0.0,  # ad_spend
-                    0.0,  # revenue_generated
-                    0.0,  # cost_per_click
-                    0.0,  # cost_per_impression
-                    0.0,  # roi_percentage
-                    0.0,  # roas_ratio
-                    now,
-                )
-                if seed_id:
+        
+        # Insert the 3 new platform updates
+        for update_record in next_updates:
+            try:
+                response = await supabase_client._make_request("POST", "roi_metrics", data=update_record)
+                
+                if response.status_code == 201:
                     inserted += 1
-                    publish_status("roi_seed", {"user_id": uid, "platform": pf, "id": seed_id})
-                    print("Following Lines are written:")
-                    print({
-                        "id": seed_id,
-                        "user_id": uid,
-                        "platform": pf,
-                        "campaign_id": None,
-                        "content_type": seed_content_type,
-                        "views": 1,
-                        "likes": 1,
-                        "comments": 1,
-                        "shares": 1,
-                        "clicks": 1,
-                        "ad_spend": 0.0,
-                        "revenue_generated": 0.0,
-                        "cost_per_click": 0.0,
-                        "cost_per_impression": 0.0,
-                        "roi_percentage": 0.0,
-                        "roas_ratio": 0.0,
-                        "update_timestamp": now.isoformat()
+                    platform = update_record["platform"]
+                    views = update_record["views"]
+                    likes = update_record["likes"]
+                    
+                    print(f"✅ Inserted {platform}: views={views}, likes={likes}")
+                    
+                    # Publish status for real-time updates
+                    publish_status("roi_update", {
+                        "user_id": only_user,
+                        "platform": platform,
+                        "views": views,
+                        "likes": likes,
+                        "timestamp": update_record["update_timestamp"]
                     })
-
-        # Process existing rows with growth calculations
-        for row in rows:
-            # Create base metrics from the row
-            base_metrics = BaseMetrics(
-                views=row["views"],
-                likes=row["likes"],
-                comments=row["comments"],
-                shares=row["shares"],
-                clicks=row["clicks"]
-            )
-
-            # Generate new metrics with growth
-            data_service = DataGeneratorService()
-            new_metrics = data_service.generate_metrics(base_metrics)
-
-            # Insert new row with calculated metrics
-            new_id = await insert_roi_metric(
-                row["user_id"],
-                row["platform"],
-                row["campaign_id"],
-                "post",  # Default content type
-                new_metrics.views,
-                new_metrics.likes,
-                new_metrics.comments,
-                new_metrics.shares,
-                new_metrics.clicks,
-                new_metrics.ad_spend,
-                new_metrics.revenue_generated,
-                new_metrics.cost_per_click,
-                new_metrics.cost_per_impression,
-                new_metrics.roi_percentage,
-                new_metrics.roas_ratio,
-                now
-            )
-
-            if new_id:
-                inserted += 1
-                publish_status("roi_update", {
-                    "user_id": row["user_id"],
-                    "platform": row["platform"],
-                    "id": new_id,
-                    "previous_id": row["id"]
-                })
-
+                    
+                else:
+                    print(f"❌ Failed to insert {update_record['platform']}: {response.status_code}")
+                    
+            except Exception as e:
+                print(f"❌ Error inserting {update_record['platform']}: {e}")
+                continue
+        
+        print(f"🎉 Live update completed: {inserted}/3 platform updates inserted")
         return inserted
 
     except Exception as e:
@@ -323,6 +258,10 @@ async def execute_roi_update() -> int:
         raise
 
 if __name__ == "__main__":
+    print("🧪 Testing NEW LIVE 10-MINUTE UPDATE LOGIC!")
+    print("=" * 50)
+    
+    # Test the new logic
     asyncio.run(execute_roi_update())
 
 

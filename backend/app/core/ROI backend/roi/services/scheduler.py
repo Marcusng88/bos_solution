@@ -38,6 +38,9 @@ else:
 
 logger = logging.getLogger(__name__)
 
+# Global scheduler instance for cleanup
+_scheduler_instance = None
+_fallback_task = None
 
 async def run_roi_update_job():
     """Run the ROI update job with enhanced error handling"""
@@ -57,6 +60,8 @@ async def run_roi_update_job():
 
 def start_scheduler(loop=None):
     """Start the ROI scheduler with enhanced error handling"""
+    global _scheduler_instance, _fallback_task
+    
     try:
         if HAS_APS:
             scheduler = AsyncIOScheduler(timezone="UTC")
@@ -69,6 +74,7 @@ def start_scheduler(loop=None):
                 misfire_grace_time=300  # 5 minutes grace time
             )
             scheduler.start()
+            _scheduler_instance = scheduler
             logger.info("ROI APScheduler started (every 10 minutes)")
 
             # Kick off an immediate run without waiting for the next tick
@@ -89,11 +95,38 @@ def start_scheduler(loop=None):
                         # Continue running even if individual jobs fail
                     await asyncio.sleep(600)  # 10 minutes
             
-            task = asyncio.create_task(fallback())
-            return task
+            _fallback_task = asyncio.create_task(fallback())
+            return _fallback_task
     except Exception as e:
         logger.error(f"Failed to start ROI scheduler: {e}")
         # Return None to indicate failure
         return None
+
+
+def stop_scheduler():
+    """Stop the ROI scheduler and cleanup resources"""
+    global _scheduler_instance, _fallback_task
+    
+    try:
+        if _scheduler_instance and HAS_APS:
+            _scheduler_instance.shutdown(wait=False)
+            _scheduler_instance = None
+            logger.info("ROI APScheduler stopped")
+            
+        elif _fallback_task:
+            _fallback_task.cancel()
+            _fallback_task = None
+            logger.info("ROI fallback scheduler stopped")
+            
+        else:
+            logger.info("No ROI scheduler running")
+            
+    except Exception as e:
+        logger.error(f"Error stopping ROI scheduler: {e}")
+
+
+def is_scheduler_running():
+    """Check if the ROI scheduler is currently running"""
+    return _scheduler_instance is not None or _fallback_task is not None
 
 

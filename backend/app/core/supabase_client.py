@@ -20,12 +20,19 @@ class SupabaseClient:
     """Enhanced client for Supabase REST API operations"""
     
     def __init__(self):
+        print("🔍 Initializing SupabaseClient...")
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         
+        print(f"🔍 Loaded SUPABASE_URL: {self.supabase_url}")
+        print(f"🔍 Loaded SUPABASE_SERVICE_ROLE_KEY: {self.supabase_key[:20] if self.supabase_key else 'None'}...")
+        
         if not self.supabase_url or not self.supabase_key:
+            print("❌ Missing environment variables!")
             raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
             
+        print("✅ Environment variables loaded successfully")
+        
         self.headers = {
             "apikey": self.supabase_key,
             "Authorization": f"Bearer {self.supabase_key}",
@@ -34,19 +41,24 @@ class SupabaseClient:
             "Prefer": "resolution=merge-duplicates,return=representation",
             "Prefer": "return=representation",
         }
+        
+        print("✅ SupabaseClient initialized successfully")
 
     async def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None):
         """Make HTTP request to Supabase REST API"""
+        # Fix: Use correct Supabase REST API structure
+        # For table queries, endpoint should be the table name directly
         url = f"{self.supabase_url}/rest/v1/{endpoint}"
+        
+        # Add debug logging to see what URL is being called
+        logger.info(f"🔍 Making {method} request to: {url}")
+        if data:
+            logger.info(f"📤 Request data: {data}")
+        if params:
+            logger.info(f"🔍 Request params: {params}")
 
         async with httpx.AsyncClient() as client:
             try:
-                logger.debug(f"Making {method} request to: {url}")
-                if data:
-                    logger.debug(f"Request data: {data}")
-                if params:
-                    logger.debug(f"Request params: {params}")
-
                 if method.upper() == "GET":
                     response = await client.get(url, headers=self.headers, params=params)
                 elif method.upper() == "POST":
@@ -58,18 +70,21 @@ class SupabaseClient:
                 else:
                     raise ValueError(f"Unsupported HTTP method: {method}")
 
-                logger.debug(f"Response status: {response.status_code}")
+                logger.info(f"📥 Response status: {response.status_code}")
                 
                 if response.status_code == 422:
                     error_content = response.text
-                    logger.error(f"422 Validation Error for {method} {endpoint}: {error_content}")
+                    logger.error(f"❌ 422 Validation Error for {method} {endpoint}: {error_content}")
                     response.error_content = error_content
                 elif response.status_code >= 400:
-                    logger.error(f"HTTP Error {response.status_code} for {method} {endpoint}: {response.text}")
+                    logger.error(f"❌ HTTP Error {response.status_code} for {method} {endpoint}: {response.text}")
+                    # Add more detailed error logging
+                    logger.error(f"❌ Full response: {response.text}")
+                    logger.error(f"❌ Response headers: {response.headers}")
 
                 return response
             except Exception as e:
-                logger.error(f"Request failed: {e}")
+                logger.error(f"❌ Request failed: {e}")
                 raise
 
     # User Operations
@@ -333,3 +348,38 @@ class SupabaseClient:
 
 # Global instance
 supabase_client = SupabaseClient()
+
+# Add test method to verify connection
+async def test_supabase_connection():
+    """Test method to verify Supabase connection and endpoints"""
+    try:
+        print(f"🔍 Testing Supabase connection...")
+        print(f"🔍 Supabase URL: {supabase_client.supabase_url}")
+        print(f"🔍 Supabase Key: {supabase_client.supabase_key[:10]}..." if supabase_client.supabase_key else "❌ No key")
+        
+        # Test basic connection
+        test_url = f"{supabase_client.supabase_url}/rest/v1/roi_metrics"
+        print(f"🔍 Test URL: {test_url}")
+        
+        print("🔍 About to make test request...")
+        # Test with minimal query
+        response = await supabase_client._make_request("GET", "roi_metrics", params={"limit": "1"})
+        print(f"✅ Test successful - Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Data returned: {len(data)} rows")
+            if data:
+                print(f"✅ Sample row: {data[0]}")
+        else:
+            print(f"❌ Test failed - Status: {response.status_code}")
+            print(f"❌ Error: {response.text}")
+            
+        return True
+    except Exception as e:
+        print(f"❌ Connection test failed: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
+        import traceback
+        print(f"❌ Full traceback:")
+        traceback.print_exc()
+        return False

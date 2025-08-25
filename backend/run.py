@@ -2,6 +2,12 @@
 """
 Quick start script for BOS Solution backend
 Usage: python run.py [--port PORT] [--host HOST]
+
+This script will start:
+1. FastAPI backend server
+2. Database connection
+3. ROI scheduler (runs every 10 minutes)
+4. All API endpoints
 """
 
 import uvicorn
@@ -24,8 +30,20 @@ def main():
         print("Error: 'main.py' file not found. Make sure you're in the backend directory.")
         sys.exit(1)
     
-    print(f"🚀 Starting BOS Solution Backend on {args.host}:{args.port}")
-    print(f"📚 API docs will be available at: http://{args.host if args.host != '0.0.0.0' else 'localhost'}:{args.port}/docs")
+    print("🚀 Starting BOS Solution Backend")
+    print("=" * 50)
+    print(f"🌐 Server: {args.host}:{args.port}")
+    print(f"📚 API Docs: http://{args.host if args.host != '0.0.0.0' else 'localhost'}:{args.port}/docs")
+    print(f"🔄 Auto-reload: {'Enabled' if not args.no_reload else 'Disabled'}")
+    print(f"📊 Log Level: {args.log_level}")
+    print("=" * 50)
+    print("📋 What will be initialized:")
+    print("   ✅ FastAPI application")
+    print("   ✅ Database connection")
+    print("   ✅ ROI scheduler (10-minute intervals)")
+    print("   ✅ All API endpoints")
+    print("   ✅ CORS middleware")
+    print("=" * 50)
     
     uvicorn.run(
         "main:app",
