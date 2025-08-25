@@ -1,4 +1,4 @@
-export type TimeRange = '7d' | '30d' | '90d' | '1y'
+export type TimeRange = '7d' | '30d' | '90d'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
 

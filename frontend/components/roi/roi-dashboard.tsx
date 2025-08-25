@@ -42,7 +42,6 @@ export function ROIDashboard() {
               <SelectItem value="7d">Last 7 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
               <SelectItem value="90d">Last 90 days</SelectItem>
-              <SelectItem value="1y">Last year</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
@@ -85,8 +84,8 @@ export function ROIDashboard() {
           <CardContent>
             <div className="text-3xl font-bold text-emerald-700">{overview ? `${Math.round(overview.total_roi || 0)}%` : "--"}</div>
             <div className="flex items-center text-xs text-emerald-600 mt-2">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +12% from last month
+              <TrendingUp className="h-3 w-3 mr-1" />    
+              +12% from last month   
             </div>
           </CardContent>
         </Card>
@@ -147,7 +146,6 @@ export function ROIDashboard() {
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="costs">Costs</TabsTrigger>
           <TabsTrigger value="profitability">Profitability</TabsTrigger>
-          <TabsTrigger value="channels">Channels</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -155,7 +153,6 @@ export function ROIDashboard() {
             <ROITrends range={range} />
             <ChannelPerformance range={range} />
           </div>
-          <ProfitabilityMetrics range={range} />
         </TabsContent>
 
         <TabsContent value="revenue" className="space-y-4">
@@ -168,10 +165,6 @@ export function ROIDashboard() {
 
         <TabsContent value="profitability" className="space-y-4">
           <ProfitabilityMetrics range={range} />
-        </TabsContent>
-
-        <TabsContent value="channels" className="space-y-4">
-          <ChannelPerformance range={range} />
         </TabsContent>
       </Tabs>
     </div>

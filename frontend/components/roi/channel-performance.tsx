@@ -34,12 +34,15 @@ export function ChannelPerformance({ range = "30d" }: ChannelPerformanceProps) {
   useEffect(() => {
     if (!user) return
     roiApi.channelPerformance(user.id, range).then((res) => {
-      // Filter out duplicate platforms, keeping only capitalized versions
-      const filteredRows = (res.rows || []).filter((row: any, index: number, arr: any[]) => {
-        const platform = row.platform;
-        // Keep only capitalized versions (Facebook, Instagram, YouTube)
-        return platform === 'Facebook' || platform === 'Instagram' || platform === 'YouTube';
+      // More flexible platform matching
+      const filteredRows = (res.rows || []).filter((row: any) => {
+        const platform = row.platform?.toLowerCase();
+        return ['facebook', 'instagram', 'youtube'].includes(platform);
       });
+
+      // Add debug logging
+      console.log("🔍 Raw channel performance data:", res.rows);
+      console.log("🔍 Filtered rows:", filteredRows);
       setRows(filteredRows);
     }).catch(() => setRows([]))
   }, [user, range])
