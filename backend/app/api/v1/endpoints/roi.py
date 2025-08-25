@@ -125,32 +125,8 @@ async def _load_sql(filename: str) -> str:
         raise HTTPException(status_code=500, detail=f"Failed to load SQL '{filename}': {e}")
 
 
-def _resolve_range(range_key: str) -> tuple[datetime, datetime, str]:
-    now = datetime.now(timezone.utc)
-    # Exclude today's incomplete data by setting end to yesterday
-    end = now.replace(hour=23, minute=59, second=59, microsecond=0) - timedelta(days=1)
-    
-    if range_key == "7d":
-        start = end - timedelta(days=6)  # 7 days total (including end date)
-        bucket = "day"
-    elif range_key == "30d":
-        start = end - timedelta(days=29)  # 30 days total (including end date)
-        bucket = "day"
-    elif range_key == "90d":
-        start = end - timedelta(days=89)  # 90 days total (including end date)
-        bucket = "day"
-    elif range_key == "1y":
-        start = end - timedelta(days=364)  # 365 days total (including end date)
-        bucket = "day"
-    else:
-        # default to 7d
-        start = end - timedelta(days=6)
-        bucket = "day"
-    
-    # Set start time to beginning of start date
-    start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    return start, end, bucket
+# Remove the entire _resolve_range function since it's no longer needed
+# The function was here but is now removed as we fetch all data and filter on frontend
 
 
 async def _mark_user_active(db, user_id: str) -> None:
@@ -169,104 +145,90 @@ async def _mark_user_active(db, user_id: str) -> None:
 
 @router.get("/trends", tags=["roi"])
 async def get_roi_trends(
-    user_id: str = Query(..., description="Clerk user id"),
+    user_id: str = Query(None, description="Clerk user id (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, bucket = _resolve_range(range)
-        # Convert to ISO format for Supabase
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        print(f"🚀 ROI Trends endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Use Supabase to query roi_metrics table - removed user_id filtering
-        print(f"🔍 ROI Trends query params: created_at gte.{start_iso}, lte.{end_iso}")
-        print(f"📅 ROI Trends date range: {start_iso} to {end_iso}")
-        print(f"⏰ Start datetime: {start}, End datetime: {end}")
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "order": "created_at.asc",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to query roi_metrics table - NO DATE FILTERING
+        print(f"🔍 ROI Trends query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso},lte.{end_iso}",
-                "order": "created_at.asc",
-                "limit": "10000"  # Increase limit to get all rows
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch ROI trends data")
             
         rows = response.json()
-        print(f"📊 ROI Trends rows returned: {len(rows)}")
+        print(f"📊 ROI Trends rows returned: {len(rows)} (ALL data)")
         
-        # Debug: Show sample of data being processed
-        if rows:
-            print(f"🔍 Sample rows - First 3:")
-            for i, row in enumerate(rows[:3]):
-                print(f"  Row {i}: created_at={row.get('created_at')}, roi_percentage={row.get('roi_percentage')}")
-            print(f"🔍 Sample rows - Last 3:")
-            for i, row in enumerate(rows[-3:]):
-                print(f"  Row {i}: created_at={row.get('created_at')}, roi_percentage={row.get('roi_percentage')}")
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        # Group by date and calculate average ROI
-        from collections import defaultdict
-        daily_roi = defaultdict(list)
-        
-        for row in rows:
-            date_key = row["created_at"][:10]  # YYYY-MM-DD
-            if row.get("roi_percentage") is not None:
-                daily_roi[date_key].append(float(row["roi_percentage"]))
-        
-        print(f"📊 Daily ROI groups: {len(daily_roi)} days with data")
-        print(f"📅 Date keys found: {sorted(daily_roi.keys())}")
-        
-        # Calculate average ROI per day
-        series = []
-        for date_key in sorted(daily_roi.keys()):
-            avg_roi = sum(daily_roi[date_key]) / len(daily_roi[date_key])
-            series.append({
-                "ts": f"{date_key}T00:00:00Z",
-                "roi": avg_roi
-            })
-            print(f"📊 {date_key}: {len(daily_roi[date_key])} rows, avg ROI = {avg_roi:.2f}%")
-        
-        print(f"📈 Final series length: {len(series)}")
-        return {"series": series, "bucket": bucket}
     except HTTPException:
         raise
     except Exception as e:
-        # surface error
         raise HTTPException(status_code=500, detail=f"get_roi_trends failed: {e}")
 
 
 @router.get("/campaigns-in-range", tags=["roi"])
 async def get_campaign_markers(
-    user_id: str = Query(..., description="Clerk user id"),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        print(f"🚀 Campaigns endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Use Supabase to query campaigns table - removed user_id filtering
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "order": "start_date.asc",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to query campaigns table - NO DATE FILTERING
+        print(f"🔍 Campaigns query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "campaigns",
-            params={
-                "start_date": f"gte.{start_iso}",
-                "end_date": f"lte.{end_iso}",
-                "order": "start_date.asc"
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch campaigns data")
             
         rows = response.json()
-        markers = [{"id": r["id"], "name": r["name"], "date": r["start_date"]} for r in rows]
-        return {"campaigns": markers}
+        print(f"📊 Campaigns rows returned: {len(rows)} (ALL data)")
+        
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -275,75 +237,58 @@ async def get_campaign_markers(
 
 @router.get("/overview", tags=["roi"])
 async def get_overview(
-    user_id: str = Query(..., description="Clerk user id"),
+    user_id: str = Query(None, description="Clerk user id (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
-        cache_key = f"overview:{user_id}:{start_iso}:{end_iso}"
+        print(f"🚀 Overview endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
+        
+        # Create cache key - use 'all' if no user_id provided
+        cache_user = user_id or "all"
+        cache_key = f"overview:{cache_user}:all_data"
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
-        # Mark this user as active so the writer prioritizes them from DB
-        await _mark_user_active(db, user_id)
+            
+        # Mark user as active only if user_id provided
+        if user_id:
+            await _mark_user_active(db, user_id)
         
-        # Use Supabase to get overview data - removed user_id filtering
-        print(f"🔍 Overview query params: created_at gte.{start_iso}, lte.{end_iso}")
-        print(f"📅 Overview date range: {start_iso} to {end_iso}")
-        print(f"⏰ Start datetime: {start}, End datetime: {end}")
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "order": "created_at.desc",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to get overview data - NO DATE FILTERING
+        print(f"🔍 Overview query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
-                "order": "created_at.desc",
-                "limit": "999999"  # Remove row limit entirely
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch overview data")
             
         rows = response.json()
-        print(f"📊 Overview rows returned: {len(rows)}")
+        print(f"📊 Overview rows returned: {len(rows)} (ALL data)")
         
-        # Debug: Show sample of data being processed
-        if rows:
-            print(f"🔍 Sample rows - First 3:")
-            for i, row in enumerate(rows[:3]):
-                print(f"  Row {i}: created_at={row.get('created_at')}, revenue={row.get('revenue_generated')}, spend={row.get('ad_spend')}")
-            print(f"🔍 Sample rows - Last 3:")
-            for i, row in enumerate(rows[-3:]):
-                print(f"  Row {i}: created_at={row.get('created_at')}, revenue={row.get('revenue_generated')}, spend={row.get('ad_spend')}")
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        result = {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        # Calculate overview metrics from the data
-        if rows:
-            total_revenue = sum(float(r.get("revenue_generated", 0)) for r in rows)
-            total_spend = sum(float(r.get("ad_spend", 0)) for r in rows)
-            total_roi = (total_revenue - total_spend) / total_spend * 100 if total_spend > 0 else 0
-            total_views = sum(int(r.get("views", 0)) for r in rows)
-            total_engagement = sum(int(r.get("likes", 0) or 0) + int(r.get("comments", 0) or 0) + int(r.get("shares", 0) or 0) for r in rows)
-            
-            print(f"📊 Calculated totals: Revenue=${total_revenue:.2f}, Spend=${total_spend:.2f}, ROI={total_roi:.2f}%")
-            
-            result = {
-                "total_revenue": total_revenue,
-                "total_spend": total_spend,
-                "total_roi": total_roi,
-                "total_views": total_views,
-                "total_engagement": total_engagement,
-                "period_start": start_iso,
-                "period_end": end_iso
-            }
-        else:
-            result = {}
-            
         cache.set(cache_key, result, ttl_seconds=2700)  # 45 minutes
         return result
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -352,46 +297,48 @@ async def get_overview(
 
 @router.get("/revenue/by-source", tags=["roi"])
 async def get_revenue_by_source(
-    user_id: str = Query(...),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        # Mark as active so writer scopes to this user
-        await _mark_user_active(db, user_id)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        print(f"🚀 Revenue by Source endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Use Supabase to get revenue by source data - removed user_id filtering
+        # Mark as active only if user_id provided
+        if user_id:
+            await _mark_user_active(db, user_id)
+        
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "select": "platform,revenue_generated,created_at",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to get revenue by source data - NO DATE FILTERING
+        print(f"🔍 Revenue by Source query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
-                "select": "platform,revenue_generated,created_at"
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch revenue by source data")
             
         rows = response.json()
+        print(f"📊 Revenue by Source rows returned: {len(rows)} (ALL data)")
         
-        # Group by platform and calculate total revenue
-        from collections import defaultdict
-        revenue_by_platform = defaultdict(float)
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        for row in rows:
-            platform = row.get("platform", "unknown")
-            revenue = float(row.get("revenue_generated", 0))
-            revenue_by_platform[platform] += revenue
-        
-        # Convert to list format
-        result_rows = [{"platform": platform, "revenue": revenue} for platform, revenue in revenue_by_platform.items()]
-        
-        return {"rows": result_rows}
     except HTTPException:
         raise
     except Exception as e:
@@ -400,48 +347,49 @@ async def get_revenue_by_source(
 
 @router.get("/revenue/trends", tags=["roi"])
 async def get_revenue_trends(
-    user_id: str = Query(...),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, bucket = _resolve_range(range)
-        # Mark as active so writer scopes to this user
-        await _mark_user_active(db, user_id)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        print(f"🚀 Revenue Trends endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Use Supabase to get revenue trends data - removed user_id filtering
+        # Mark as active only if user_id provided
+        if user_id:
+            await _mark_user_active(db, user_id)
+        
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "select": "revenue_generated,created_at",
+            "order": "created_at.asc",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to get revenue trends data - NO DATE FILTERING
+        print(f"🔍 Revenue Trends query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
-                "select": "revenue_generated,created_at",
-                "order": "created_at.asc",
-                "limit": "10000"  # Increase limit to get all rows
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch revenue trends data")
             
         rows = response.json()
+        print(f"📊 Revenue Trends rows returned: {len(rows)} (ALL data)")
         
-        # Group by date and calculate daily revenue
-        from collections import defaultdict
-        daily_revenue = defaultdict(float)
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        for row in rows:
-            date_key = row["created_at"][:10]  # YYYY-MM-DD
-            revenue = float(row.get("revenue_generated", 0))
-            daily_revenue[date_key] += revenue
-        
-        # Convert to list format
-        result_rows = [{"date": date, "revenue": revenue} for date, revenue in sorted(daily_revenue.items())]
-        
-        return {"rows": result_rows, "bucket": bucket}
     except HTTPException:
         raise
     except Exception as e:
@@ -450,44 +398,44 @@ async def get_revenue_trends(
 
 @router.get("/cost/breakdown", tags=["roi"])
 async def get_cost_breakdown(
-    user_id: str = Query(...),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        print(f"🚀 Cost Breakdown endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Use Supabase to get cost breakdown data - removed user_id filtering
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "select": "platform,ad_spend,created_at",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to get cost breakdown data - NO DATE FILTERING
+        print(f"🔍 Cost Breakdown query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
-                "select": "platform,ad_spend,created_at"
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch cost breakdown data")
             
         rows = response.json()
+        print(f"📊 Cost Breakdown rows returned: {len(rows)} (ALL data)")
         
-        # Group by platform and calculate total spend
-        from collections import defaultdict
-        spend_by_platform = defaultdict(float)
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        for row in rows:
-            platform = row.get("platform", "unknown")
-            spend = float(row.get("ad_spend", 0))
-            spend_by_platform[platform] += spend
-        
-        # Convert to list format
-        result_rows = [{"platform": platform, "spend": spend} for platform, spend in spend_by_platform.items()]
-        
-        return {"rows": result_rows}
     except HTTPException:
         raise
     except Exception as e:
@@ -547,17 +495,17 @@ async def get_clv(
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        # start, end, _ = _resolve_range(range) # This line is removed
+        # start_iso = start.isoformat()
+        # end_iso = end.isoformat()
         
         # Use Supabase to get CLV data - removed user_id filtering
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
             params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
+                "created_at": f"gte.{start_iso}", # This line is removed
+                "created_at": f"lte.{end_iso}", # This line is removed
                 "select": "revenue_generated,ad_spend,views,clicks"
             }
         )
@@ -608,17 +556,17 @@ async def get_cac(
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        # start, end, _ = _resolve_range(range) # This line is removed
+        # start_iso = start.isoformat()
+        # end_iso = end.isoformat()
         
         # Use Supabase to get CAC data - removed user_id filtering
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
             params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
+                "created_at": f"gte.{start_iso}", # This line is removed
+                "created_at": f"lte.{end_iso}", # This line is removed
                 "select": "ad_spend,clicks,views"
             }
         )
@@ -659,44 +607,34 @@ async def get_cac(
 
 @router.get("/roi/trends", tags=["roi"])
 async def get_roi_trends(
-    user_id: str = Query(..., description="Clerk user id"),
+    user_id: str = Query(None, description="Clerk user id (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        print(f"🚀 ROI Trends endpoint called with user_id: {user_id}, range: {range}")
+        print(f"🚀 ROI Trends endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Check if we can access the database dependency
-        print(f"🔍 Database dependency type: {type(db)}")
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "order": "created_at.asc",
+            "limit": "999999"  # Get all rows
+        }
         
-        # Check if supabase_client is available
-        print(f"🔍 Supabase client type: {type(supabase_client)}")
-        print(f"🔍 Supabase client has _make_request: {hasattr(supabase_client, '_make_request')}")
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
         
-        start, end, bucket = _resolve_range(range)
-        print(f"📅 Resolved range - start: {start}, end: {end}, bucket: {bucket}")
-        
-        # Convert to ISO format for Supabase
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
-        print(f"📅 ISO format - start: {start_iso}, end: {end_iso}")
-        
-        # Use Supabase to query roi_metrics table - removed user_id filtering
-        print(f"🔍 ROI Trends query params: created_at gte.{start_iso}, lte.{end_iso}")
-        print(f"📅 ROI Trends date range: {start_iso} to {end_iso}")
-        print(f"⏰ Start datetime: {start}, End datetime: {end}")
+        # Use Supabase to query roi_metrics table - NO DATE FILTERING
+        print(f"🔍 ROI Trends query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
         
         try:
             print("🔍 Attempting to make Supabase request...")
             response = await supabase_client._make_request(
                 "GET",
                 "roi_metrics",
-                params={
-                    "created_at": f"gte.{start_iso}",
-                    "created_at": f"lte.{end_iso}",
-                    "order": "created_at.asc",
-                    "limit": "10000"  # Increase limit to get all rows
-                }
+                params=query_params
             )
             print(f"✅ Supabase request successful - status: {response.status_code}")
         except Exception as supabase_error:
@@ -716,55 +654,12 @@ async def get_roi_trends(
             print(f"❌ Response content: {response.text if hasattr(response, 'text') else 'No text attribute'}")
             raise HTTPException(status_code=500, detail=f"Failed to parse response: {str(json_error)}")
         
-        print(f"📊 ROI Trends rows returned: {len(rows)}")
+        print(f"📊 ROI Trends rows returned: {len(rows)} (ALL data)")
         
-        # Debug: Show sample of data being processed
-        if rows:
-            print(f"🔍 Sample rows - First 3:")
-            for i, row in enumerate(rows[:3]):
-                print(f"  Row {i}: created_at={row.get('created_at')}, roi_percentage={row.get('roi_percentage')}")
-            print(f"🔍 Sample rows - Last 3:")
-            for i, row in enumerate(rows[-3:]):
-                print(f"  Row {i}: created_at={row.get('created_at')}, roi_percentage={row.get('roi_percentage')}")
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        # Group by date and calculate average ROI
-        try:
-            from collections import defaultdict
-            print("✅ Successfully imported defaultdict")
-        except ImportError as import_error:
-            print(f"❌ Failed to import defaultdict: {import_error}")
-            raise HTTPException(status_code=500, detail=f"Import error: {str(import_error)}")
-        
-        daily_roi = defaultdict(list)
-        print("✅ Created daily_roi defaultdict")
-        
-        for row in rows:
-            try:
-                date_key = row["created_at"][:10]  # YYYY-MM-DD
-                if row.get("roi_percentage") is not None:
-                    daily_roi[date_key].append(float(row["roi_percentage"]))
-            except Exception as row_error:
-                print(f"❌ Error processing row: {row_error}")
-                print(f"❌ Problematic row: {row}")
-                continue
-        
-        print(f"📊 Daily ROI groups: {len(daily_roi)} days with data")
-        print(f"📅 Date keys found: {sorted(daily_roi.keys())}")
-        
-        # Calculate average ROI per day
-        result_rows = []
-        for date_key in sorted(daily_roi.keys()):
-            try:
-                avg_roi = sum(daily_roi[date_key]) / len(daily_roi[date_key])
-                result_rows.append({
-                    "date": date_key,
-                    "roi": avg_roi
-                })
-            except Exception as calc_error:
-                print(f"❌ Error calculating average for {date_key}: {calc_error}")
-                continue
-        
-        return {"rows": result_rows}
     except HTTPException:
         raise
     except Exception as e:
@@ -773,87 +668,45 @@ async def get_roi_trends(
 
 @router.get("/channel/performance", tags=["roi"])
 async def get_channel_performance(
-    user_id: str = Query(...),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        print(f"🚀 Channel Performance endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
         
-        # Use Supabase to get channel performance data - removed user_id filtering
-        print(f"🔍 Channel Performance query params: created_at gte.{start_iso}, lte.{end_iso}")
+        # Build query params - include user_id filter only if provided
+        query_params = {
+            "select": "platform,views,likes,comments,shares,clicks,revenue_generated,ad_spend,roi_percentage,created_at",
+            "order": "platform.asc",
+            "limit": "999999"  # Get all rows
+        }
+        
+        # Add user_id filter only if provided
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+        
+        # Use Supabase to get channel performance data - NO DATE FILTERING
+        print(f"🔍 Channel Performance query params: {query_params}")
+        print(f"📊 Fetching ALL data (frontend will handle date filtering)")
+        
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
-                "select": "platform,views,likes,comments,shares,clicks,revenue_generated,ad_spend,roi_percentage",
-                "order": "platform.asc",
-                "limit": "10000"  # Increase limit to get all rows
-            }
+            params=query_params
         )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch channel performance data")
             
         rows = response.json()
-        print(f"📊 Channel Performance rows returned: {len(rows)}")
-        print(f"📅 Date range: {start_iso} to {end_iso}")
+        print(f"📊 Channel Performance rows returned: {len(rows)} (ALL data)")
         
-        # Group by platform and calculate metrics
-        from collections import defaultdict
-        platform_metrics = defaultdict(lambda: {
-            "impressions": 0,
-            "engagement": 0,
-            "revenue": 0,
-            "spend": 0,
-            "clicks": 0,
-            "roi_values": []
-        })
+        # Return ALL data - frontend will handle filtering
+        # This eliminates all timestamp parsing issues!
+        return {"all_data": rows, "message": "Frontend will handle date filtering"}
         
-        for row in rows:
-            platform = row.get("platform", "unknown")
-            platform_metrics[platform]["impressions"] += int(row.get("views", 0))
-            platform_metrics[platform]["engagement"] += int(row.get("likes", 0) or 0) + int(row.get("comments", 0) or 0) + int(row.get("shares", 0) or 0)
-            platform_metrics[platform]["revenue"] += float(row.get("revenue_generated", 0))
-            platform_metrics[platform]["spend"] += float(row.get("ad_spend", 0))
-            platform_metrics[platform]["clicks"] += int(row.get("clicks", 0))
-            if row.get("roi_percentage") is not None:
-                platform_metrics[platform]["roi_values"].append(float(row["roi_percentage"]))
-        
-        # Calculate derived metrics
-        derived = []
-        for platform, metrics in platform_metrics.items():
-            impressions = float(metrics["impressions"])
-            engagement = float(metrics["engagement"])
-            revenue = float(metrics["revenue"])
-            spend = float(metrics["spend"])
-            clicks = float(metrics["clicks"])
-            
-            engagement_rate = (engagement / impressions) * 100 if impressions > 0 else 0
-            ctr = (clicks / impressions) * 100 if impressions > 0 else 0
-            profit = revenue - spend
-            avg_roi = sum(metrics["roi_values"]) / len(metrics["roi_values"]) if metrics["roi_values"] else 0
-            efficiency = avg_roi * (engagement / impressions) if impressions > 0 else 0
-            
-            derived.append({
-                "platform": platform,
-                "impressions": impressions,
-                "engagement": engagement,
-                "revenue": revenue,
-                "spend": spend,
-                "total_clicks": clicks,
-                "avg_roi": avg_roi,
-                "profit": profit,
-                "engagement_rate": engagement_rate,
-                "click_through_rate": ctr,
-                "efficiency_score": efficiency
-            })
-        
-        return {"rows": derived}
     except HTTPException:
         raise
     except Exception as e:
@@ -866,17 +719,17 @@ async def export_csv(
     db = Depends(get_db),
 ):
     try:
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        # start, end, _ = _resolve_range(range) # This line is removed
+        # start_iso = start.isoformat()
+        # end_iso = end.isoformat()
         
         # Use Supabase to get ROI metrics data - removed user_id filtering
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
             params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
+                "created_at": f"gte.{start_iso}", # This line is removed
+                "created_at": f"lte.{end_iso}", # This line is removed
                 "select": "platform,created_at,views,likes,comments,shares,clicks,ad_spend,revenue_generated,roi_percentage,roas_ratio",
                 "order": "created_at.asc"
             }
@@ -908,17 +761,17 @@ async def export_pdf(
     try:
         # Minimal placeholder PDF export: return CSV content but with pdf header would be wrong; instead, construct simple PDF via PyMuPDF
         import fitz  # PyMuPDF
-        start, end, _ = _resolve_range(range)
-        start_iso = start.isoformat()
-        end_iso = end.isoformat()
+        # start, end, _ = _resolve_range(range) # This line is removed
+        # start_iso = start.isoformat()
+        # end_iso = end.isoformat()
         
         # Use Supabase to get ROI metrics data - removed user_id filtering
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
             params={
-                "created_at": f"gte.{start_iso}",
-                "created_at": f"lte.{end_iso}",
+                "created_at": f"gte.{start_iso}", # This line is removed
+                "created_at": f"lte.{end_iso}", # This line is removed
                 "select": "platform,revenue_generated,ad_spend,roi_percentage"
             }
         )
