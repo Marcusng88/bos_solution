@@ -12,6 +12,7 @@ import { CostAnalysis } from "./cost-analysis"
 import { ProfitabilityMetrics } from "./profitability-metrics"
 import { ROITrends } from "./roi-trends"
 import { ChannelPerformance } from "./channel-performance"
+import { PlatformPerformanceTable } from "./platform-performance-table"
 import { ReportGenerator } from "./report-generator"
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Download, FileText } from "lucide-react"
 
@@ -61,6 +62,14 @@ export function ROIDashboard() {
             >
               <Download className="h-4 w-4 mr-2" />
               Full Report
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => window.open('/dashboard/roi/platform-performance', '_blank')}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Platform Performance
             </Button>
           </div>
         </div>
@@ -144,6 +153,7 @@ export function ROIDashboard() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="platforms">Platform Performance</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="costs">Costs</TabsTrigger>
           <TabsTrigger value="profitability">Profitability</TabsTrigger>
@@ -151,11 +161,16 @@ export function ROIDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
+          <PlatformPerformanceTable range={range} />
           <div className="grid gap-4 lg:grid-cols-2">
             <ROITrends range={range} />
             <ChannelPerformance range={range} />
           </div>
           <ProfitabilityMetrics range={range} />
+        </TabsContent>
+
+        <TabsContent value="platforms" className="space-y-4">
+          <PlatformPerformanceTable range={range} />
         </TabsContent>
 
         <TabsContent value="revenue" className="space-y-4">

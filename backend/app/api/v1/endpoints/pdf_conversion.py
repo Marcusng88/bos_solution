@@ -14,7 +14,8 @@ import json
 from app.services.pdf_conversion_agent import (
     pdf_agent, 
     convert_html_to_pdf_async,
-    generate_pdf_from_json_async
+    generate_pdf_from_json_async,
+    create_enhanced_roi_pdf_async
 )
 
 router = APIRouter()
@@ -164,6 +165,43 @@ async def roi_report_to_pdf(
         raise HTTPException(status_code=500, detail=f"ROI PDF conversion failed: {str(e)}")
 
 
+@router.post("/enhanced-roi-report-to-pdf", tags=["pdf"])
+async def enhanced_roi_report_to_pdf(
+    user_id: str,
+    report_data: Dict[str, Any],
+    filename: Optional[str] = None
+):
+    """
+    Convert ROI report data to PDF with YouTube and Instagram data integration
+    
+    Args:
+        user_id: User ID to fetch platform-specific data
+        report_data: ROI report data structure
+        filename: Optional filename for the PDF
+        
+    Returns:
+        PDF file as streaming response with enhanced data
+    """
+    try:
+        # Generate filename if not provided
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"enhanced_roi_report_{timestamp}.pdf"
+        
+        # Create enhanced ROI PDF with YouTube and Instagram data
+        pdf_bytes, _ = await create_enhanced_roi_pdf_async(user_id, report_data)
+        
+        # Return PDF as streaming response
+        return StreamingResponse(
+            iter([pdf_bytes]),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Enhanced ROI PDF conversion failed: {str(e)}")
+
+
 @router.post("/save-pdf-locally", tags=["pdf"])
 async def save_pdf_locally(
     html_content: str,
@@ -257,12 +295,66 @@ async def pdf_health_check():
         <html>
         <head>
         <style>
-        body { font-family: Arial; font-size: 12pt; }
+        @page {
+            margin: 1in;
+            size: A4;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-size: 11pt; 
+            line-height: 1.5;
+            color: #2c3e50;
+            background-color: #ffffff;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30pt;
+            padding-bottom: 20pt;
+            border-bottom: 3pt solid #3498db;
+        }
+        
+        .title { 
+            font-size: 24pt; 
+            font-weight: 700; 
+            color: #2c3e50;
+            margin-bottom: 8pt;
+            letter-spacing: -0.5pt;
+        }
+        
+        .content {
+            padding: 20pt;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-radius: 10pt;
+            border: 1pt solid #e1e8ed;
+            box-shadow: 0 4pt 12pt rgba(0,0,0,0.08);
+        }
+        
+        .status {
+            color: #27ae60;
+            font-weight: 600;
+            font-size: 14pt;
+        }
         </style>
         </head>
         <body>
-        <h1>Test PDF</h1>
-        <p>This is a test PDF generated at """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
+        
+        <div class="header">
+            <div class="title">PDF Service Health Check</div>
+            <div style="color: #7f8c8d; font-size: 11pt; margin-top: 5pt;">
+                Generated on """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="status">✅ PDF Service is Operational</div>
+            <p style="margin-top: 15pt; font-size: 12pt; line-height: 1.6; color: #34495e;">
+                This test PDF confirms that the PDF conversion service is working correctly. 
+                The enhanced styling and professional design are now active.
+            </p>
+        </div>
+        
         </body>
         </html>
         """

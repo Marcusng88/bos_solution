@@ -226,6 +226,255 @@ def create_html_template(report_content: str, report_data: dict, total_revenue: 
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }}
         
+        /* Enhanced Table Styles */
+        .report-content table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e5e7eb;
+        }}
+        
+        /* Platform Performance Table Specific Styles - Based on Key Performance Metrics Design */
+        .platform-performance-section {{
+            margin: 3rem 0;
+        }}
+        
+        .platform-performance-section h2 {{
+            font-size: 14pt;
+            font-weight: 600;
+            margin: 20pt 0 12pt 0;
+            color: #34495e;
+            background-color: #f8f9fa;
+            padding: 8pt 12pt;
+            border-left: 4pt solid #3498db;
+            border-radius: 4pt;
+        }}
+        
+        .platform-performance-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15pt 0;
+            font-size: 9pt;
+            box-shadow: 0 2pt 8pt rgba(0,0,0,0.1);
+            border-radius: 6pt;
+            overflow: hidden;
+        }}
+        
+        .platform-performance-table thead {{
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }}
+        
+        .platform-performance-table thead th {{
+            padding: 12pt 8pt;
+            border: none;
+            font-weight: 600;
+            text-align: left;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.3pt;
+        }}
+        
+        .platform-performance-table thead th:first-child {{
+            text-align: left;
+        }}
+        
+        .platform-performance-table tbody tr {{
+            transition: background-color 0.2s ease;
+        }}
+        
+        .platform-performance-table tbody tr:nth-child(even) {{
+            background-color: #f8f9fa;
+        }}
+        
+        .platform-performance-table tbody tr:hover {{
+            background-color: #e8f4fd;
+        }}
+        
+        .platform-performance-table tbody td {{
+            padding: 10pt 8pt;
+            border-bottom: 1pt solid #ecf0f1;
+            word-wrap: break-word;
+            vertical-align: top;
+            background-color: #ffffff;
+        }}
+        
+        .platform-performance-table tbody tr:nth-child(even) td {{
+            background-color: #f8f9fa;
+        }}
+        
+        .platform-performance-table tbody tr:hover td {{
+            background-color: #e8f4fd;
+        }}
+        
+        .platform-name {{
+            font-weight: 600;
+            color: #2c3e50;
+        }}
+        
+        .platform-indicator {{
+            display: inline-block;
+            width: 8pt;
+            height: 8pt;
+            border-radius: 50%;
+            margin-right: 6pt;
+            vertical-align: middle;
+        }}
+        
+        .revenue, .spend {{
+            color: #27ae60;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }}
+        
+        .roi-value {{
+            color: #27ae60;
+            font-weight: 600;
+        }}
+        
+        .roas-value {{
+            color: #3498db;
+            font-weight: 600;
+        }}
+        
+        .engagement-value, .ctr-value {{
+            color: #e74c3c;
+            font-weight: 600;
+        }}
+        
+        /* Responsive design for platform performance table */
+        @media (max-width: 768px) {{
+            .platform-performance-table {{
+                font-size: 8pt;
+            }}
+            
+            .platform-performance-table thead th,
+            .platform-performance-table tbody td {{
+                padding: 8pt 6pt;
+            }}
+        }}
+        
+        .report-content table thead {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+        
+        .report-content table thead th {{
+            padding: 1.25rem 1rem;
+            text-align: center;
+            font-weight: 700;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: none;
+            position: relative;
+        }}
+        
+        .report-content table thead th:first-child {{
+            text-align: left;
+        }}
+        
+        .report-content table thead th:not(:last-child)::after {{
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 25%;
+            bottom: 25%;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.3);
+        }}
+        
+        .report-content table tbody tr {{
+            transition: background-color 0.2s ease;
+        }}
+        
+        .report-content table tbody tr:nth-child(even) {{
+            background: #f8fafc;
+        }}
+        
+        .report-content table tbody tr:hover {{
+            background: #f1f5f9;
+            transform: scale(1.01);
+        }}
+        
+        .report-content table tbody td {{
+            padding: 1rem;
+            text-align: center;
+            font-weight: 500;
+            border-bottom: 1px solid #e5e7eb;
+            position: relative;
+        }}
+        
+        .report-content table tbody td:first-child {{
+            text-align: left;
+            font-weight: 700;
+            color: #1f2937;
+            background: #f8fafc;
+        }}
+        
+        .report-content table tbody td:not(:last-child)::after {{
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 15%;
+            bottom: 15%;
+            width: 1px;
+            background: #e5e7eb;
+        }}
+        
+        /* Platform-specific styling */
+        .report-content table tbody tr:nth-child(1) td:first-child {{
+            color: #1877f2;
+        }}
+        
+        .report-content table tbody tr:nth-child(2) td:first-child {{
+            color: #e4405f;
+        }}
+        
+        .report-content table tbody tr:nth-child(3) td:first-child {{
+            color: #ff0000;
+        }}
+        
+        /* Value styling */
+        .report-content table tbody td:nth-child(2),
+        .report-content table tbody td:nth-child(3) {{
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #059669;
+        }}
+        
+        .report-content table tbody td:nth-child(4) {{
+            font-weight: 700;
+            color: #059669;
+        }}
+        
+        .report-content table tbody td:nth-child(5) {{
+            font-weight: 600;
+            color: #7c3aed;
+        }}
+        
+        .report-content table tbody td:nth-child(6),
+        .report-content table tbody td:nth-child(7) {{
+            font-weight: 600;
+            color: #dc2626;
+        }}
+        
+        /* Responsive table */
+        @media (max-width: 768px) {{
+            .report-content table {{
+                font-size: 0.875rem;
+            }}
+            
+            .report-content table thead th,
+            .report-content table tbody td {{
+                padding: 0.75rem 0.5rem;
+            }}
+        }}
+        
         .footer {{
             background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
             color: white;
@@ -400,6 +649,10 @@ def create_html_template(report_content: str, report_data: dict, total_revenue: 
                 <div class="report-content">{report_content}</div>
             </div>
             
+            <div class="section">
+                {_create_platform_performance_table_html(report_data.get('all_data', {}).get('platforms', {}))}
+            </div>
+            
             <div class="section platform-breakdown">
                 <h2>🎯 Platform Performance Breakdown</h2>
                 {_generate_platform_html(report_data)}
@@ -416,6 +669,84 @@ def create_html_template(report_content: str, report_data: dict, total_revenue: 
 """
     
     return html_template
+
+def _create_platform_performance_table_html(platform_summary: dict) -> str:
+    """Create a professional HTML table for platform performance summary"""
+    
+    # Define platform colors
+    platform_colors = {
+        'Facebook': '#1877F2',
+        'Instagram': '#E4405F', 
+        'YouTube': '#FF0000'
+    }
+    
+    # Start building the HTML table
+    table_html = """
+<div class="platform-performance-section">
+    <h2>Platform Performance Summary</h2>
+    <div class="table-container">
+        <table class="platform-performance-table">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Total Revenue</th>
+                    <th>Total Spend</th>
+                    <th>ROI (%)</th>
+                    <th>ROAS</th>
+                    <th>Engagement Rate</th>
+                    <th>CTR (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    # Add data rows for each platform
+    for platform, data in platform_summary.items():
+        if platform in ['Facebook', 'Instagram', 'YouTube']:
+            revenue = data.get('total_revenue', 0)
+            spend = data.get('total_spend', 0)
+            roi_percentage = data.get('avg_roi', 0)
+            roas = data.get('roas', 0)
+            engagement_rate = data.get('engagement_rate', 0)
+            ctr = data.get('click_through_rate', 0)
+            
+            # Format values
+            revenue_formatted = f"${revenue:,.2f}"
+            spend_formatted = f"${spend:,.2f}"
+            roi_formatted = f"{roi_percentage:.2f}%"
+            roas_formatted = f"{roas:.2f}"
+            engagement_formatted = f"{engagement_rate:.2f}%"
+            ctr_formatted = f"{ctr:.2f}%"
+            
+            # Get platform color
+            platform_color = platform_colors.get(platform, '#6B7280')
+            
+            # Determine ROI badge class
+            roi_class = "roi-excellent" if roi_percentage >= 400 else "roi-good" if roi_percentage >= 300 else "roi-moderate" if roi_percentage >= 200 else "roi-poor"
+            
+            table_html += f"""
+                <tr>
+                    <td class="platform-name">
+                        <span class="platform-indicator" style="background-color: {platform_color};"></span>
+                        {platform}
+                    </td>
+                    <td class="revenue">{revenue_formatted}</td>
+                    <td class="spend">{spend_formatted}</td>
+                    <td class="roi-value">{roi_formatted}</td>
+                    <td class="roas-value">{roas_formatted}</td>
+                    <td class="engagement-value">{engagement_formatted}</td>
+                    <td class="ctr-value">{ctr_formatted}</td>
+                </tr>
+            """
+    
+    table_html += """
+            </tbody>
+        </table>
+    </div>
+</div>
+    """
+    
+    return table_html
 
 def _generate_platform_html(report_data: dict) -> str:
     """Generate HTML for platform breakdown section"""
@@ -576,6 +907,16 @@ async def generate_roi_report():
         
         print(f"✅ Generated report ({len(report_content)} characters)")
         
+        # Clean the report content to remove ** formatting
+        print("\n🧹 Cleaning report content...")
+        try:
+            from app.services.pdf_conversion_agent import pdf_agent
+            cleaned_report_content = pdf_agent.clean_text(report_content)
+            print(f"✅ Cleaned report content (removed ** formatting)")
+        except Exception as e:
+            print(f"⚠️  Text cleaning failed, using original content: {e}")
+            cleaned_report_content = report_content
+        
         # Create timestamp for filenames
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         
@@ -584,13 +925,13 @@ async def generate_roi_report():
         with open(txt_filename, 'w', encoding='utf-8') as f:
             f.write(f"ROI REPORT - Generated on {datetime.now().strftime('%m/%d/%Y')}\n")
             f.write("=" * 80 + "\n\n")
-            f.write(report_content)
+            f.write(cleaned_report_content)
         
         print(f"💾 Text report saved to: {txt_filename}")
         
         # Generate HTML report
         print("\n🌐 Generating HTML report...")
-        html_content = create_html_template(report_content, report_data, total_revenue, total_spend, total_profit, roi_percentage, profit_margin, roi_status)
+        html_content = create_html_template(cleaned_report_content, report_data, total_revenue, total_spend, total_profit, roi_percentage, profit_margin, roi_status)
         html_filename = f"roi_report_{timestamp}.html"
         
         with open(html_filename, 'w', encoding='utf-8') as f:

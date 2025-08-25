@@ -1085,14 +1085,104 @@ def _calculate_percentage_change(previous: float, current: float) -> float:
     return ((current - previous) / previous) * 100
 
 
+def _create_platform_performance_table_html(platform_summary: dict) -> str:
+    """Create a professional HTML table for platform performance summary"""
+    
+    # Define platform colors
+    platform_colors = {
+        'Facebook': '#1877F2',
+        'Instagram': '#E4405F', 
+        'YouTube': '#FF0000'
+    }
+    
+    # Start building the HTML table
+    table_html = """
+<div class="platform-performance-section">
+    <h2>Platform Performance Summary</h2>
+    <div class="table-container">
+        <table class="platform-performance-table">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Total Revenue</th>
+                    <th>Total Spend</th>
+                    <th>ROI (%)</th>
+                    <th>ROAS</th>
+                    <th>Engagement Rate</th>
+                    <th>CTR (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    # Add data rows for each platform
+    for platform, data in platform_summary.items():
+        if platform in ['Facebook', 'Instagram', 'YouTube']:
+            revenue = data.get('total_revenue', 0)
+            spend = data.get('total_spend', 0)
+            roi_percentage = data.get('avg_roi', 0)
+            roas = data.get('roas', 0)
+            engagement_rate = data.get('engagement_rate', 0)
+            ctr = data.get('click_through_rate', 0)
+            
+            # Format values
+            revenue_formatted = f"${revenue:,.2f}"
+            spend_formatted = f"${spend:,.2f}"
+            roi_formatted = f"{roi_percentage:.2f}%"
+            roas_formatted = f"{roas:.2f}"
+            engagement_formatted = f"{engagement_rate:.2f}%"
+            ctr_formatted = f"{ctr:.2f}%"
+            
+            # Get platform color
+            platform_color = platform_colors.get(platform, '#6B7280')
+            
+            # Determine ROI badge class
+            roi_class = "roi-excellent" if roi_percentage >= 400 else "roi-good" if roi_percentage >= 300 else "roi-moderate" if roi_percentage >= 200 else "roi-poor"
+            
+            table_html += f"""
+                <tr>
+                    <td class="platform-name">
+                        <span class="platform-indicator" style="background-color: {platform_color};"></span>
+                        {platform}
+                    </td>
+                    <td class="revenue">{revenue_formatted}</td>
+                    <td class="spend">{spend_formatted}</td>
+                    <td class="roi-value">{roi_formatted}</td>
+                    <td class="roas-value">{roas_formatted}</td>
+                    <td class="engagement-value">{engagement_formatted}</td>
+                    <td class="ctr-value">{ctr_formatted}</td>
+                </tr>
+            """
+    
+    table_html += """
+            </tbody>
+        </table>
+    </div>
+</div>
+    """
+    
+    return table_html
+
 def _create_report_prompt_all_data(data: dict) -> str:
     """Create a comprehensive prompt for Gemini to generate the report from all available data"""
+    
+    # Extract platform summary data
+    platform_summary = data.get('all_data', {}).get('platforms', {})
+    
+    # Generate the professional HTML table
+    platform_table_html = _create_platform_performance_table_html(platform_summary)
     
     prompt = f"""
 You are a marketing analytics expert. Generate a comprehensive ROI report based on ALL available data from the roi_metrics table.
 
 REPORT DATA:
 {data}
+
+IMPORTANT FORMATTING RULES:
+- DO NOT use ** for bold formatting anywhere in the report
+- Display all metrics as plain text without any markdown symbols
+- Write metrics like "Revenue: $15,547,580.52" instead of "**Revenue:** $15,547,580.52"
+- Use clean, professional formatting without asterisks or bold markers
 
 Please create a professional marketing ROI report with the following structure:
 
@@ -1108,8 +1198,8 @@ Please create a professional marketing ROI report with the following structure:
 
 # Platform Performance Analysis
 For each platform, provide:
-- Revenue and spend breakdown
-- ROI and engagement metrics
+- Revenue and spend breakdown (as plain text, no **)
+- ROI and engagement metrics (as plain text, no **)
 - Performance insights and trends
 - Content type and category analysis
 - Post count and average performance
@@ -1135,6 +1225,11 @@ For each platform, provide:
 - Next steps for optimization
 
 Please format the report professionally with clear sections, bullet points where appropriate, and actionable insights. Focus on providing valuable business intelligence that can drive decision-making. Since this is analyzing all available data, provide comprehensive insights across all platforms and content types.
+
+REMEMBER: No ** formatting anywhere in the report. All metrics should be plain text.
+
+PLATFORM PERFORMANCE TABLE HTML (to be inserted in the HTML report):
+{platform_table_html}
 """
     
     return prompt
@@ -1149,6 +1244,12 @@ You are a marketing analytics expert. Generate a comprehensive ROI report based 
 REPORT DATA:
 {data}
 
+IMPORTANT FORMATTING RULES:
+- DO NOT use ** for bold formatting anywhere in the report
+- Display all metrics as plain text without any markdown symbols
+- Write metrics like "Revenue: $15,547,580.52" instead of "**Revenue:** $15,547,580.52"
+- Use clean, professional formatting without asterisks or bold markers
+
 Please create a professional marketing ROI report with the following structure:
 
 # Executive Summary
@@ -1157,14 +1258,14 @@ Please create a professional marketing ROI report with the following structure:
 - Overall ROI performance
 
 # Performance Overview
-- Total revenue, spend, and profit analysis
-- Overall ROI and ROAS metrics
+- Total revenue, spend, and profit analysis (as plain text, no **)
+- Overall ROI and ROAS metrics (as plain text, no **)
 - Month-over-month performance comparison
 
 # Platform Performance Analysis
 For each platform, provide:
-- Revenue and spend breakdown
-- ROI and engagement metrics
+- Revenue and spend breakdown (as plain text, no **)
+- ROI and engagement metrics (as plain text, no **)
 - Performance trends and insights
 - Content type and category analysis
 
@@ -1186,6 +1287,8 @@ For each platform, provide:
 - Testing opportunities
 
 Please format the report professionally with clear sections, bullet points where appropriate, and actionable insights. Focus on providing valuable business intelligence that can drive decision-making.
+
+REMEMBER: No ** formatting anywhere in the report. All metrics should be plain text.
 """
     
     return prompt
