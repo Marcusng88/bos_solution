@@ -499,45 +499,43 @@ async def get_monthly_spend_trends(
 
 @router.get("/profitability/clv", tags=["roi"])
 async def get_clv(
-    user_id: str = Query(...),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        # start, end, _ = _resolve_range(range) # This line is removed
-        # start_iso = start.isoformat()
-        # end_iso = end.isoformat()
-        
-        # Use Supabase to get CLV data - removed user_id filtering
+        print("🚀 CLV endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
+
+        query_params = {
+            "select": "revenue_generated,ad_spend,views,clicks",
+            "limit": "999999",
+        }
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}", # This line is removed
-                "created_at": f"lte.{end_iso}", # This line is removed
-                "select": "revenue_generated,ad_spend,views,clicks"
-            }
+            params=query_params,
         )
-        
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch CLV data")
-            
+
         rows = response.json()
-        
-        # Calculate CLV metrics
+        print(f"📊 CLV rows returned: {len(rows)} (ALL data)")
+
         if rows:
             total_revenue = sum(float(r.get("revenue_generated", 0)) for r in rows)
             total_spend = sum(float(r.get("ad_spend", 0)) for r in rows)
             total_views = sum(int(r.get("views", 0)) for r in rows)
             total_clicks = sum(int(r.get("clicks", 0)) for r in rows)
-            
-            # Calculate CLV (Customer Lifetime Value)
-            # This is a simplified calculation - you might want to adjust based on your business logic
+
             avg_order_value = total_revenue / len(rows) if rows else 0
-            purchase_frequency = len(rows) / 30 if total_views > 0 else 0  # Assuming 30-day period
-            customer_lifespan = 12  # Assuming 12 months average customer lifespan
+            purchase_frequency = len(rows) / 30 if total_views > 0 else 0
+            customer_lifespan = 12
             clv = avg_order_value * purchase_frequency * customer_lifespan
-            
+
             result = {
                 "clv": clv,
                 "avg_order_value": avg_order_value,
@@ -546,11 +544,11 @@ async def get_clv(
                 "total_revenue": total_revenue,
                 "total_spend": total_spend,
                 "total_views": total_views,
-                "total_clicks": total_clicks
+                "total_clicks": total_clicks,
             }
         else:
             result = {}
-            
+
         return result
     except HTTPException:
         raise
@@ -560,53 +558,52 @@ async def get_clv(
 
 @router.get("/profitability/cac", tags=["roi"])
 async def get_cac(
-    user_id: str = Query(...),
+    user_id: str = Query(None, description="User ID (optional for demo)"),
     range: str = Query("7d", pattern="^(7d|30d|90d)$"),
     db = Depends(get_db),
 ):
     try:
-        # start, end, _ = _resolve_range(range) # This line is removed
-        # start_iso = start.isoformat()
-        # end_iso = end.isoformat()
-        
-        # Use Supabase to get CAC data - removed user_id filtering
+        print("🚀 CAC endpoint called - fetching ALL data (no date filtering)")
+        print(f"👤 User ID filter: {'Yes' if user_id else 'No (fetching all data)'}")
+
+        query_params = {
+            "select": "ad_spend,clicks,views",
+            "limit": "999999",
+        }
+        if user_id:
+            query_params["user_id"] = f"eq.{user_id}"
+
         response = await supabase_client._make_request(
             "GET",
             "roi_metrics",
-            params={
-                "created_at": f"gte.{start_iso}", # This line is removed
-                "created_at": f"lte.{end_iso}", # This line is removed
-                "select": "ad_spend,clicks,views"
-            }
+            params=query_params,
         )
-        
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch CAC data")
-            
+
         rows = response.json()
-        
-        # Calculate CAC metrics
+        print(f"📊 CAC rows returned: {len(rows)} (ALL data)")
+
         if rows:
             total_spend = sum(float(r.get("ad_spend", 0)) for r in rows)
             total_clicks = sum(int(r.get("clicks", 0)) for r in rows)
             total_views = sum(int(r.get("views", 0)) for r in rows)
-            
-            # Calculate CAC (Customer Acquisition Cost)
+
             cac = total_spend / total_clicks if total_clicks > 0 else 0
-            cpm = (total_spend / total_views) * 1000 if total_views > 0 else 0  # Cost per mille (thousand impressions)
-            ctr = (total_clicks / total_views) * 100 if total_views > 0 else 0  # Click-through rate
-            
+            cpm = (total_spend / total_views) * 1000 if total_views > 0 else 0
+            ctr = (total_clicks / total_views) * 100 if total_views > 0 else 0
+
             result = {
                 "cac": cac,
                 "cpm": cpm,
                 "ctr": ctr,
                 "total_spend": total_spend,
                 "total_clicks": total_clicks,
-                "total_views": total_views
+                "total_views": total_views,
             }
         else:
             result = {}
-            
+
         return result
     except HTTPException:
         raise

@@ -11,6 +11,8 @@ import ROITrends from "./roi-trends"
 import ChannelPerformance from "./channel-performance"
 import { RevenueOverview } from "./revenue-overview"
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Download, FileText } from "lucide-react"
+import { CostAnalysis } from "./cost-analysis"
+import { ProfitabilityMetrics } from "./profitability-metrics"
 
 export default function ROIDashboard() {
   const { user } = useUser()
@@ -268,31 +270,11 @@ export default function ROIDashboard() {
         </TabsContent>
 
         <TabsContent value="costs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cost Analysis</CardTitle>
-              <CardDescription>Detailed cost breakdown and optimization</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Cost analysis coming soon...
-              </div>
-            </CardContent>
-          </Card>
+          <CostAnalysis range={selectedRange} />
         </TabsContent>
 
         <TabsContent value="profitability" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profitability Metrics</CardTitle>
-              <CardDescription>ROI, ROAS, and profitability analysis</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Profitability metrics coming soon...
-              </div>
-            </CardContent>
-          </Card>
+          <ProfitabilityMetrics range={selectedRange} />
         </TabsContent>
       </Tabs>
     </div>

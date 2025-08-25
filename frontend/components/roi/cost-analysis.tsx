@@ -15,12 +15,92 @@ export function CostAnalysis({ range = "30d" }: CostAnalysisProps) {
   const { user } = useUser()
   const [breakdown, setBreakdown] = useState<any[]>([])
   const [monthly, setMonthly] = useState<any[]>([])
+
+  // Helper: filter ALL data by selected range, excluding today
+  const filterDataByRange = (allData: any[], selectedRange: TimeRange) => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    let startDate: Date
+    switch (selectedRange) {
+      case '7d':
+        startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case '30d':
+        startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      case '90d':
+        startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000)
+        break
+      default:
+        startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    }
+    return (allData || []).filter(row => {
+      const d = new Date(row.created_at)
+      return d >= startDate && d < today
+    })
+  }
+
+  // Helper: aggregate platform costs and compute metrics
+  const aggregatePlatformCosts = (rows: any[]) => {
+    const totals: Record<string, { total_spend: number, total_revenue: number, cpc_sum: number, cpc_count: number }> = {}
+    for (const row of rows) {
+      const platform = (row.platform || '').toLowerCase()
+      if (!platform) continue
+      const spend = Number(row.ad_spend || 0)
+      const revenue = Number(row.revenue_generated || 0)
+      const cpc = row.cost_per_click != null ? Number(row.cost_per_click) : NaN
+      if (!totals[platform]) totals[platform] = { total_spend: 0, total_revenue: 0, cpc_sum: 0, cpc_count: 0 }
+      totals[platform].total_spend += spend
+      totals[platform].total_revenue += revenue
+      if (!Number.isNaN(cpc)) {
+        totals[platform].cpc_sum += cpc
+        totals[platform].cpc_count += 1
+      }
+    }
+    const palette = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4']
+    const result = Object.keys(totals)
+      .filter(p => ['facebook','instagram','youtube'].includes(p))
+      .map((p, idx) => {
+        const t = totals[p]
+        const avg_cpc = t.cpc_count > 0 ? t.cpc_sum / t.cpc_count : 0
+        const roas = t.total_spend > 0 ? t.total_revenue / t.total_spend : 0
+        return {
+          platform: p.charAt(0).toUpperCase() + p.slice(1),
+          total_spend: t.total_spend,
+          avg_cpc,
+          revenue_multiplier: roas,
+          color: palette[idx % palette.length],
+        }
+      })
+    return result
+  }
+
   useEffect(() => {
     if (!user) return
-    roiApi.costBreakdown(user.id, range).then((res) => setBreakdown(res.rows || [])).catch(() => setBreakdown([]))
-    const year = new Date().getUTCFullYear()
-    roiApi.monthlySpendTrends(user.id, year).then((res) => setMonthly(res.rows || [])).catch(() => setMonthly([]))
+    ;(async () => {
+      try {
+        // Cost breakdown: fetch ALL rows then filter/aggregate on client
+        const cb = await roiApi.costBreakdown(user.id, range)
+        if ('all_data' in cb) {
+          const filtered = filterDataByRange(cb.all_data, range)
+          setBreakdown(aggregatePlatformCosts(filtered))
+        } else {
+          setBreakdown([])
+        }
+      } catch (_) {
+        setBreakdown([])
+      }
+      try {
+        const year = new Date().getUTCFullYear()
+        const mt = await roiApi.monthlySpendTrends(user.id, year)
+        setMonthly((mt as any).rows || [])
+      } catch (_) {
+        setMonthly([])
+      }
+    })()
   }, [user, range])
+
+  const pieColors = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4']
 
   return (
     <div className="space-y-6">
@@ -40,7 +120,7 @@ export function CostAnalysis({ range = "30d" }: CostAnalysisProps) {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={breakdown.map(b => ({ category: b.platform, amount: Number(b.total_spend||0), color: "#3b82f6" }))}
+                  data={breakdown.map(b => ({ platform: b.platform, amount: Number(b.total_spend || 0) }))}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -48,89 +128,46 @@ export function CostAnalysis({ range = "30d" }: CostAnalysisProps) {
                   paddingAngle={5}
                   dataKey="amount"
                 >
-                  {breakdown.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {breakdown.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={breakdown[index]?.color || pieColors[index % pieColors.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, ""]} />
+                <Tooltip formatter={(value: any, _name: any, payload: any) => [`$${Number(value).toLocaleString()}`, payload?.payload?.platform || ""]} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="mt-4 space-y-2">
-              {breakdown.map((item, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }}></div>
-                    <span className="text-sm">{item.platform}</span>
-                  </div>
-                  <span className="text-sm font-medium">${Number(item.total_spend||0).toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Spend Trends</CardTitle>
+            <CardTitle>Cost Per Channel</CardTitle>
             <CardDescription>
-              {range === "7d" ? "Last 7 days cost evolution" :
-               range === "30d" ? "Last 30 days cost evolution" :
-               range === "90d" ? "Last 90 days cost evolution" :
-               range === "1y" ? "Last year cost evolution" :
-               "Cost evolution over time"}
+              {range === "7d" ? "Last 7 days cost analysis by channel" :
+               range === "30d" ? "Last 30 days cost analysis by channel" :
+               range === "90d" ? "Last 90 days cost analysis by channel" :
+               range === "1y" ? "Last year cost analysis by channel" :
+               "Detailed cost analysis by marketing channel"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthly.map(m => ({ month: m.month, adSpend: Number(m.spend||0), revenue: Number(m.revenue||0) }))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, ""]} />
-                <Bar dataKey="adSpend" fill="#3b82f6" name="Ad Spend" />
-                <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-5">
+              {breakdown.map((channel, index) => (
+                <div key={index} className="flex items-center justify-between p-6 rounded-xl border">
+                  <div className="flex items-center gap-4">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: channel.color || pieColors[index % pieColors.length] }}></div>
+                    <p className="font-semibold text-lg">{channel.platform}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-extrabold text-2xl">${Number(channel.total_spend || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Cost Per Channel</CardTitle>
-          <CardDescription>
-            {range === "7d" ? "Last 7 days cost analysis by channel" :
-             range === "30d" ? "Last 30 days cost analysis by channel" :
-             range === "90d" ? "Last 90 days cost analysis by channel" :
-             range === "1y" ? "Last year cost analysis by channel" :
-             "Detailed cost analysis by marketing channel"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {breakdown.map((channel, index) => (
-              <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  <div>
-                    <p className="font-medium">{channel.platform}</p>
-                    <p className="text-sm text-muted-foreground">Avg CPC: ${Number(channel.avg_cpc||0).toFixed(2)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="font-semibold">${Number(channel.total_spend||0).toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">Total spend</p>
-                  </div>
-                  <Badge variant={(channel as any).revenue_multiplier >= 4 ? "default" : (channel as any).revenue_multiplier >= 3 ? "secondary" : "destructive"}>
-                    {Number((channel as any).revenue_multiplier||0).toFixed(2)}x ROAS
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Removed bottom full-width Cost Per Channel card */}
     </div>
   )
 }
