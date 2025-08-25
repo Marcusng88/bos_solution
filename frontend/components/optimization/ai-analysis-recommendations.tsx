@@ -58,11 +58,11 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
         jsonText = jsonBlockMatch[1]
         console.log("✅ Found JSON in code block")
       } else {
-        // Try to find JSON object directly
-        const jsonMatch = response.match(/(\{[\s\S]*\})/)
+        // Try to find JSON object/array directly
+        const jsonMatch = response.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)
         if (jsonMatch) {
           jsonText = jsonMatch[1]
-          console.log("✅ Found JSON object directly")
+          console.log("✅ Found JSON object/array directly")
         }
       }
 
@@ -74,83 +74,207 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
       const parsed = JSON.parse(jsonText)
       console.log("✅ Successfully parsed JSON:", parsed)
 
+      // Check if this is competitor campaign array format
+      if (Array.isArray(parsed)) {
+        console.log("🏆 Detected competitor campaign array format")
+        return parseCompetitorCampaignArrayFormat(parsed)
+      }
+
+      // Check if this is competitor analysis format (old)
+      if (parsed.competitive_analysis && parsed.recommendations) {
+        console.log("🏆 Detected competitor analysis format")
+        return parseCompetitorAnalysisFormat(parsed)
+      }
+
+      // Standard self-optimization format
       if (!parsed.recommendations) {
         console.log("⚠️ JSON missing 'recommendations' key")
         return []
       }
 
-      const { recommendations } = parsed
-      const extractedRecommendations: Recommendation[] = []
-
-      // Process high priority recommendations
-      if (recommendations.high_priority && Array.isArray(recommendations.high_priority)) {
-        console.log(`📊 Processing ${recommendations.high_priority.length} high priority recommendations`)
-        if (recommendations.high_priority.length === 0) {
-          console.log("ℹ️ No high priority recommendations found")
-        }
-        recommendations.high_priority.forEach((rec: any, index: number) => {
-          if (rec.campaign_name && rec.action && rec.reasoning) {
-            const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
-            
-            extractedRecommendations.push({
-              id: `high-${index}-${Date.now()}`,
-              title: rec.campaign_name, // Use campaign name as title
-              description: rec.action, // Main action
-              priority: "high",
-              category: determineCategory(rec.action),
-              impact: impact,
-              effort: effort,
-              estimatedTime: estimatedTime,
-              actionType: actionType,
-              campaign: rec.campaign_name,
-              reasoning: rec.reasoning // Store reasoning separately
-            })
-          } else {
-            console.log("⚠️ Skipping incomplete high priority recommendation:", rec)
-          }
-        })
-      } else {
-        console.log("ℹ️ No high_priority array found or it's not an array")
-      }
-
-      // Process medium priority recommendations
-      if (recommendations.medium_priority && Array.isArray(recommendations.medium_priority)) {
-        console.log(`📊 Processing ${recommendations.medium_priority.length} medium priority recommendations`)
-        if (recommendations.medium_priority.length === 0) {
-          console.log("ℹ️ No medium priority recommendations found")
-        }
-        recommendations.medium_priority.forEach((rec: any, index: number) => {
-          if (rec.campaign_name && rec.action && rec.reasoning) {
-            const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
-            
-            extractedRecommendations.push({
-              id: `medium-${index}-${Date.now()}`,
-              title: rec.campaign_name, // Use campaign name as title
-              description: rec.action, // Main action
-              priority: "medium",
-              category: determineCategory(rec.action),
-              impact: impact,
-              effort: effort,
-              estimatedTime: estimatedTime,
-              actionType: actionType,
-              campaign: rec.campaign_name,
-              reasoning: rec.reasoning // Store reasoning separately
-            })
-          } else {
-            console.log("⚠️ Skipping incomplete medium priority recommendation:", rec)
-          }
-        })
-      } else {
-        console.log("ℹ️ No medium_priority array found or it's not an array")
-      }
-
-      console.log(`✅ Extracted ${extractedRecommendations.length} recommendations from JSON`)
-      return extractedRecommendations
+      return parseStandardRecommendationsFormat(parsed.recommendations)
 
     } catch (error) {
       console.log("❌ JSON parsing failed:", error)
       return []
     }
+  }
+
+  // Parse competitor campaign array format (new format)
+  const parseCompetitorCampaignArrayFormat = (campaigns: any[]): Recommendation[] => {
+    const extractedRecommendations: Recommendation[] = []
+    
+    console.log(`📊 Processing ${campaigns.length} competitor campaign entries`)
+    
+    campaigns.forEach((campaign, index) => {
+      // Only process campaigns that have competitor_name (not null) AND have actual content
+      if (campaign.competitor_name && 
+          campaign.competitor_name !== null && 
+          campaign.threatening_alerts && 
+          campaign.optimization_steps && 
+          campaign.results_and_predictions) {
+        
+        console.log(`🏆 Processing campaign with competitor: ${campaign.campaign_name} vs ${campaign.competitor_name}`)
+        
+        const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(campaign.optimization_steps || "")
+        
+        // Use the priority_level from the AI response, fallback to "high" if not provided
+        const priority = campaign.priority_level && 
+                        ["low", "medium", "high"].includes(campaign.priority_level.toLowerCase()) 
+                        ? campaign.priority_level.toLowerCase() 
+                        : "high"
+        
+        extractedRecommendations.push({
+          id: `comp-campaign-${index}-${Date.now()}`,
+          title: campaign.campaign_name,
+          description: campaign.optimization_steps,
+          priority: priority as "high" | "medium" | "low",
+          category: "Competitive Strategy",
+          impact: impact,
+          effort: effort,
+          estimatedTime: estimatedTime,
+          actionType: actionType,
+          campaign: campaign.campaign_name,
+          reasoning: `Competitor: ${campaign.competitor_name}
+
+Threatening Alerts: ${campaign.threatening_alerts}
+
+Results & Predictions: ${campaign.results_and_predictions}`
+        })
+      } else {
+        console.log(`⚪ Skipping campaign: ${campaign.campaign_name} (no competitor or missing data)`)
+      }
+    })
+
+    console.log(`✅ Extracted ${extractedRecommendations.length} competitor campaign recommendations from JSON`)
+    return extractedRecommendations
+  }
+
+  // Parse competitor analysis format
+  const parseCompetitorAnalysisFormat = (parsed: any): Recommendation[] => {
+    const extractedRecommendations: Recommendation[] = []
+    const { recommendations } = parsed
+
+    // Process high priority recommendations
+    if (recommendations.high_priority && Array.isArray(recommendations.high_priority)) {
+      console.log(`📊 Processing ${recommendations.high_priority.length} high priority competitor recommendations`)
+      recommendations.high_priority.forEach((rec: any, index: number) => {
+        if (rec.campaign_name && rec.action && rec.reasoning) {
+          const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
+          
+          extractedRecommendations.push({
+            id: `comp-high-${index}-${Date.now()}`,
+            title: rec.campaign_name,
+            description: rec.action,
+            priority: "high",
+            category: "Competitive Strategy",
+            impact: impact,
+            effort: effort,
+            estimatedTime: estimatedTime,
+            actionType: actionType,
+            campaign: rec.campaign_name,
+            reasoning: `${rec.reasoning}${rec.competitive_advantage ? ` Competitive Advantage: ${rec.competitive_advantage}` : ''}`
+          })
+        }
+      })
+    }
+
+    // Process medium priority recommendations
+    if (recommendations.medium_priority && Array.isArray(recommendations.medium_priority)) {
+      console.log(`📊 Processing ${recommendations.medium_priority.length} medium priority competitor recommendations`)
+      recommendations.medium_priority.forEach((rec: any, index: number) => {
+        if (rec.campaign_name && rec.action && rec.reasoning) {
+          const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
+          
+          extractedRecommendations.push({
+            id: `comp-medium-${index}-${Date.now()}`,
+            title: rec.campaign_name,
+            description: rec.action,
+            priority: "medium",
+            category: "Competitive Strategy",
+            impact: impact,
+            effort: effort,
+            estimatedTime: estimatedTime,
+            actionType: actionType,
+            campaign: rec.campaign_name,
+            reasoning: `${rec.reasoning}${rec.competitive_advantage ? ` Competitive Advantage: ${rec.competitive_advantage}` : ''}`
+          })
+        }
+      })
+    }
+
+    console.log(`✅ Extracted ${extractedRecommendations.length} competitor recommendations from JSON`)
+    return extractedRecommendations
+  }
+
+  // Parse standard recommendations format (original)
+  const parseStandardRecommendationsFormat = (recommendations: any): Recommendation[] => {
+    const extractedRecommendations: Recommendation[] = []
+
+    // Process high priority recommendations
+    if (recommendations.high_priority && Array.isArray(recommendations.high_priority)) {
+      console.log(`📊 Processing ${recommendations.high_priority.length} high priority recommendations`)
+      if (recommendations.high_priority.length === 0) {
+        console.log("ℹ️ No high priority recommendations found")
+      }
+      recommendations.high_priority.forEach((rec: any, index: number) => {
+        if (rec.campaign_name && rec.action && rec.reasoning) {
+          const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
+          
+          extractedRecommendations.push({
+            id: `high-${index}-${Date.now()}`,
+            title: rec.campaign_name, // Use campaign name as title
+            description: rec.action, // Main action
+            priority: "high",
+            category: determineCategory(rec.action),
+            impact: impact,
+            effort: effort,
+            estimatedTime: estimatedTime,
+            actionType: actionType,
+            campaign: rec.campaign_name,
+            reasoning: rec.reasoning // Store reasoning separately
+          })
+        } else {
+          console.log("⚠️ Skipping incomplete high priority recommendation:", rec)
+        }
+      })
+    } else {
+      console.log("ℹ️ No high_priority array found or it's not an array")
+    }
+
+    // Process medium priority recommendations
+    if (recommendations.medium_priority && Array.isArray(recommendations.medium_priority)) {
+      console.log(`📊 Processing ${recommendations.medium_priority.length} medium priority recommendations`)
+      if (recommendations.medium_priority.length === 0) {
+        console.log("ℹ️ No medium priority recommendations found")
+      }
+      recommendations.medium_priority.forEach((rec: any, index: number) => {
+        if (rec.campaign_name && rec.action && rec.reasoning) {
+          const { actionType, impact, effort, estimatedTime } = categorizeRecommendation(rec.action)
+          
+          extractedRecommendations.push({
+            id: `medium-${index}-${Date.now()}`,
+            title: rec.campaign_name, // Use campaign name as title
+            description: rec.action, // Main action
+            priority: "medium",
+            category: determineCategory(rec.action),
+            impact: impact,
+            effort: effort,
+            estimatedTime: estimatedTime,
+            actionType: actionType,
+            campaign: rec.campaign_name,
+            reasoning: rec.reasoning // Store reasoning separately
+          })
+        } else {
+          console.log("⚠️ Skipping incomplete medium priority recommendation:", rec)
+        }
+      })
+    } else {
+      console.log("ℹ️ No medium_priority array found or it's not an array")
+    }
+
+    console.log(`✅ Extracted ${extractedRecommendations.length} recommendations from JSON`)
+    return extractedRecommendations
   }
 
   // Helper function to determine category from action text
@@ -406,11 +530,18 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
       // Shorter delay for better user experience
       setTimeout(() => {
         const extractedRecommendations = analyzeAIResponse(aiResponse)
-        setRecommendations(extractedRecommendations)
+        
+        // Sort recommendations by priority: high -> medium -> low
+        const sortedRecommendations = extractedRecommendations.sort((a, b) => {
+          const priorityOrder = { high: 3, medium: 2, low: 1 }
+          return priorityOrder[b.priority] - priorityOrder[a.priority]
+        })
+        
+        setRecommendations(sortedRecommendations)
         setIsAnalyzing(false)
         setAnalysisComplete(true)
         
-        if (extractedRecommendations.length === 0) {
+        if (sortedRecommendations.length === 0) {
           console.log("⚠️ No recommendations extracted - check AI response format")
           console.log("Raw AI Response:", aiResponse.substring(0, 500) + "...")
         }
@@ -604,6 +735,11 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
                       <Badge variant={getPriorityBadgeColor(recommendation.priority)}>
                         {recommendation.priority.toUpperCase()} PRIORITY
                       </Badge>
+                      {recommendation.category === "Competitive Strategy" && (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                          🏆 Competitor Alert
+                        </Badge>
+                      )}
                     </div>
                     
                     {/* Action Type */}
@@ -628,10 +764,20 @@ export function AIAnalysisRecommendations({ aiResponse, onRecommendationClick }:
                     {recommendation.reasoning && (
                       <div className="space-y-2">
                         <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                          Reasoning:
+                          {recommendation.category === "Competitive Strategy" ? "Competitive Analysis:" : "Reasoning:"}
                         </div>
-                        <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-green-200">
-                          {recommendation.reasoning}
+                        <div className={`text-sm leading-relaxed dark:text-gray-400 pl-4 border-l-2 ${
+                          recommendation.category === "Competitive Strategy" 
+                            ? "text-purple-700 border-purple-200 bg-purple-50 dark:bg-purple-950/20 p-3 rounded-r-md" 
+                            : "text-gray-600 border-green-200"
+                        }`}>
+                          {recommendation.reasoning.split('\n').map((line, idx) => (
+                            <div key={idx} className={line.trim().startsWith('Competitor:') ? 'font-semibold text-purple-800 dark:text-purple-300 mb-2' : 
+                                                    line.trim().startsWith('Threatening Alerts:') ? 'font-medium text-red-700 dark:text-red-400 mb-1' :
+                                                    line.trim().startsWith('Results & Predictions:') ? 'font-medium text-green-700 dark:text-green-400 mb-1' : ''}>
+                              {line}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

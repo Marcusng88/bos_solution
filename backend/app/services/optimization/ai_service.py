@@ -66,12 +66,15 @@ class AIService:
         # Get monitoring data
         monitoring_data = await self._get_monitoring_data(user_id)
         
+        # Get monitoring alerts data
+        monitoring_alerts_data = await self._get_monitoring_alerts_data(user_id)
+        
         # Get risk calculation context (not old data, just the calculation logic)
         risk_context = await self._get_risk_calculation_context()
         
         # Generate AI analysis
         analysis = await self._generate_campaign_analysis(
-            campaign_data, competitor_data, monitoring_data, risk_context
+            campaign_data, competitor_data, monitoring_data, monitoring_alerts_data, risk_context
         )
         
         return analysis
@@ -83,11 +86,38 @@ class AIService:
         campaign_data = await self._get_campaign_data(user_id)
         competitor_data = await self._get_competitor_data(user_id)
         monitoring_data = await self._get_monitoring_data(user_id)
+        
+        # Get monitoring alerts with explicit error handling
+        try:
+            logger.info("🚨 ABOUT TO GET MONITORING ALERTS...")
+            monitoring_alerts_data = await self._get_monitoring_alerts_data(user_id)
+            logger.info(f"🚨 MONITORING ALERTS RETRIEVED: {len(monitoring_alerts_data)} records")
+        except Exception as alerts_error:
+            logger.error(f"🚨 ERROR GETTING MONITORING ALERTS: {alerts_error}")
+            logger.error(f"🚨 ERROR TYPE: {type(alerts_error)}")
+            import traceback
+            logger.error(f"🚨 TRACEBACK: {traceback.format_exc()}")
+            monitoring_alerts_data = []
+        
         risk_context = await self._get_risk_calculation_context()
+        
+        # Log data availability for debugging
+        logger.info(f"🔍 Data available for AI chat - User: {user_id}")
+        logger.info(f"� User ID type: {type(user_id)}")
+        logger.info(f"🔍 User ID comparison - Test: user_31KT7lnRSm5G57HC4gfDUb2F9Ci, Actual: {user_id}")
+        logger.info(f"🔍 User ID match: {user_id == 'user_31KT7lnRSm5G57HC4gfDUb2F9Ci'}")
+        logger.info(f"�📊 Campaign data: {len(campaign_data)} records")
+        logger.info(f"🏢 Competitor data: {len(competitor_data)} records")
+        logger.info(f"👁️ Monitoring data: {len(monitoring_data)} records")
+        logger.info(f"🚨 Monitoring alerts data: {len(monitoring_alerts_data)} records")
+        if monitoring_alerts_data:
+            logger.info(f"🚨 Sample alert: {monitoring_alerts_data[0].get('title', 'No title')} - {monitoring_alerts_data[0].get('priority', 'No priority')}")
+        else:
+            logger.warning(f"🚨 NO MONITORING ALERTS FOUND - this might be the issue!")
         
         # Generate response
         response = await self._generate_chat_response(
-            message, campaign_data, competitor_data, monitoring_data, risk_context
+            message, campaign_data, competitor_data, monitoring_data, monitoring_alerts_data, risk_context
         )
         
         return response
@@ -101,8 +131,11 @@ class AIService:
                 logger.warning("⚠️ Supabase client not available, using sample data")
                 return self._get_sample_campaign_data()
             
-            # Query all campaign data from Supabase (no user_id filter)
-            response = supabase_client.client.table('campaign_data').select('*').order('date', desc=True).limit(500).execute()
+            # Query campaign data from Supabase with user filter if available
+            if user_id:
+                response = supabase_client.client.table('campaign_data').select('*').eq('user_id', user_id).order('date', desc=True).limit(500).execute()
+            else:
+                response = supabase_client.client.table('campaign_data').select('*').order('date', desc=True).limit(500).execute()
             
             if not response.data:
                 logger.warning("⚠️ No campaigns found in database, using sample data")
@@ -174,8 +207,11 @@ class AIService:
                 logger.warning("⚠️ Supabase client not available, using sample data")
                 return self._get_sample_competitor_data()
             
-            # Query all active competitor data from Supabase (no user_id filter)
-            response = supabase_client.client.table('competitors').select('*').eq('status', 'active').limit(10).execute()
+            # Query competitor data from Supabase with user filter if available
+            if user_id:
+                response = supabase_client.client.table('competitors').select('*').eq('user_id', user_id).eq('status', 'active').limit(10).execute()
+            else:
+                response = supabase_client.client.table('competitors').select('*').eq('status', 'active').limit(10).execute()
             
             if not response.data:
                 logger.warning("⚠️ No competitors found in database, using sample data")
@@ -229,8 +265,16 @@ class AIService:
                 logger.warning("⚠️ Supabase client not available, using sample data")
                 return self._get_sample_monitoring_data()
             
-            # Query all monitoring data from Supabase (no user_id filter)
-            response = supabase_client.client.table('monitoring_data').select('*').order('detected_at', desc=True).limit(20).execute()
+            # Query monitoring data from Supabase with user filter if available
+            if user_id:
+                # Try with user_id first, fallback if column doesn't exist
+                try:
+                    response = supabase_client.client.table('monitoring_data').select('*').eq('user_id', user_id).order('detected_at', desc=True).limit(20).execute()
+                except Exception as user_filter_error:
+                    logger.warning(f"⚠️ user_id column may not exist in monitoring_data, trying without filter: {user_filter_error}")
+                    response = supabase_client.client.table('monitoring_data').select('*').order('detected_at', desc=True).limit(20).execute()
+            else:
+                response = supabase_client.client.table('monitoring_data').select('*').order('detected_at', desc=True).limit(20).execute()
             
             if not response.data:
                 logger.warning("⚠️ No monitoring data found, using sample data")
@@ -275,6 +319,177 @@ class AIService:
                 "sentiment": 0.6,
                 "posted_at": datetime.now().isoformat(),
                 "competitor_id": "sample-2"
+            }
+        ]
+    
+    async def _get_monitoring_alerts_data(self, user_id: str = None) -> List[Dict[str, Any]]:
+        """Get monitoring alerts data from Supabase - all recent alerts"""
+        try:
+            logger.info("🔍 Getting monitoring alerts data from Supabase")
+            logger.info(f"🔍 User ID for alerts query: {user_id}")
+            
+            if not supabase_client:
+                logger.warning("⚠️ Supabase client not available, using sample alerts data")
+                return self._get_sample_monitoring_alerts_data()
+            
+            # Query monitoring alerts from Supabase with user filter if available
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
+            
+            try:
+                if user_id:
+                    logger.info(f"🔍 Querying monitoring_alerts with user filter: {user_id}")
+                    response = supabase_client.client.table('monitoring_alerts').select('*').eq('user_id', user_id).gte('created_at', thirty_days_ago).order('created_at', desc=True).limit(100).execute()
+                else:
+                    logger.info("🔍 Querying monitoring_alerts without user filter")
+                    response = supabase_client.client.table('monitoring_alerts').select('*').gte('created_at', thirty_days_ago).order('created_at', desc=True).limit(100).execute()
+                
+                logger.info(f"📊 Raw monitoring alerts query response count: {len(response.data) if response.data else 0}")
+                
+                if not response.data:
+                    logger.warning("⚠️ No monitoring alerts found in database, using sample data")
+                    return self._get_sample_monitoring_alerts_data()
+                
+                logger.info(f"📊 Raw monitoring alerts response sample: {response.data[0] if response.data else 'No data'}")
+                
+                alerts_data = []
+                for row in response.data:
+                    alert_dict = {
+                        "alert_id": row.get('id'),
+                        "competitor_id": row.get('competitor_id'),
+                        "monitoring_data_id": row.get('monitoring_data_id'),
+                        "alert_type": row.get('alert_type'),
+                        "priority": row.get('priority'),
+                        "title": row.get('title'),
+                        "message": row.get('message'),  # Plain summary text
+                        "alert_metadata": row.get('alert_metadata'),  # JSON description
+                        "is_read": row.get('is_read'),
+                        "is_dismissed": row.get('is_dismissed'),
+                        "created_at": row.get('created_at'),
+                        "read_at": row.get('read_at'),
+                        "dismissed_at": row.get('dismissed_at'),
+                        "user_id": row.get('user_id')
+                    }
+                    # Convert any non-JSON-serializable objects
+                    alert_dict = convert_decimal_to_float(alert_dict)
+                    alerts_data.append(alert_dict)
+                
+                logger.info(f"📊 Found {len(alerts_data)} monitoring alerts")
+                logger.info(f"📊 Sample alert data: {alerts_data[0].get('title', 'No title')} - Priority: {alerts_data[0].get('priority', 'No priority')}")
+                return alerts_data
+                
+            except Exception as db_error:
+                logger.error(f"❌ Database query error for monitoring_alerts: {db_error}")
+                logger.warning("⚠️ Falling back to sample monitoring alerts data due to DB error")
+                return self._get_sample_monitoring_alerts_data()
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting monitoring alerts data: {e}")
+            logger.warning("⚠️ Falling back to sample monitoring alerts data")
+            return self._get_sample_monitoring_alerts_data()
+    
+    def _get_sample_monitoring_alerts_data(self) -> List[Dict[str, Any]]:
+        """Return sample monitoring alerts data when database is unavailable - matches real DB structure"""
+        logger.info("🔄 Using sample monitoring alerts data")
+        return [
+            {
+                "alert_id": "00f0511e-5685-46bd-b7f0-bd725a55219e",
+                "competitor_id": "f8d33084-071c-495c-a660-0cbaff354f1e",
+                "monitoring_data_id": "da2cbde6-62cf-4f5a-a6e3-91dbb876e6e4",
+                "alert_type": "web_intelligence",
+                "priority": "high",
+                "title": "Web Intelligence Alert: FIFA Rivals Launches Globally June 12 with Exclusive adidas ...",
+                "message": "Major product launch announcement with a significant brand collaboration.",
+                "alert_metadata": {
+                    "source": "",
+                    "platform": "browser",
+                    "ai_analysis": {
+                        "urgency": "high",
+                        "content_type": "announcement",
+                        "key_insights": [
+                            "Adidas is actively participating in the gaming and esports ecosystem through strategic collaborations.",
+                            "The partnership with FIFA Rivals signifies Adidas's interest in integrating its brand with emerging technologies like blockchain within gaming.",
+                            "This move aims to enhance brand relevance and engagement with a target demographic interested in gaming, culture, and digital customization."
+                        ],
+                        "analysis_timestamp": "2025-08-24T16:10:28.024070+00:00",
+                        "competitive_impact": "medium",
+                        "significance_score": 7
+                    },
+                    "content_url": "https://egw.news/fifa/news/28151/fifa-rivals-launches-globally-june-12-with-exclusi-E1xJUgp9I",
+                    "relevance_score": 0.34171483
+                },
+                "is_read": False,
+                "is_dismissed": False,
+                "created_at": "2025-08-24T16:10:28.024070+00:00",
+                "read_at": None,
+                "dismissed_at": None,
+                "user_id": "user_31KT7lnRSm5G57HC4gfDUb2F9Ci"
+            },
+            {
+                "alert_id": "023eee56-846e-4e68-ae7a-9dee86bc6213",
+                "competitor_id": "f8d33084-071c-495c-a660-0cbaff354f1e",
+                "monitoring_data_id": "cb3a62ee-88bc-4ca2-9a83-9244d773eebf",
+                "alert_type": "web_intelligence",
+                "priority": "medium",
+                "title": "Web Intelligence Alert: Adidas launches all-new Saudi Arabian Football Federation home ...",
+                "message": "Major product launch and strategic market expansion",
+                "alert_metadata": {
+                    "source": "",
+                    "platform": "browser",
+                    "ai_analysis": {
+                        "urgency": "medium",
+                        "content_type": "announcement",
+                        "key_insights": [
+                            "Adidas is actively targeting the Middle Eastern market with culturally relevant product launches.",
+                            "The brand is emphasizing inclusivity by featuring hijabi athletes in its global campaigns.",
+                            "Adidas is strategically expanding its presence and infrastructure in new territories, specifically mentioning the Middle East."
+                        ],
+                        "analysis_timestamp": "2025-08-24T15:39:23.683619+00:00",
+                        "competitive_impact": "medium",
+                        "significance_score": 7
+                    },
+                    "content_url": "https://arab.news/my9es",
+                    "relevance_score": 0.48689327
+                },
+                "is_read": False,
+                "is_dismissed": False,
+                "created_at": "2025-08-24T15:39:23.683619+00:00",
+                "read_at": None,
+                "dismissed_at": None,
+                "user_id": "user_31KT7lnRSm5G57HC4gfDUb2F9Ci"
+            },
+            {
+                "alert_id": "02d07f98-cd9f-4ed9-94f9-b7e28f5ee211",
+                "competitor_id": "f8d33084-071c-495c-a660-0cbaff354f1e",
+                "monitoring_data_id": "12895a98-abdb-49ff-a466-6bb9e4a77af4",
+                "alert_type": "web_intelligence",
+                "priority": "high",
+                "title": "Web Intelligence Alert: Commercial relation between Germany and Adidas will end in 2027",
+                "message": "Significant business development/change, strategic pivot/market move, crisis situation/negative coverage.",
+                "alert_metadata": {
+                    "source": "",
+                    "platform": "browser",
+                    "ai_analysis": {
+                        "urgency": "high",
+                        "content_type": "news",
+                        "key_insights": [
+                            "Adidas is losing a major, long-term sponsorship deal with the German national football team to Nike.",
+                            "The loss of the DFB partnership is a significant blow to Adidas's brand visibility and historical connection to German football.",
+                            "This move by Nike represents a strategic gain in a key European market and a direct challenge to Adidas's dominance in its home country.",
+                            "Adidas's surprise at the decision, coupled with recent financial losses, suggests potential underlying issues in its relationship management or market competitiveness."
+                        ],
+                        "analysis_timestamp": "2025-08-24T16:10:17.900073+00:00",
+                        "competitive_impact": "high",
+                        "significance_score": 9
+                    },
+                    "content_url": "https://bitfinance.news/en/commercial-relation-between-germany-and-adidas-will-end-in-2027/",
+                    "relevance_score": 0.4646835
+                },
+                "is_read": False,
+                "is_dismissed": False,
+                "created_at": "2025-08-24T16:10:17.900073+00:00",
+                "read_at": None,
+                "dismissed_at": None,
+                "user_id": "user_31KT7lnRSm5G57HC4gfDUb2F9Ci"
             }
         ]
     
@@ -336,6 +551,7 @@ class AIService:
         campaign_data: List[Dict[str, Any]], 
         competitor_data: List[Dict[str, Any]], 
         monitoring_data: List[Dict[str, Any]], 
+        monitoring_alerts_data: List[Dict[str, Any]],
         risk_context: str
     ) -> Dict[str, Any]:
         """Generate AI analysis of campaign data"""
@@ -345,27 +561,50 @@ class AIService:
             campaign_data_json = json.dumps(convert_decimal_to_float(campaign_data), indent=2, default=str)
             competitor_data_json = json.dumps(convert_decimal_to_float(competitor_data), indent=2, default=str)
             monitoring_data_json = json.dumps(convert_decimal_to_float(monitoring_data), indent=2, default=str)
+            monitoring_alerts_json = json.dumps(convert_decimal_to_float(monitoring_alerts_data), indent=2, default=str)
         except Exception as json_error:
             logger.error(f"JSON serialization error: {json_error}")
             # Fallback to string representation
             campaign_data_json = str(convert_decimal_to_float(campaign_data))
             competitor_data_json = str(convert_decimal_to_float(competitor_data))
             monitoring_data_json = str(convert_decimal_to_float(monitoring_data))
+            monitoring_alerts_json = str(convert_decimal_to_float(monitoring_alerts_data))
         
         combined_prompt = f"""You are an expert marketing AI analyst specializing in campaign optimization and performance analysis.
 
 Please list any recommendation actions or optimization steps that can be taken to improve the performance of all my ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please give your response in a structured JSON output format.
 
+**CRITICAL - MONITORING ALERTS INTEGRATION**: 
+YOU MUST ANALYZE AND USE THE MONITORING ALERTS DATA PROVIDED BELOW. This is REAL-TIME intelligence about:
+- Competitor activities (Adidas, Nike, etc.)
+- Market opportunities and threats
+- Industry trends and changes
+- Product launches and business developments
+
+**REQUIRED ANALYSIS**:
+1. Review each monitoring alert in the "Monitoring Alerts" section
+2. Extract key insights from both the "message" field and "alert_metadata" field
+3. Use competitor intelligence to inform campaign recommendations
+4. Reference specific alerts by title when making recommendations
+
 **IMPORTANT**: 
 - Focus ONLY on campaigns where ongoing = 'Yes' in the data
 - Always mention specific campaign names from the data
-- Provide actionable, specific recommendations with clear reasoning
+- MUST reference monitoring alerts data in your recommendations
+- Use competitor intelligence from alerts for strategic positioning
+- Consider market trends from alerts for optimization opportunities
 - Use the exact JSON format specified below
 
 Available REAL-TIME Data:
+
 Campaign Data: {campaign_data_json}
+
 Competitor Data: {competitor_data_json}
+
 Market Monitoring: {monitoring_data_json}
+
+Monitoring Alerts: {monitoring_alerts_json}
+
 Risk Calculation Context: {risk_context}
 
 Please provide your response in this EXACT JSON format:
@@ -389,7 +628,7 @@ Please provide your response in this EXACT JSON format:
   }}
 }}
 
-Only include campaigns where ongoing = 'Yes'. Categorize recommendations by priority based on potential impact and urgency."""
+Only include campaigns where ongoing = 'Yes'. Categorize recommendations by priority based on potential impact and urgency. Use insights from monitoring alerts to inform your recommendations."""
         
         try:
             # Use HumanMessage only (no SystemMessage)
@@ -429,6 +668,7 @@ Only include campaigns where ongoing = 'Yes'. Categorize recommendations by prio
         campaign_data: List[Dict[str, Any]], 
         competitor_data: List[Dict[str, Any]], 
         monitoring_data: List[Dict[str, Any]], 
+        monitoring_alerts_data: List[Dict[str, Any]],
         risk_context: str
     ) -> str:
         """Generate AI chat response"""
@@ -438,42 +678,64 @@ Only include campaigns where ongoing = 'Yes'. Categorize recommendations by prio
             campaign_data_json = json.dumps(convert_decimal_to_float(campaign_data), indent=2, default=str)
             competitor_data_json = json.dumps(convert_decimal_to_float(competitor_data), indent=2, default=str)
             monitoring_data_json = json.dumps(convert_decimal_to_float(monitoring_data), indent=2, default=str)
+            monitoring_alerts_json = json.dumps(convert_decimal_to_float(monitoring_alerts_data), indent=2, default=str)
         except Exception as json_error:
             logger.error(f"JSON serialization error: {json_error}")
             # Fallback to string representation
             campaign_data_json = str(convert_decimal_to_float(campaign_data))
             competitor_data_json = str(convert_decimal_to_float(competitor_data))
             monitoring_data_json = str(convert_decimal_to_float(monitoring_data))
+            monitoring_alerts_json = str(convert_decimal_to_float(monitoring_alerts_data))
         
         combined_prompt = f"""You are an expert marketing AI assistant for a business operations system. 
- 
- You have access to REAL-TIME data from:
- - Campaign performance data (from Supabase campaign_data table)
- - Competitor analysis
- - Market monitoring data
- - Risk calculation methodology
- 
- Provide helpful, actionable advice about:
- - Campaign optimization
- - Budget management
- - Performance analysis
- - Competitive insights
- - Risk assessment
- - General marketing questions
- 
- Be conversational but professional. Provide specific, actionable insights based on the REAL-TIME data available.
- 
-   **IMPORTANT**: When analyzing campaigns, always mention specific campaign names from the data (e.g., "Adidas Boost Launch", "CocaCola Refresh 2025", "Lazada Flash Sales 8.8"). This helps users understand which campaigns you're referring to. When asked about ongoing campaigns, focus specifically on campaigns where ongoing = 'Yes'.
+
+**CRITICAL - YOU MUST USE THE MONITORING ALERTS DATA**: 
+YOU HAVE ACCESS TO REAL-TIME MONITORING ALERTS from Supabase that contain critical competitive intelligence and market insights. YOU MUST analyze and reference this data in your responses.
+
+REAL-TIME Data Sources:
+- Campaign performance data (from Supabase campaign_data table)
+- Competitor analysis (from Supabase competitors table)  
+- Market monitoring data (from Supabase monitoring_data table)
+- **MONITORING ALERTS** (from Supabase monitoring_alerts table) - YOUR PRIMARY INTELLIGENCE SOURCE
+- Risk calculation methodology
+
+**MONITORING ALERTS DATA REQUIREMENTS**:
+1. ANALYZE each monitoring alert provided in the data below
+2. EXTRACT insights from both "message" (summary) and "alert_metadata" (detailed JSON)
+3. REFERENCE specific alerts by title when providing advice
+4. USE competitor intelligence from alerts for strategic recommendations
+5. IDENTIFY market trends and opportunities from the alerts
+
+The monitoring_alerts contain:
+- Real competitor activities (Adidas, Nike, etc.)
+- Market opportunities and threats
+- Performance anomalies and risks  
+- Business developments and product launches
+- Priority levels: low, medium, high, critical
+
+**RESPONSE REQUIREMENTS**:
+- Always CITE specific monitoring alerts when making recommendations
+- Reference competitor activities from the alerts data
+- Use market intelligence from alerts to inform strategy
+- When analyzing campaigns, mention specific campaign names
+- For ongoing campaigns, focus on campaigns where ongoing = 'Yes'
+- Be conversational but professional with data-driven insights
   
   User Question: {message}
  
  Available REAL-TIME Data:
+ 
  Campaign Data: {campaign_data_json}
+ 
  Competitor Data: {competitor_data_json}
+ 
  Market Monitoring: {monitoring_data_json}
+ 
+ Monitoring Alerts: {monitoring_alerts_json}
+ 
  Risk Calculation Context: {risk_context}
  
- Please provide a helpful, actionable response to the user's question based on the REAL-TIME data available. Always reference specific campaign names when discussing performance."""
+ Please provide a helpful, actionable response to the user's question based on the REAL-TIME data available. Always reference specific campaign names when discussing performance. When discussing alerts, explicitly use the monitoring alerts data provided above."""
         
         try:
             # Use HumanMessage only (no SystemMessage)
@@ -615,8 +877,12 @@ Only include campaigns where ongoing = 'Yes'. Categorize recommendations by prio
 
 # Global AI service instance
 try:
+    logger.info("🔧 Creating fresh global AI service instance...")
     ai_service = AIService()
     logger.info("✅ Global AI service instance created successfully")
+    logger.info(f"🔧 AI service methods: {[method for method in dir(ai_service) if not method.startswith('_') or method == '_get_monitoring_alerts_data']}")
 except Exception as e:
     logger.error(f"❌ Failed to create global AI service instance: {e}")
+    import traceback
+    logger.error(f"❌ Traceback: {traceback.format_exc()}")
     ai_service = None

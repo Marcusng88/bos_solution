@@ -400,7 +400,11 @@ export class ApiClient {
     });
   }
 
-  async createCampaign(userId: string, campaignData: any) {
+  async createCampaign(userId: string, campaignData: {
+    name: string;
+    budget: number;
+    ongoing: 'Yes' | 'No';
+  }) {
     return this.request('/self-optimization/campaigns', {
       userId,
       method: 'POST',

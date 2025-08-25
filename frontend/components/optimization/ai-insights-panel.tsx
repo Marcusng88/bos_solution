@@ -19,7 +19,9 @@ import {
   TrendingUp, 
   ShieldAlert,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Users,
+  Target
 } from "lucide-react"
 
 interface AIAnalysis {
@@ -37,6 +39,7 @@ export function AIInsightsPanel() {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aiResponse, setAiResponse] = useState<string>("")
+  const [isCompetitorMode, setIsCompetitorMode] = useState(false) // New state for toggle
 
   // Only show content if user is signed in
   if (!isSignedIn || !user) {
@@ -63,6 +66,16 @@ export function AIInsightsPanel() {
 
   const { apiClient, userId } = useApiClient()
 
+  const handleModeChange = (competitorMode: boolean) => {
+    // Reset all states when switching modes
+    setIsCompetitorMode(competitorMode)
+    setIsScanning(false)
+    setScanProgress(0)
+    setAnalysis(null)
+    setError(null)
+    setAiResponse("")
+  }
+
   const handleAIScan = async () => {
     setIsScanning(true)
     setScanProgress(0)
@@ -73,6 +86,7 @@ export function AIInsightsPanel() {
     try {
       console.log("🔍 Starting AI scan...")
       console.log("🔍 User ID:", userId)
+      console.log("🔍 Competitor Mode:", isCompetitorMode)
       
       // Simulate progress updates
       const progressInterval = setInterval(() => {
@@ -85,9 +99,25 @@ export function AIInsightsPanel() {
         })
       }, 500)
 
-      // Call the AI chat endpoint with the specific question
+      // Call the AI chat endpoint with the specific question based on mode
       console.log("🔍 Calling AI chat endpoint...")
-      const aiQuestion = `Please list and explain any recommendation actions or optimizations steps that can be taken to improve the performance for my ongoing campaigns.You need not have to give actions to every ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please give your response in a structured JSON output format, just the json file do not add any other words, as the example below:
+      
+      let aiQuestion = ""
+      if (isCompetitorMode) {
+        // Competitor-based optimization prompt
+        aiQuestion = `Now I want you to detect how many competitors are there in the monitoring_alerts table. Please anaylse carefully whether they are related to the ongoing campaigns we have. For example, if you have detected Apple as competitor and we have campaigns of Uniqlo and Samsung, then obviously Apple has no connection with Uniqlo but is related to Samsung as competitor. Then, give me optimization on my currently ongoing campaigns only based on the competitor alerts that match to our ongoing campaigns that you have detected earlier. I want you to give me a structured output JSON file for me that contains these data fields, just the JSON file. The JSON file structure should look like this:
+
+campaign_name:
+competitor_name(can be null):
+threatening_alerts (please be short around 50 words):
+optimization_steps (please be short around 100 words,what are the steps can be implemented to boost the campaign to win against competitor, this can be reallocating budget etc):
+results_and_predictions (please be short around 100 words,after the optimization steps are implemented, what will happen to the performance of our campaigns and what are the results?):
+priority_level(low,medium,high, how important this optimization has to be implemented on the campaign)
+
+please be short, give your response in less than 3000 characters`
+      } else {
+        // Self-optimization prompt (original)
+        aiQuestion = `Please list and explain any recommendation actions or optimizations steps that can be taken to improve the performance for my ongoing campaigns.You need not have to give actions to every ongoing campaigns. Please summarize your recommendation actions into high priority and medium priority. Please give your response in a structured JSON output format, just the json file do not add any other words, as the example below:
 {
   "recommendations": {
     "high_priority": [
@@ -106,6 +136,7 @@ export function AIInsightsPanel() {
     ]
   }
 }`
+      }
       
       const response = await apiClient.chatWithAI(userId, aiQuestion)
 
@@ -173,21 +204,80 @@ export function AIInsightsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Toggle Button Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-1 flex">
+                <button
+                  onClick={() => handleModeChange(false)}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-md text-sm font-medium transition-all ${
+                    !isCompetitorMode
+                      ? "bg-white dark:bg-gray-700 text-blue-600 shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <Target className="h-5 w-5" />
+                  Self-Optimization
+                </button>
+                <button
+                  onClick={() => handleModeChange(true)}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-md text-sm font-medium transition-all ${
+                    isCompetitorMode
+                      ? "bg-white dark:bg-gray-700 text-purple-600 shadow-sm"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <Users className="h-5 w-5" />
+                  Competitor Analysis
+                </button>
+              </div>
+            </div>
+            
+            {/* Mode Description */}
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                {isCompetitorMode 
+                  ? "Analyze performance against competitors and find competitive advantages"
+                  : "Focus on internal campaign optimization and performance improvements"
+                }
+              </p>
+            </div>
+          </div>
           {!isScanning && !analysis && (
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center">
-                <Zap className="h-12 w-12 text-blue-600 mb-4" />
+                {isCompetitorMode ? (
+                  <Users className="h-12 w-12 text-purple-600 mb-4" />
+                ) : (
+                  <Zap className="h-12 w-12 text-blue-600 mb-4" />
+                )}
               </div>
-              <p className="text-muted-foreground">
-                Click the button below to start AI analysis of your campaigns
+              <p className="text-sm text-muted-foreground">
+                {isCompetitorMode
+                  ? "Click the button below to start competitor-based AI analysis"
+                  : "Click the button below to start AI analysis of your campaigns"
+                }
               </p>
               <Button 
                 onClick={handleAIScan}
                 size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                className={`px-8 py-3 text-sm font-semibold text-white ${
+                  isCompetitorMode
+                    ? "bg-purple-600 hover:bg-purple-700"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
               >
-                <Brain className="h-5 w-5 mr-2" />
-                Start AI Scan
+                {isCompetitorMode ? (
+                  <>
+                    <Users className="h-6 w-6 mr-3" />
+                    Start Competitor Analysis
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-6 w-6 mr-3" />
+                    Start AI Scan
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -196,19 +286,26 @@ export function AIInsightsPanel() {
           {isScanning && (
             <div className="space-y-4">
               <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">AI Agent is Analyzing...</h3>
-                <p className="text-muted-foreground mb-4">
-                  Scanning campaigns, competitors, and market data for insights
+                <Loader2 className={`h-8 w-8 animate-spin mx-auto mb-4 ${
+                  isCompetitorMode ? "text-purple-600" : "text-blue-600"
+                }`} />
+                <h3 className="text-lg font-semibold mb-3">
+                  {isCompetitorMode ? "AI Agent is Analyzing Competitors..." : "AI Agent is Analyzing..."}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {isCompetitorMode
+                    ? "Comparing your performance against competitors and market data"
+                    : "Scanning campaigns, competitors, and market data for insights"
+                  }
                 </p>
               </div>
               
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm font-medium">
                   <span>Progress</span>
                   <span>{scanProgress}%</span>
                 </div>
-                <Progress value={scanProgress} className="h-2" />
+                <Progress value={scanProgress} className="h-3" />
               </div>
             </div>
           )}
@@ -218,9 +315,9 @@ export function AIInsightsPanel() {
             <div className="text-center space-y-4">
               <AlertTriangle className="h-12 w-12 text-red-600 mx-auto" />
               <div>
-                <h3 className="text-lg font-semibold text-red-600 mb-2">Analysis Failed</h3>
-                <p className="text-muted-foreground mb-4">{error}</p>
-                <Button onClick={handleAIScan} variant="outline">
+                <h3 className="text-lg font-semibold text-red-600 mb-3">Analysis Failed</h3>
+                <p className="text-sm text-muted-foreground mb-4">{error}</p>
+                <Button onClick={handleAIScan} variant="outline" className="text-sm px-4 py-2">
                   Try Again
                 </Button>
               </div>
@@ -239,7 +336,7 @@ export function AIInsightsPanel() {
                         <TrendingUp className="h-5 w-5" />
                         Campaign Health Score
                       </h3>
-                      <p className="text-muted-foreground">Overall performance assessment</p>
+                      <p className="text-sm text-muted-foreground">Overall performance assessment</p>
                     </div>
                     <div className="text-right">
                       <div className={`text-3xl font-bold ${getPerformanceColor(analysis.performance_score)}`}>
@@ -264,15 +361,15 @@ export function AIInsightsPanel() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <ShieldAlert className="h-5 w-5 text-red-600" />
+                      <ShieldAlert className="h-6 w-6 text-red-600" />
                       Risk Alerts
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
                       {analysis.risk_alerts.map((alert, index) => (
-                        <div key={index} className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                          <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div key={index} className="flex items-start gap-3 p-4 bg-red-50 rounded-lg border border-red-200">
+                          <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5 flex-shrink-0" />
                           <p className="text-sm">{alert}</p>
                         </div>
                       ))}
@@ -286,9 +383,9 @@ export function AIInsightsPanel() {
                 <Button 
                   onClick={handleAIScan}
                   variant="outline"
-                  className="mt-4"
+                  className="mt-4 text-sm px-4 py-2"
                 >
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RefreshCw className="h-5 w-5 mr-2" />
                   Scan Again
                 </Button>
               </div>

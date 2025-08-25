@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CampaignPerformanceDashboard } from "./campaign-performance-dashboard"
 import { BudgetMonitoringWidget } from "./budget-monitoring-widget"
@@ -11,8 +12,9 @@ import { RecommendationsWidget } from "./recommendations-widget"
 import { AlertsWidget } from "./alerts-widget"
 import { OverspendingPredictionWidget } from "./overspending-prediction-widget"
 import { AIInsightsPanel } from "../ai-insights-panel"
+import { AddCampaignModal } from "../add-campaign-modal"
 import { useApiClient, handleApiError } from "@/lib/api-client"
-import { DollarSign, TrendingUp, AlertTriangle, Target, Activity, BarChart3 } from "lucide-react"
+import { DollarSign, TrendingUp, AlertTriangle, Target, Activity, BarChart3, Plus, RefreshCw } from "lucide-react"
 
 interface DashboardMetrics {
   spend_today: number  // Backend returns Decimal but converts to float via json_encoders
@@ -50,6 +52,7 @@ export function SelfOptimizationDashboard() {
   const [detailedMetrics, setDetailedMetrics] = useState<DetailedMetrics | null>(null)
   const [overspendingPredictions, setOverspendingPredictions] = useState<OverspendingPrediction[]>([])
   const [loading, setLoading] = useState(true)
+  const [isAddCampaignModalOpen, setIsAddCampaignModalOpen] = useState(false)
   const { apiClient, userId } = useApiClient()
 
   useEffect(() => {
@@ -73,9 +76,9 @@ export function SelfOptimizationDashboard() {
       console.log('Detailed metrics received:', detailedMetricsData)
       console.log('Overspending predictions received:', predictionsData)
       
-      setMetrics(basicMetrics)
-      setDetailedMetrics(detailedMetricsData)
-      setOverspendingPredictions(predictionsData)
+      setMetrics(basicMetrics as DashboardMetrics)
+      setDetailedMetrics(detailedMetricsData as DetailedMetrics)
+      setOverspendingPredictions(predictionsData as OverspendingPrediction[])
     } catch (error) {
       console.error('Failed to fetch dashboard metrics:', handleApiError(error))
       // Fall back to mock data if API fails
@@ -110,9 +113,30 @@ export function SelfOptimizationDashboard() {
   return (
     <div className="space-y-6 animate-in fade-in-50 duration-500">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Self Optimization Dashboard</h2>
-        <p className="text-muted-foreground">Monitor and optimize your campaign performance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Self Optimization Dashboard</h2>
+          <p className="text-muted-foreground">Monitor and optimize your campaign performance</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setIsAddCampaignModalOpen(true)}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Campaign
+          </Button>
+          <Button
+            onClick={fetchDashboardMetrics}
+            size="sm"
+            variant="outline"
+            disabled={loading}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh Data
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -217,6 +241,13 @@ export function SelfOptimizationDashboard() {
           <OverspendingPredictionWidget />
         </TabsContent>
       </Tabs>
+
+      {/* Add Campaign Modal */}
+      <AddCampaignModal
+        isOpen={isAddCampaignModalOpen}
+        onClose={() => setIsAddCampaignModalOpen(false)}
+        onCampaignCreated={fetchDashboardMetrics}
+      />
     </div>
   )
 }

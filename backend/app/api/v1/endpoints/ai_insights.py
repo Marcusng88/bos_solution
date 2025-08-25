@@ -79,6 +79,8 @@ async def chat_with_ai(
     try:
         print(f"🔍 Chat request from user: {user_id}")
         print(f"🔍 Message: {request.message}")
+        print(f"🔍 User ID type: {type(user_id)}")
+        print(f"🔍 User ID length: {len(user_id) if user_id else 'None'}")
         
         if not AI_SERVICE_AVAILABLE:
             raise HTTPException(
@@ -90,6 +92,8 @@ async def chat_with_ai(
         ai_response = await ai_service.chat_with_ai(user_id, request.message)
         
         print(f"✅ AI response generated successfully")
+        print(f"📄 Response length: {len(ai_response) if ai_response else 'None'}")
+        print(f"📄 Response preview: {ai_response[:200]}..." if ai_response and len(ai_response) > 200 else f"📄 Full response: {ai_response}")
         
         return AIChatResponse(
             success=True,
@@ -101,6 +105,9 @@ async def chat_with_ai(
         raise
     except Exception as e:
         print(f"❌ Error in chat_with_ai: {e}")
+        print(f"❌ Error type: {type(e)}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate AI response: {str(e)}"
