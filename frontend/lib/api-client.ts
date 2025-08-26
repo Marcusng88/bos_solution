@@ -1,4 +1,4 @@
-export type TimeRange = '7d' | '30d' | '90d' | '1y'
+export type TimeRange = '7d' | '30d' | '90d'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
 
@@ -19,7 +19,7 @@ export const roiApi = {
   monthlySpendTrends: (userId: string, year: number) => get(`${'/roi/cost/monthly-trends'}`, { user_id: userId, year }),
   clv: (userId: string, range: TimeRange) => get(`${'/roi/profitability/clv'}`, { user_id: userId, range }),
   cac: (userId: string, range: TimeRange) => get(`${'/roi/profitability/cac'}`, { user_id: userId, range }),
-  roiTrends: (userId: string, range: TimeRange) => get(`${'/roi/roi/trends'}`, { user_id: userId, range }),
+  roiTrends: (userId: string, range: TimeRange) => get(`${'/roi/trends'}`, { user_id: userId, range }),
   channelPerformance: (userId: string, range: TimeRange) => get(`${'/roi/channel/performance'}`, { user_id: userId, range }),
   generateReport: (userId: string) => {
     const url = new URL(`${API_BASE}/roi/generate-report`)
