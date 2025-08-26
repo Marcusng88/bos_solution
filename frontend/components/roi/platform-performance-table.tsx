@@ -1,236 +1,223 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { useUser } from "@clerk/nextjs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { useEffect, useState } from "react"
-import { useUser } from "@clerk/nextjs"
 import { roiApi, type TimeRange } from "@/lib/api-client"
-
-interface PlatformPerformanceData {
-  platform: string
-  totalRevenue: number
-  totalSpend: number
-  roiPercentage: number
-  roas: number
-  engagementRate: number
-  ctr: number
-}
+import { TrendingUp, TrendingDown, DollarSign, Target, Eye, ThumbsUp } from "lucide-react"
 
 interface PlatformPerformanceTableProps {
   range?: TimeRange
 }
 
-export function PlatformPerformanceTable({ range = "30d" }: PlatformPerformanceTableProps) {
+interface PlatformData {
+  platform: string
+  revenue: number
+  spend: number
+  roi: number
+  views: number
+  engagement: number
+  posts: number
+}
+
+export default function PlatformPerformanceTable({ range = "30d" }: PlatformPerformanceTableProps) {
   const { user } = useUser()
-  const [platformData, setPlatformData] = useState<PlatformPerformanceData[]>([])
+  const [data, setData] = useState<PlatformData[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) return
-    
-    setLoading(true)
-    roiApi.channelPerformance(user.id, range).then((res) => {
-      // Filter and transform the data for the three main platforms
-      const filteredData = (res.rows || [])
-        .filter((row: any) => {
-          const platform = row.platform;
-          return platform === 'Facebook' || platform === 'Instagram' || platform === 'YouTube';
-        })
-        .map((row: any) => ({
-          platform: row.platform,
-          totalRevenue: Number(row.revenue || 0),
-          totalSpend: Number(row.spend || 0),
-          roiPercentage: Number(row.avg_roi || 0),
-          roas: Number(row.revenue || 0) / Math.max(Number(row.spend || 0), 1),
-          engagementRate: Number(row.engagement_rate || 0),
-          ctr: Number(row.ctr || 0)
-        }))
-        .sort((a: PlatformPerformanceData, b: PlatformPerformanceData) => b.roiPercentage - a.roiPercentage);
 
-      // If no data from API, use sample data for demonstration
-      if (filteredData.length === 0) {
-        setPlatformData([
-          {
-            platform: 'Facebook',
-            totalRevenue: 49858325.41,
-            totalSpend: 10997733.25,
-            roiPercentage: 353.38,
-            roas: 4.53,
-            engagementRate: 43.51,
-            ctr: 21.85
-          },
-          {
-            platform: 'Instagram',
-            totalRevenue: 46313881.36,
-            totalSpend: 11887411.60,
-            roiPercentage: 290.35,
-            roas: 3.90,
-            engagementRate: 37.62,
-            ctr: 21.94
-          },
-          {
-            platform: 'YouTube',
-            totalRevenue: 46145302.38,
-            totalSpend: 8835608.36,
-            roiPercentage: 415.87,
-            roas: 5.22,
-            engagementRate: 44.95,
-            ctr: 21.88
-          }
-        ]);
-      } else {
-        setPlatformData(filteredData);
-      }
-    }).catch(() => {
-      // Use sample data if API fails
-      setPlatformData([
-        {
-          platform: 'Facebook',
-          totalRevenue: 49858325.41,
-          totalSpend: 10997733.25,
-          roiPercentage: 353.38,
-          roas: 4.53,
-          engagementRate: 43.51,
-          ctr: 21.85
-        },
-        {
-          platform: 'Instagram',
-          totalRevenue: 46313881.36,
-          totalSpend: 11887411.60,
-          roiPercentage: 290.35,
-          roas: 3.90,
-          engagementRate: 37.62,
-          ctr: 21.94
-        },
-        {
-          platform: 'YouTube',
-          totalRevenue: 46145302.38,
-          totalSpend: 8835608.36,
-          roiPercentage: 415.87,
-          roas: 5.22,
-          engagementRate: 44.95,
-          ctr: 21.88
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        console.log(`🚀 Fetching platform performance for range: ${range}`)
+        
+        const response = await roiApi.channelPerformance(user.id, range)
+        console.log(`📊 Platform performance response:`, response)
+        
+        if ('all_data' in response) {
+          const allData = response.all_data
+          console.log(`📊 Total rows received: ${allData.length}`)
+          
+          // Filter data based on the selected range
+          const filteredData = filterDataByRange(allData, range)
+          console.log(`📊 Filtered data for ${range}: ${filteredData.length} rows`)
+          
+          // Group by platform and calculate metrics
+          const platformMetrics = calculatePlatformMetrics(filteredData)
+          setData(platformMetrics)
+        } else {
+          console.error('❌ Unexpected response format:', response)
+          setData([])
         }
-      ]);
-    }).finally(() => {
-      setLoading(false);
-    });
-  }, [user, range]);
+      } catch (error) {
+        console.error('Failed to fetch platform performance:', error)
+        setData([])
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
+    fetchData()
+  }, [user, range])
 
-  const formatPercentage = (value: number) => {
-    return `${value.toFixed(2)}%`;
-  };
+  // Frontend filtering function
+  const filterDataByRange = (allData: any[], selectedRange: TimeRange) => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    
+    let startDate: Date
+    switch (selectedRange) {
+      case '7d':
+        startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case '30d':
+        startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      case '90d':
+        startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000)
+        break
+      default:
+        startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+    }
+    
+    return allData.filter(row => {
+      const rowDate = new Date(row.created_at)
+      return rowDate >= startDate && rowDate < today
+    })
+  }
 
-  const formatROAS = (value: number) => {
-    return value.toFixed(2);
-  };
+  // Calculate platform metrics
+  const calculatePlatformMetrics = (filteredData: any[]): PlatformData[] => {
+    if (!filteredData || filteredData.length === 0) {
+      return []
+    }
+    
+    const platformMap = new Map<string, PlatformData>()
+    
+    filteredData.forEach(row => {
+      const platform = row.platform || 'Unknown'
+      
+      if (!platformMap.has(platform)) {
+        platformMap.set(platform, {
+          platform,
+          revenue: 0,
+          spend: 0,
+          roi: 0,
+          views: 0,
+          engagement: 0,
+          posts: 0
+        })
+      }
+      
+      const current = platformMap.get(platform)!
+      current.revenue += parseFloat(row.revenue_generated || 0)
+      current.spend += parseFloat(row.ad_spend || 0)
+      current.views += parseInt(row.views || 0)
+      current.engagement += parseInt(row.likes || 0) + parseInt(row.comments || 0) + parseInt(row.shares || 0)
+      current.posts += 1
+    })
+    
+    // Calculate ROI for each platform
+    platformMap.forEach(platform => {
+      platform.roi = platform.spend > 0 ? ((platform.revenue - platform.spend) / platform.spend) * 100 : 0
+    })
+    
+    // Sort by revenue descending
+    return Array.from(platformMap.values()).sort((a, b) => b.revenue - a.revenue)
+  }
 
   const getROIColor = (roi: number) => {
-    if (roi >= 400) return "#27ae60"; // Green for excellent
-    if (roi >= 300) return "#27ae60"; // Green for good
-    if (roi >= 200) return "#f39c12"; // Orange for moderate
-    return "#e74c3c"; // Red for poor
-  };
+    if (roi >= 20) return "text-green-600"
+    if (roi >= 10) return "text-yellow-600"
+    if (roi >= 0) return "text-orange-600"
+    return "text-red-600"
+  }
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Platform Performance Summary</CardTitle>
-          <CardDescription>Loading platform performance data...</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+  const getROIIcon = (roi: number) => {
+    if (roi >= 10) return <TrendingUp className="h-4 w-4 text-green-600" />
+    if (roi >= 0) return <TrendingUp className="h-4 w-4 text-yellow-600" />
+    return <TrendingDown className="h-4 w-4 text-red-600" />
+  }
+
+  if (!user) {
+    return <div className="text-center py-8">Please sign in to view platform performance</div>
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Platform Performance Summary</CardTitle>
-        <CardDescription>
-          {range === "7d" ? "Last 7 days performance by platform" :
-           range === "30d" ? "Last 30 days performance by platform" :
-           range === "90d" ? "Last 90 days performance by platform" :
-           range === "1y" ? "Last year performance by platform" :
-           "Performance metrics across all platforms"}
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="h-5 w-5" />
+          Platform Performance ({range})
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
+        {loading ? (
+          <div className="text-center py-8">Loading platform performance data...</div>
+        ) : data.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No platform performance data available for the selected period.
+          </div>
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="font-semibold">Platform</TableHead>
-                <TableHead className="text-right font-semibold">Total Revenue</TableHead>
-                <TableHead className="text-right font-semibold">Total Spend</TableHead>
-                <TableHead className="text-right font-semibold">ROI (%)</TableHead>
-                <TableHead className="text-right font-semibold">ROAS</TableHead>
-                <TableHead className="text-right font-semibold">Engagement Rate</TableHead>
-                <TableHead className="text-right font-semibold">CTR (%)</TableHead>
+                <TableHead>Platform</TableHead>
+                <TableHead className="text-right">Revenue</TableHead>
+                <TableHead className="text-right">Spend</TableHead>
+                <TableHead className="text-right">ROI</TableHead>
+                <TableHead className="text-right">Views</TableHead>
+                <TableHead className="text-right">Engagement</TableHead>
+                <TableHead className="text-right">Posts</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {platformData.map((platform, index) => (
-                <TableRow key={index} className="hover:bg-muted/50">
-                  <TableCell className="font-medium">
+              {data.map((platform) => (
+                <TableRow key={platform.platform}>
+                  <TableCell>
                     <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{
-                          backgroundColor: 
-                            platform.platform === 'Facebook' ? '#1877F2' :
-                            platform.platform === 'Instagram' ? '#E4405F' :
-                            platform.platform === 'YouTube' ? '#FF0000' : '#6B7280'
-                        }}
-                      />
-                      {platform.platform}
+                      <Badge variant="outline">{platform.platform}</Badge>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-green-600">
-                    {formatCurrency(platform.totalRevenue)}
+                  <TableCell className="text-right font-medium">
+                    ${platform.revenue.toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-green-600">
-                    {formatCurrency(platform.totalSpend)}
+                  <TableCell className="text-right">
+                    ${platform.spend.toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right font-mono" style={{ color: getROIColor(platform.roiPercentage) }}>
-                    {formatPercentage(platform.roiPercentage)}
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {getROIIcon(platform.roi)}
+                      <span className={getROIColor(platform.roi)}>
+                        {platform.roi.toFixed(1)}%
+                      </span>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-blue-600">
-                    {formatROAS(platform.roas)}
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                      {platform.views.toLocaleString()}
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-red-600">
-                    {formatPercentage(platform.engagementRate)}
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <ThumbsUp className="h-4 w-4 text-muted-foreground" />
+                      {platform.engagement.toLocaleString()}
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-red-600">
-                    {formatPercentage(platform.ctr)}
+                  <TableCell className="text-right">
+                    {platform.posts}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </div>
-        
-        {platformData.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No platform performance data available</p>
-          </div>
         )}
       </CardContent>
     </Card>
-  );
+  )
 }

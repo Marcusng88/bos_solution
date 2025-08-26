@@ -13,8 +13,8 @@ import { RevenueOverview } from "./revenue-overview"
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Download, FileText } from "lucide-react"
 import { CostAnalysis } from "./cost-analysis"
 import { ProfitabilityMetrics } from "./profitability-metrics"
+import { ReportGenerator } from "./report-generator"
 import PlatformPerformanceTable from "./platform-performance-table"
-import ReportGenerator from "./report-generator"
 
 export default function ROIDashboard() {
   const { user } = useUser()
@@ -169,19 +169,12 @@ export default function ROIDashboard() {
         </div>
       </div>
 
-      {/* Report Generator */}
-      {showReportGenerator && (
-        <div className="mb-6 p-4 bg-muted rounded-lg">
-          <h3 className="text-lg font-semibold mb-2">AI Report Generator</h3>
-          <p className="text-muted-foreground mb-4">
-            Generate comprehensive ROI reports using AI analysis of your data.
-          </p>
-          <Button>
-            <FileText className="h-4 w-4 mr-2" />
-            Generate AI Report
-          </Button>
-        </div>
-      )}
+             {/* Report Generator */}
+       {showReportGenerator && (
+         <div className="mb-6 p-4 bg-muted rounded-lg">
+           <ReportGenerator />
+         </div>
+       )}
 
       {/* Overview Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -269,17 +262,16 @@ export default function ROIDashboard() {
           <TabsTrigger value="profitability">Profitability</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          <PlatformPerformanceTable range={selectedRange} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ROITrends userId={user.id} range={selectedRange} />
-            <ChannelPerformance userId={user.id} range={selectedRange} />
-          </div>
-        </TabsContent>
+                 <TabsContent value="overview" className="space-y-4">
+           <div className="grid gap-4 lg:grid-cols-2">
+             <ROITrends userId={user.id} range={selectedRange} />
+             <ChannelPerformance userId={user.id} range={selectedRange} />
+           </div>
+         </TabsContent>
 
-        <TabsContent value="platforms" className="space-y-4">
-          <PlatformPerformanceTable range={selectedRange} />
-        </TabsContent>
+                 <TabsContent value="platforms" className="space-y-4">
+           <PlatformPerformanceTable range={selectedRange} />
+         </TabsContent>
 
         <TabsContent value="revenue" className="space-y-4">
           <RevenueOverview range={selectedRange} />
