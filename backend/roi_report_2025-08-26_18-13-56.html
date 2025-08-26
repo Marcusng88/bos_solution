@@ -1,0 +1,740 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROI Performance Report - August 26, 2025</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header .subtitle {
+            font-size: 1.25rem;
+            opacity: 0.95;
+            font-weight: 400;
+            margin-bottom: 1rem;
+        }
+        
+        .header .date {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            display: inline-block;
+            backdrop-filter: blur(10px);
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 2.5rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-left: 6px solid #667eea;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .metric-card h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.75rem;
+        }
+        
+        .metric-card .value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            line-height: 1;
+        }
+        
+        .metric-card .change {
+            font-size: 0.875rem;
+            color: #dc2626;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .metric-card .change::before {
+            content: '↗';
+            font-size: 1rem;
+        }
+        
+        .metric-card.negative .change {
+            color: #dc2626;
+        }
+        
+        .metric-card.negative .change::before {
+            content: '↘';
+        }
+        
+        .content {
+            padding: 2.5rem;
+        }
+        
+        .section {
+            margin-bottom: 3rem;
+        }
+        
+        .section h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 3px solid #e5e7eb;
+            position: relative;
+        }
+        
+        .section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        
+        .report-content {
+            background: #f8fafc;
+            padding: 2rem;
+            border-radius: 12px;
+            border-left: 6px solid #667eea;
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.8;
+            font-size: 1rem;
+            color: #374151;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Enhanced Table Styles */
+        .report-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e5e7eb;
+        }
+        
+        /* Platform Performance Table Specific Styles - Based on Key Performance Metrics Design */
+        .platform-performance-section {
+            margin: 3rem 0;
+        }
+        
+        .platform-performance-section h2 {
+            font-size: 14pt;
+            font-weight: 600;
+            margin: 20pt 0 12pt 0;
+            color: #34495e;
+            background-color: #f8f9fa;
+            padding: 8pt 12pt;
+            border-left: 4pt solid #3498db;
+            border-radius: 4pt;
+        }
+        
+        .platform-performance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15pt 0;
+            font-size: 9pt;
+            box-shadow: 0 2pt 8pt rgba(0,0,0,0.1);
+            border-radius: 6pt;
+            overflow: hidden;
+        }
+        
+        .platform-performance-table thead {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+        
+        .platform-performance-table thead th {
+            padding: 12pt 8pt;
+            border: none;
+            font-weight: 600;
+            text-align: left;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.3pt;
+        }
+        
+        .platform-performance-table thead th:first-child {
+            text-align: left;
+        }
+        
+        .platform-performance-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        
+        .platform-performance-table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .platform-performance-table tbody tr:hover {
+            background-color: #e8f4fd;
+        }
+        
+        .platform-performance-table tbody td {
+            padding: 10pt 8pt;
+            border-bottom: 1pt solid #ecf0f1;
+            word-wrap: break-word;
+            vertical-align: top;
+            background-color: #ffffff;
+        }
+        
+        .platform-performance-table tbody tr:nth-child(even) td {
+            background-color: #f8f9fa;
+        }
+        
+        .platform-performance-table tbody tr:hover td {
+            background-color: #e8f4fd;
+        }
+        
+        .platform-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .platform-indicator {
+            display: inline-block;
+            width: 8pt;
+            height: 8pt;
+            border-radius: 50%;
+            margin-right: 6pt;
+            vertical-align: middle;
+        }
+        
+        .revenue, .spend {
+            color: #27ae60;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .roi-value {
+            color: #27ae60;
+            font-weight: 600;
+        }
+        
+        .roas-value {
+            color: #3498db;
+            font-weight: 600;
+        }
+        
+        .engagement-value, .ctr-value {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        
+        /* Responsive design for platform performance table */
+        @media (max-width: 768px) {
+            .platform-performance-table {
+                font-size: 8pt;
+            }
+            
+            .platform-performance-table thead th,
+            .platform-performance-table tbody td {
+                padding: 8pt 6pt;
+            }
+        }
+        
+        .report-content table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .report-content table thead th {
+            padding: 1.25rem 1rem;
+            text-align: center;
+            font-weight: 700;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: none;
+            position: relative;
+        }
+        
+        .report-content table thead th:first-child {
+            text-align: left;
+        }
+        
+        .report-content table thead th:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 25%;
+            bottom: 25%;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .report-content table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        
+        .report-content table tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        .report-content table tbody tr:hover {
+            background: #f1f5f9;
+            transform: scale(1.01);
+        }
+        
+        .report-content table tbody td {
+            padding: 1rem;
+            text-align: center;
+            font-weight: 500;
+            border-bottom: 1px solid #e5e7eb;
+            position: relative;
+        }
+        
+        .report-content table tbody td:first-child {
+            text-align: left;
+            font-weight: 700;
+            color: #1f2937;
+            background: #f8fafc;
+        }
+        
+        .report-content table tbody td:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 15%;
+            bottom: 15%;
+            width: 1px;
+            background: #e5e7eb;
+        }
+        
+        /* Platform-specific styling */
+        .report-content table tbody tr:nth-child(1) td:first-child {
+            color: #1877f2;
+        }
+        
+        .report-content table tbody tr:nth-child(2) td:first-child {
+            color: #e4405f;
+        }
+        
+        .report-content table tbody tr:nth-child(3) td:first-child {
+            color: #ff0000;
+        }
+        
+        /* Value styling */
+        .report-content table tbody td:nth-child(2),
+        .report-content table tbody td:nth-child(3) {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #059669;
+        }
+        
+        .report-content table tbody td:nth-child(4) {
+            font-weight: 700;
+            color: #059669;
+        }
+        
+        .report-content table tbody td:nth-child(5) {
+            font-weight: 600;
+            color: #7c3aed;
+        }
+        
+        .report-content table tbody td:nth-child(6),
+        .report-content table tbody td:nth-child(7) {
+            font-weight: 600;
+            color: #dc2626;
+        }
+        
+        /* Responsive table */
+        @media (max-width: 768px) {
+            .report-content table {
+                font-size: 0.875rem;
+            }
+            
+            .report-content table thead th,
+            .report-content table tbody td {
+                padding: 0.75rem 0.5rem;
+            }
+        }
+        
+        .footer {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .footer p {
+            margin-bottom: 0.5rem;
+            opacity: 0.9;
+        }
+        
+        .footer .report-id {
+            font-family: 'Courier New', monospace;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .platform-breakdown {
+            margin-top: 2rem;
+        }
+        
+        .platform-item {
+            background: white;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            border-left: 6px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+        
+        .platform-item:hover {
+            transform: translateX(4px);
+        }
+        
+        .platform-item h4 {
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+        
+        .platform-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        
+        .platform-metric {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .platform-metric .label {
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .platform-metric .value {
+            color: #1f2937;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+        
+        .roi-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #dc262620;
+            color: #dc2626;
+            border: 1px solid #dc262640;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                margin: 0;
+            }
+            .container {
+                box-shadow: none;
+                margin: 0;
+                border-radius: 0;
+            }
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+                padding: 1.5rem;
+            }
+            .metric-card {
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            .header {
+                padding: 2rem;
+            }
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                margin: 1rem;
+            }
+            .header h1 {
+                font-size: 2rem;
+            }
+            .metrics-grid {
+                grid-template-columns: 1fr;
+                padding: 1.5rem;
+            }
+            .content {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1>📊 ROI Performance Report</h1>
+                <div class="subtitle">Comprehensive Return on Investment Analysis</div>
+                <div class="date">Generated on August 26, 2025 at 06:13 PM</div>
+            </div>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <h3>💰 Total Revenue</h3>
+                <div class="value">$351,536,817.29</div>
+                <div class="change">+0.0% ROI</div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>💸 Total Spend</h3>
+                <div class="value">$109,554,180.79</div>
+                <div class="change">Investment</div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>💵 Total Profit</h3>
+                <div class="value">$241,982,636.50</div>
+                <div class="change">+68.8% Margin</div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>📈 ROI Percentage</h3>
+                <div class="value">0.0%</div>
+                <div class="change">
+                    <span class="roi-status">Poor</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>📋 Executive Summary</h2>
+                <div class="report-content">Executive Summary Total Revenue: $351,536,817.29 Total Spend: $109,554,180.79 Total Profit: $241,982,636.50 ROI Percentage: 0.0% Platform Highlights - Facebook: Revenue $127,147,322.45, Spend $39,507,356.48, ROI 221.8% - Instagram: Revenue $155,497,817.49, Spend $55,148,315.62, ROI 182.0% - Youtube: Revenue $68,891,677.35, Spend $14,898,508.69, ROI 362.4%</div>
+            </div>
+            
+            <div class="section">
+                
+<div class="platform-performance-section">
+    <h2>Platform Performance Summary</h2>
+    <div class="table-container">
+        <table class="platform-performance-table">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Total Revenue</th>
+                    <th>Total Spend</th>
+                    <th>ROI (%)</th>
+                    <th>ROAS</th>
+                    <th>Engagement Rate</th>
+                    <th>CTR (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+    
+            </tbody>
+        </table>
+    </div>
+</div>
+    
+            </div>
+            
+            <div class="section platform-breakdown">
+                <h2>🎯 Platform Performance Breakdown</h2>
+                
+        <div class="platform-item">
+            <h4>📘 Facebook</h4>
+            <div class="platform-metrics">
+                <div class="platform-metric">
+                    <span class="label">💰 Revenue</span>
+                    <span class="value">$127,147,322.45</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">💸 Spend</span>
+                    <span class="value">$39,507,356.48</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">💵 Profit</span>
+                    <span class="value">$0.00</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">📈 ROI</span>
+                    <span class="value" style="color: #dc2626;">0.0%</span>
+                    <div style="margin-top: 0.5rem;">
+                        <span class="roi-status" style="background: #dc262620; color: #dc2626; border-color: #dc262640;">
+                            Poor
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="platform-item">
+            <h4>📷 Instagram</h4>
+            <div class="platform-metrics">
+                <div class="platform-metric">
+                    <span class="label">💰 Revenue</span>
+                    <span class="value">$155,497,817.49</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">💸 Spend</span>
+                    <span class="value">$55,148,315.62</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">💵 Profit</span>
+                    <span class="value">$0.00</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">📈 ROI</span>
+                    <span class="value" style="color: #dc2626;">0.0%</span>
+                    <div style="margin-top: 0.5rem;">
+                        <span class="roi-status" style="background: #dc262620; color: #dc2626; border-color: #dc262640;">
+                            Poor
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="platform-item">
+            <h4>📺 Youtube</h4>
+            <div class="platform-metrics">
+                <div class="platform-metric">
+                    <span class="label">💰 Revenue</span>
+                    <span class="value">$68,891,677.35</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">💸 Spend</span>
+                    <span class="value">$14,898,508.69</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">💵 Profit</span>
+                    <span class="value">$0.00</span>
+                </div>
+                <div class="platform-metric">
+                    <span class="label">📈 ROI</span>
+                    <span class="value" style="color: #dc2626;">0.0%</span>
+                    <div style="margin-top: 0.5rem;">
+                        <span class="roi-status" style="background: #dc262620; color: #dc2626; border-color: #dc262640;">
+                            Poor
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Generated by <strong>BOS Solution ROI Analytics System</strong></p>
+            <p>Report ID: <span class="report-id">20250826_181356</span></p>
+        </div>
+    </div>
+</body>
+</html>

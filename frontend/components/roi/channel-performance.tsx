@@ -58,9 +58,9 @@ export default function ChannelPerformance({ userId, range }: ChannelPerformance
         const response = await roiApi.channelPerformance(userId, range);
         console.log(`📊 Backend response:`, response);
         
-        if ('all_data' in response) {
+        if (response && typeof response === 'object' && 'all_data' in response) {
           // Frontend filtering logic - this is the key change!
-          const allData = response.all_data;
+          const allData = Array.isArray((response as any).all_data) ? (response as any).all_data : [];
           console.log(`📊 Total rows received: ${allData.length}`);
           
           // Filter data based on the selected range
@@ -112,17 +112,21 @@ export default function ChannelPerformance({ userId, range }: ChannelPerformance
     
     // Filter data within the range
     return allData.filter(row => {
-      const rowDate = new Date(row.created_at);
+      const ts = row.created_at || row.update_timestamp;
+      if (!ts) return false;
+      const rowDate = new Date(ts);
       return rowDate >= startDate && rowDate < today; // Exclude today
     });
   };
 
   // Process filtered data and calculate channel metrics
   const processChannelData = (filteredData: any[]): ChannelData[] => {
+    if (!Array.isArray(filteredData)) return [];
     const platformMetrics: { [key: string]: any } = {};
     
     // Group data by platform and accumulate metrics
     filteredData.forEach(row => {
+      if (!row || typeof row !== 'object') return;
       const platform = row.platform || 'unknown';
       if (!platformMetrics[platform]) {
         platformMetrics[platform] = {
@@ -135,14 +139,23 @@ export default function ChannelPerformance({ userId, range }: ChannelPerformance
         };
       }
       
-      platformMetrics[platform].impressions += parseInt(row.views || 0);
-      platformMetrics[platform].engagement += parseInt(row.likes || 0) + parseInt(row.comments || 0) + parseInt(row.shares || 0);
-      platformMetrics[platform].revenue += parseFloat(row.revenue_generated || 0);
-      platformMetrics[platform].spend += parseFloat(row.ad_spend || 0);
-      platformMetrics[platform].clicks += parseInt(row.clicks || 0);
+      const views = Number(row.views || 0);
+      const likes = Number(row.likes || 0);
+      const comments = Number(row.comments || 0);
+      const shares = Number(row.shares || 0);
+      const revenue = Number(row.revenue_generated || 0);
+      const spend = Number(row.ad_spend || 0);
+      const clicks = Number(row.clicks || 0);
+      const roiVal = row.roi_percentage != null ? Number(row.roi_percentage) : null;
+
+      platformMetrics[platform].impressions += isFinite(views) ? views : 0;
+      platformMetrics[platform].engagement += (isFinite(likes) ? likes : 0) + (isFinite(comments) ? comments : 0) + (isFinite(shares) ? shares : 0);
+      platformMetrics[platform].revenue += isFinite(revenue) ? revenue : 0;
+      platformMetrics[platform].spend += isFinite(spend) ? spend : 0;
+      platformMetrics[platform].clicks += isFinite(clicks) ? clicks : 0;
       
-      if (row.roi_percentage !== null && row.roi_percentage !== undefined) {
-        platformMetrics[platform].roi_values.push(parseFloat(row.roi_percentage));
+      if (roiVal !== null && isFinite(roiVal)) {
+        platformMetrics[platform].roi_values.push(roiVal);
       }
     });
     

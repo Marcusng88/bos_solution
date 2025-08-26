@@ -97,7 +97,9 @@ export default function ROITrends({ userId, range }: ROITrendsProps) {
     
     // Filter data within the range
     return allData.filter(row => {
-      const rowDate = new Date(row.created_at);
+      const ts = row.created_at || row.update_timestamp;
+      if (!ts) return false;
+      const rowDate = new Date(ts);
       return rowDate >= startDate && rowDate < today; // Exclude today
     });
   };

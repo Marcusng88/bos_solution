@@ -155,6 +155,14 @@ export default function ROIDashboard() {
               <Download className="h-4 w-4 mr-2" />
               Full Report
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => window.open('/dashboard/roi/platform-performance', '_blank')}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Platform Performance
+            </Button>
           </div>
         </div>
       </div>

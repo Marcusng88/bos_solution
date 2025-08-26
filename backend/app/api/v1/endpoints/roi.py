@@ -177,6 +177,9 @@ async def get_roi_trends(
             raise HTTPException(status_code=500, detail="Failed to fetch ROI trends data")
             
         rows = response.json()
+        # Ensure consistent response shape
+        if not isinstance(rows, list):
+            rows = []
         print(f"📊 ROI Trends rows returned: {len(rows)} (ALL data)")
         
         # Return ALL data - frontend will handle filtering
@@ -223,6 +226,8 @@ async def get_campaign_markers(
             raise HTTPException(status_code=500, detail="Failed to fetch campaigns data")
             
         rows = response.json()
+        if not isinstance(rows, list):
+            rows = []
         print(f"📊 Campaigns rows returned: {len(rows)} (ALL data)")
         
         # Return ALL data - frontend will handle filtering
@@ -280,6 +285,8 @@ async def get_overview(
             raise HTTPException(status_code=500, detail="Failed to fetch overview data")
             
         rows = response.json()
+        if not isinstance(rows, list):
+            rows = []
         print(f"📊 Overview rows returned: {len(rows)} (ALL data)")
         
         # Return ALL data - frontend will handle filtering
@@ -334,6 +341,8 @@ async def get_revenue_by_source(
             raise HTTPException(status_code=500, detail="Failed to fetch revenue by source data")
             
         rows = response.json()
+        if not isinstance(rows, list):
+            rows = []
         print(f"📊 Revenue by Source rows returned: {len(rows)} (ALL data)")
         
         # Add detailed logging for debugging
@@ -654,6 +663,8 @@ async def get_roi_trends(
             
         try:
             rows = response.json()
+            if not isinstance(rows, list):
+                rows = []
             print(f"✅ Successfully parsed response JSON - rows type: {type(rows)}, length: {len(rows) if rows else 0}")
         except Exception as json_error:
             print(f"❌ Failed to parse response JSON: {type(json_error).__name__}: {str(json_error)}")
@@ -707,6 +718,8 @@ async def get_channel_performance(
             raise HTTPException(status_code=500, detail="Failed to fetch channel performance data")
             
         rows = response.json()
+        if not isinstance(rows, list):
+            rows = []
         print(f"📊 Channel Performance rows returned: {len(rows)} (ALL data)")
         
         # Return ALL data - frontend will handle filtering
@@ -837,106 +850,48 @@ async def generate_ai_report(
     db = Depends(get_db),
 ):
     """
-    Generate an AI-powered ROI report using Gemini.
+    Generate an AI-powered ROI report using Gemini with multiple formats (TXT, HTML, PDF).
     Retrieves ALL data from roi_metrics table, processes by platform,
     and generates a comprehensive report with insights and recommendations.
     Note: This endpoint accesses all data in roi_metrics table without user filtering or date restrictions.
     """
     try:
-        # Try to import google.generativeai with better error handling
-        try:
-            import google.generativeai as genai
-        except ImportError as e:
-            print(f"Failed to import google.generativeai: {e}")
-            raise HTTPException(
-                status_code=500, 
-                detail="Google Generative AI library not installed. Please run: pip install google-generativeai"
-            )
-        
+        # Import the report generation function from the standalone script
+        import sys
         import os
-        from datetime import datetime, timedelta, timezone
+        from pathlib import Path
         
-        # Configure Gemini API
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        # Add the backend directory to the path to import the report generation module
+        backend_dir = Path(__file__).parent.parent.parent.parent
+        sys.path.append(str(backend_dir))
         
         try:
-            genai.configure(api_key=gemini_api_key)
-            # Try gemini-1.5-flash first, fallback to gemini-pro
-            try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                print("Using Gemini 1.5 Flash model")
-            except Exception as flash_error:
-                print(f"Gemini 1.5 Flash not available, trying Gemini Pro: {flash_error}")
-                model = genai.GenerativeModel('gemini-pro')
-                print("Using Gemini Pro model")
-        except Exception as e:
-            print(f"Failed to configure Gemini API: {e}")
+            from generate_roi_report import generate_roi_report
+        except ImportError as e:
+            print(f"Failed to import generate_roi_report: {e}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to configure Gemini API: {str(e)}"
+                detail="Report generation module not available. Please ensure generate_roi_report.py is in the backend directory."
             )
         
-        print("Fetching ALL data from roi_metrics table (no date or user filtering)...")
+        print("Generating comprehensive ROI report with multiple formats...")
         
-        # Fetch ALL data without date filtering
-        all_data = await _fetch_all_roi_data()
-        
-        print(f"Total records retrieved: {len(all_data)}")
-        
-        if len(all_data) == 0:
-            raise HTTPException(
-                status_code=404,
-                detail="No data found in roi_metrics table. Please ensure the table has data before generating reports."
-            )
-        
-        # Process and summarize data by platform
-        platform_summary = _summarize_data_by_platform(all_data)
-        
-        # Calculate overall totals
-        overall_totals = _calculate_totals(platform_summary)
-        
-        # Prepare data for Gemini
-        report_data = {
-            "all_data": {
-                "period": "All available data",
-                "platforms": platform_summary,
-                "totals": overall_totals,
-                "total_records": len(all_data)
+        # Generate the report using the standalone function
+        result = await generate_roi_report()
+        if isinstance(result, dict) and result.get("success"):
+            from datetime import datetime
+            ts = result.get("timestamp")
+            files = result.get("files", {})
+            return {
+                "success": True,
+                "message": "ROI report generated successfully",
+                "files": files,
+                "generated_at": datetime.now().isoformat()
             }
-        }
-        
-        # Generate report using Gemini
-        prompt = _create_report_prompt_all_data(report_data)
-        
-        print("Generating report with Gemini...")
-        try:
-            response = model.generate_content(prompt)
-            report_content = response.text
-            
-            if not report_content:
-                raise HTTPException(
-                    status_code=500, 
-                    detail="Gemini API returned empty response"
-                )
-                
-        except Exception as e:
-            print(f"Failed to generate content with Gemini: {e}")
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Failed to generate report with Gemini: {str(e)}"
-            )
-        
-        # Parse the report into structured sections
-        structured_report = _parse_report_sections(report_content)
-        
-        return {
-            "success": True,
-            "report": structured_report,
-            "raw_data": report_data,
-            "generated_at": datetime.now(timezone.utc).isoformat()
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate ROI report. Please check the logs for more details."
+        )
         
     except HTTPException:
         raise
@@ -1161,14 +1116,104 @@ def _calculate_percentage_change(previous: float, current: float) -> float:
     return ((current - previous) / previous) * 100
 
 
+def _create_platform_performance_table_html(platform_summary: dict) -> str:
+    """Create a professional HTML table for platform performance summary"""
+    
+    # Define platform colors
+    platform_colors = {
+        'Facebook': '#1877F2',
+        'Instagram': '#E4405F', 
+        'YouTube': '#FF0000'
+    }
+    
+    # Start building the HTML table
+    table_html = """
+<div class="platform-performance-section">
+    <h2>Platform Performance Summary</h2>
+    <div class="table-container">
+        <table class="platform-performance-table">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Total Revenue</th>
+                    <th>Total Spend</th>
+                    <th>ROI (%)</th>
+                    <th>ROAS</th>
+                    <th>Engagement Rate</th>
+                    <th>CTR (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    # Add data rows for each platform
+    for platform, data in platform_summary.items():
+        if platform in ['Facebook', 'Instagram', 'YouTube']:
+            revenue = data.get('total_revenue', 0)
+            spend = data.get('total_spend', 0)
+            roi_percentage = data.get('avg_roi', 0)
+            roas = data.get('roas', 0)
+            engagement_rate = data.get('engagement_rate', 0)
+            ctr = data.get('click_through_rate', 0)
+            
+            # Format values
+            revenue_formatted = f"${revenue:,.2f}"
+            spend_formatted = f"${spend:,.2f}"
+            roi_formatted = f"{roi_percentage:.2f}%"
+            roas_formatted = f"{roas:.2f}"
+            engagement_formatted = f"{engagement_rate:.2f}%"
+            ctr_formatted = f"{ctr:.2f}%"
+            
+            # Get platform color
+            platform_color = platform_colors.get(platform, '#6B7280')
+            
+            # Determine ROI badge class
+            roi_class = "roi-excellent" if roi_percentage >= 400 else "roi-good" if roi_percentage >= 300 else "roi-moderate" if roi_percentage >= 200 else "roi-poor"
+            
+            table_html += f"""
+                <tr>
+                    <td class="platform-name">
+                        <span class="platform-indicator" style="background-color: {platform_color};"></span>
+                        {platform}
+                    </td>
+                    <td class="revenue">{revenue_formatted}</td>
+                    <td class="spend">{spend_formatted}</td>
+                    <td class="roi-value">{roi_formatted}</td>
+                    <td class="roas-value">{roas_formatted}</td>
+                    <td class="engagement-value">{engagement_formatted}</td>
+                    <td class="ctr-value">{ctr_formatted}</td>
+                </tr>
+            """
+    
+    table_html += """
+            </tbody>
+        </table>
+    </div>
+</div>
+    """
+    
+    return table_html
+
 def _create_report_prompt_all_data(data: dict) -> str:
     """Create a comprehensive prompt for Gemini to generate the report from all available data"""
+    
+    # Extract platform summary data
+    platform_summary = data.get('all_data', {}).get('platforms', {})
+    
+    # Generate the professional HTML table
+    platform_table_html = _create_platform_performance_table_html(platform_summary)
     
     prompt = f"""
 You are a marketing analytics expert. Generate a comprehensive ROI report based on ALL available data from the roi_metrics table.
 
 REPORT DATA:
 {data}
+
+IMPORTANT FORMATTING RULES:
+- DO NOT use ** for bold formatting anywhere in the report
+- Display all metrics as plain text without any markdown symbols
+- Write metrics like "Revenue: $15,547,580.52" instead of "**Revenue:** $15,547,580.52"
+- Use clean, professional formatting without asterisks or bold markers
 
 Please create a professional marketing ROI report with the following structure:
 
@@ -1184,8 +1229,8 @@ Please create a professional marketing ROI report with the following structure:
 
 # Platform Performance Analysis
 For each platform, provide:
-- Revenue and spend breakdown
-- ROI and engagement metrics
+- Revenue and spend breakdown (as plain text, no **)
+- ROI and engagement metrics (as plain text, no **)
 - Performance insights and trends
 - Content type and category analysis
 - Post count and average performance
@@ -1211,6 +1256,11 @@ For each platform, provide:
 - Next steps for optimization
 
 Please format the report professionally with clear sections, bullet points where appropriate, and actionable insights. Focus on providing valuable business intelligence that can drive decision-making. Since this is analyzing all available data, provide comprehensive insights across all platforms and content types.
+
+REMEMBER: No ** formatting anywhere in the report. All metrics should be plain text.
+
+PLATFORM PERFORMANCE TABLE HTML (to be inserted in the HTML report):
+{platform_table_html}
 """
     
     return prompt
@@ -1225,6 +1275,12 @@ You are a marketing analytics expert. Generate a comprehensive ROI report based 
 REPORT DATA:
 {data}
 
+IMPORTANT FORMATTING RULES:
+- DO NOT use ** for bold formatting anywhere in the report
+- Display all metrics as plain text without any markdown symbols
+- Write metrics like "Revenue: $15,547,580.52" instead of "**Revenue:** $15,547,580.52"
+- Use clean, professional formatting without asterisks or bold markers
+
 Please create a professional marketing ROI report with the following structure:
 
 # Executive Summary
@@ -1233,14 +1289,14 @@ Please create a professional marketing ROI report with the following structure:
 - Overall ROI performance
 
 # Performance Overview
-- Total revenue, spend, and profit analysis
-- Overall ROI and ROAS metrics
+- Total revenue, spend, and profit analysis (as plain text, no **)
+- Overall ROI and ROAS metrics (as plain text, no **)
 - Month-over-month performance comparison
 
 # Platform Performance Analysis
 For each platform, provide:
-- Revenue and spend breakdown
-- ROI and engagement metrics
+- Revenue and spend breakdown (as plain text, no **)
+- ROI and engagement metrics (as plain text, no **)
 - Performance trends and insights
 - Content type and category analysis
 
@@ -1262,6 +1318,8 @@ For each platform, provide:
 - Testing opportunities
 
 Please format the report professionally with clear sections, bullet points where appropriate, and actionable insights. Focus on providing valuable business intelligence that can drive decision-making.
+
+REMEMBER: No ** formatting anywhere in the report. All metrics should be plain text.
 """
     
     return prompt
