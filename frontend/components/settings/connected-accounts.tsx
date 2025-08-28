@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Settings, RefreshCw } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Settings, RefreshCw, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
 
@@ -22,6 +23,8 @@ export function ConnectedAccounts() {
   const { user } = useUser()
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showIgGuide, setShowIgGuide] = useState(false)
+  const [igGuideReason, setIgGuideReason] = useState<string>("")
 
   // Get real user data and check actual connections from database
   useEffect(() => {
@@ -30,7 +33,7 @@ export function ConnectedAccounts() {
     const checkRealConnections = async () => {
       try {
         // First fetch connected accounts from database
-        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
         const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
           headers: {
             'X-User-ID': user.id,
@@ -55,6 +58,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "Instagram",
             isConnected: false,
+            lastSync: "",
             permissions: []
           },
           {
@@ -62,6 +66,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "Twitter",
             isConnected: false,
+            lastSync: "",
             permissions: []
           },
           {
@@ -69,6 +74,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "LinkedIn",
             isConnected: false,
+            lastSync: "",
             permissions: []
           },
           {
@@ -76,6 +82,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "YouTube",
             isConnected: false,
+            lastSync: "",
             permissions: []
           }
         ]
@@ -111,6 +118,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "Instagram", 
             isConnected: false,
+            lastSync: "",
             permissions: []
           },
           {
@@ -118,6 +126,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "Twitter",
             isConnected: false,
+            lastSync: "",
             permissions: []
           },
           {
@@ -125,6 +134,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "LinkedIn",
             isConnected: false,
+            lastSync: "",
             permissions: []
           },
           {
@@ -132,6 +142,7 @@ export function ConnectedAccounts() {
             username: "",
             displayName: "YouTube",
             isConnected: false,
+            lastSync: "",
             permissions: []
           }
         ]
@@ -179,7 +190,7 @@ export function ConnectedAccounts() {
   const getPlatformName = (platform: string) => {
     switch (platform) {
       case "facebook":
-        return "FB/Ins"
+        return "Facebook"
       case "instagram":
         return "Instagram"
       case "twitter":
@@ -196,39 +207,12 @@ export function ConnectedAccounts() {
   const handleRefresh = async (platform: string) => {
     setIsLoading(true)
     try {
-      // Check real Facebook connection status
-      if (platform === 'facebook' && typeof window !== 'undefined' && window.FB) {
-        window.FB.getLoginStatus(function(response: any) {
-          if (response.status === 'connected') {
-            setAccounts(prev => prev.map(acc => 
-              acc.platform === 'facebook' || acc.platform === 'instagram'
-                ? { ...acc, isConnected: true, lastSync: 'Just now' }
-                : acc
-            ))
-            toast({
-              title: "Refreshed",
-              description: `${getPlatformName(platform)} connection refreshed successfully.`,
-            })
-          } else {
-            setAccounts(prev => prev.map(acc => 
-              acc.platform === 'facebook' || acc.platform === 'instagram'
-                ? { ...acc, isConnected: false, lastSync: '' }
-                : acc
-            ))
-            toast({
-              title: "Not Connected",
-              description: `${getPlatformName(platform)} is not currently connected.`,
-            })
-          }
-        })
-      } else {
-        // Simulate API call for other platforms
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        toast({
-          title: "Refreshed",
-          description: `${getPlatformName(platform)} connection refreshed successfully.`,
-        })
-      }
+      // Simulate API call for all platforms
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      toast({
+        title: "Refreshed",
+        description: `${getPlatformName(platform)} connection refreshed successfully.`,
+      })
     } catch (error) {
       toast({
         title: "Error",
@@ -242,32 +226,17 @@ export function ConnectedAccounts() {
 
   const handleDisconnect = async (platform: string) => {
     try {
-      if (platform === 'facebook' && typeof window !== 'undefined' && window.FB) {
-        // Actually disconnect from Facebook
-        window.FB.logout(function(response: any) {
-          setAccounts(prev => prev.map(acc => 
-            acc.platform === 'facebook' || acc.platform === 'instagram'
-              ? { ...acc, isConnected: false, username: "", displayName: "", permissions: [] }
-              : acc
-          ))
-          toast({
-            title: "Disconnected",
-            description: `${getPlatformName(platform)} has been disconnected.`,
-          })
-        })
-      } else {
-        // Simulate API call for other platforms
-        await new Promise(resolve => setTimeout(resolve, 500))
-        setAccounts(prev => prev.map(acc => 
-          acc.platform === platform 
-            ? { ...acc, isConnected: false, username: "", displayName: "", permissions: [] }
-            : acc
-        ))
-        toast({
-          title: "Disconnected",
-          description: `${getPlatformName(platform)} has been disconnected.`,
-        })
-      }
+      // Simulate API call for all platforms
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setAccounts(prev => prev.map(acc => 
+        acc.platform === platform 
+          ? { ...acc, isConnected: false, username: "", displayName: "", permissions: [] }
+          : acc
+      ))
+      toast({
+        title: "Disconnected",
+        description: `${getPlatformName(platform)} has been disconnected.`,
+      })
     } catch (error) {
       toast({
         title: "Error",
@@ -278,108 +247,11 @@ export function ConnectedAccounts() {
   }
 
   const handleConnect = async (platform: string) => {
-    if (platform === 'facebook') {
-      // Trigger Facebook OAuth flow
-      if (typeof window !== 'undefined' && window.FB) {
-        window.FB.login(function(response: any) {
-          console.log('FB.login response:', response);
-          if (response.status === 'connected') {
-            // Send token to backend to persist connection
-            const apiBase = process.env.NEXT_PUBLIC_API_URL
-            const userId = user?.id
-            const accessToken = response.authResponse?.accessToken
-            console.log('Extracted data:', { apiBase, userId, accessTokenPresent: !!accessToken });
-            
-            if (!apiBase || !userId || !accessToken) {
-              console.error('Missing required data:', { apiBase: !!apiBase, userId: !!userId, accessToken: !!accessToken });
-              toast({
-                title: "Missing config",
-                description: "Unable to persist connection. Please try again.",
-                variant: "destructive",
-              })
-              return
-            }
-            
-            console.log('Sending request to backend...');
-            fetch(`${apiBase}/social-media/connect/facebook`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-ID': userId,
-              },
-              body: JSON.stringify({ access_token: accessToken }),
-            }).then(async (r) => {
-              if (!r.ok) {
-                const err = await r.json().catch(() => ({}))
-                throw new Error(err?.detail || 'Failed to save connection')
-              }
-              
-              // Refresh accounts from database to get the real connection status
-              const response = await fetch(`${apiBase}/social-media/connected-accounts`, {
-                headers: {
-                  'X-User-ID': userId,
-                },
-              })
-              
-              if (response.ok) {
-                const dbAccounts = (await response.json()).accounts || []
-                setAccounts(prev => prev.map(account => {
-                  const dbAccount = dbAccounts.find((db: any) => db.platform === account.platform)
-                  if (dbAccount) {
-                    return {
-                      ...account,
-                      isConnected: true,
-                      username: dbAccount.username || dbAccount.account_name || "",
-                      displayName: dbAccount.account_name || account.displayName,
-                      lastSync: 'Just now',
-                      permissions: Object.keys(dbAccount.permissions || {})
-                    }
-                  }
-                  return account
-                }))
-              }
-              
-              toast({
-                title: "Connected!",
-                description: "Facebook & Instagram connected successfully!",
-              })
-            }).catch(() => {
-              toast({
-                title: "Persist failed",
-                description: "Connected on Facebook, but saving failed.",
-                variant: "destructive",
-              })
-            })
-          } else if (response.status === 'not_authorized') {
-            toast({
-              title: "Not Authorized",
-              description: "Facebook login was cancelled or not authorized.",
-              variant: "destructive",
-            })
-          } else {
-            toast({
-              title: "Login Failed",
-              description: "Facebook login failed. Please try again.",
-              variant: "destructive",
-            })
-          }
-        }, {
-          scope: 'pages_read_engagement,pages_show_list,instagram_basic'
-        })
-      } else {
-        toast({
-          title: "Facebook SDK Not Ready",
-          description: "Please wait for Facebook SDK to load and try again.",
-          variant: "destructive",
-        })
-      }
-    } else {
-      // For other platforms, show a message
-      toast({
-        title: "Coming Soon",
-        description: `${getPlatformName(platform)} integration is not yet implemented.`,
-      })
-    }
+    // Show "Coming Soon" message for all platforms
+    toast({
+      title: "Coming Soon! 🚀",
+      description: `${getPlatformName(platform)} integration is currently under development. Stay tuned for updates!`,
+    })
   }
 
   return (
@@ -410,86 +282,170 @@ export function ConnectedAccounts() {
         </CardContent>
       </Card>
 
-      {/* Connected Accounts */}
+      {/* Connected Accounts Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Connected Accounts</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <div className="p-2 bg-green-600 rounded-lg">
+              <Settings className="h-4 w-4 text-white" />
+            </div>
+            Connected Accounts
+          </CardTitle>
           <CardDescription>
-            Manage your social media and advertising platform connections
+            Manage your social media and platform connections
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {accounts.map((account) => {
-            const Icon = getPlatformIcon(account.platform)
-            
-            return (
-              <div
-                key={account.platform}
-                className={`flex items-center justify-between p-4 border rounded-lg transition-all duration-200 ${
-                  account.isConnected 
-                    ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/20' 
-                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
-                }`}
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* YouTube Connection */}
+              <div 
+                className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Coming Soon! 🚀",
+                    description: "YouTube integration is currently under development. Stay tuned for updates!",
+                  })
+                }}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${getPlatformColor(account.platform)}`}>
-                    <Icon className="h-5 w-5 text-white" />
+                  <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
                   </div>
                   <div>
-                    <h3 className="font-medium">{getPlatformName(account.platform)}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {account.isConnected ? "Connected" : "Not connected"}
-                    </p>
-                    {account.isConnected && account.username && (
-                      <p className="text-xs text-green-600 dark:text-green-400">
-                        {account.username}
-                      </p>
-                    )}
-                    {account.isConnected && account.lastSync && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400">
-                        Last sync: {account.lastSync}
-                      </p>
-                    )}
+                    <h4 className="font-medium">YouTube</h4>
+                    <p className="text-sm text-muted-foreground">Connect your channel</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {account.isConnected && (
-                    <>
-                      <Badge variant="secondary">Connected</Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRefresh(account.platform)}
-                        disabled={isLoading}
-                      >
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        Refresh
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDisconnect(account.platform)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Disconnect
-                      </Button>
-                    </>
-                  )}
-                  {!account.isConnected && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleConnect(account.platform)}
-                    >
-                      Connect
-                    </Button>
-                  )}
+              </div>
+
+              {/* Instagram Connection */}
+              <div 
+                className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Coming Soon! 🚀",
+                    description: "Instagram integration is currently under development. Stay tuned for updates!",
+                  })
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Instagram</h4>
+                    <p className="text-sm text-muted-foreground">Connect your profile</p>
+                  </div>
                 </div>
               </div>
-            )
-          })}
+
+              {/* TikTok Connection */}
+              <div 
+                className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Coming Soon! 🚀",
+                    description: "TikTok integration is currently under development. Stay tuned for updates!",
+                  })
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">TikTok</h4>
+                    <p className="text-sm text-muted-foreground">Connect your account</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* LinkedIn Connection */}
+              <div 
+                className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Coming Soon! 🚀",
+                    description: "LinkedIn integration is currently under development. Stay tuned for updates!",
+                  })
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">LinkedIn</h4>
+                    <p className="text-sm text-muted-foreground">Connect your profile</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Twitter/X Connection */}
+              <div 
+                className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Coming Soon! 🚀",
+                    description: "Twitter/X integration is currently under development. Stay tuned for updates!",
+                  })
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Twitter/X</h4>
+                    <p className="text-sm text-muted-foreground">Connect your account</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Facebook Connection */}
+              <div 
+                className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Coming Soon! 🚀",
+                    description: "Facebook integration is currently under development. Stay tuned for updates!",
+                  })
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Facebook</h4>
+                    <p className="text-sm text-muted-foreground">Connect your page</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center pt-4">
+              <p className="text-sm text-muted-foreground">
+                Click on any platform to connect your account
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
 
       {/* Connection Summary */}
       <Card>
@@ -515,6 +471,30 @@ export function ConnectedAccounts() {
           </div>
         </CardContent>
       </Card>
+      {/* Guidance Modal for Instagram linking */}
+      <Dialog open={showIgGuide} onOpenChange={setShowIgGuide}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect Instagram Business Account</DialogTitle>
+            <DialogDescription>
+              {igGuideReason || "We couldn't find a linked Instagram Business account for your Facebook Page."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="font-medium">To connect Instagram:</p>
+            <ol className="list-decimal ml-5 space-y-2">
+              <li>Open Instagram app → Settings → Account → Switch to Professional → Business.</li>
+              <li>In your Facebook Page settings, link your Instagram account to this Page.</li>
+              <li>Return here and press Connect on Instagram.</li>
+            </ol>
+            <p className="text-muted-foreground">Also ensure permissions: instagram_basic, pages_show_list, pages_read_engagement.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowIgGuide(false)}>Close</Button>
+            <Button onClick={() => { setShowIgGuide(false); handleConnect('instagram') }}>Re-check now</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

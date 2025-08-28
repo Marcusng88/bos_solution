@@ -7,10 +7,12 @@ import sys
 import asyncio
 import platform
 import logging
+import threading
+import time
 
 # Import and setup Windows compatibility early
-from app.core.windows_compatibility import setup_windows_compatibility
-setup_windows_compatibility()
+# from app.core.windows_compatibility import setup_windows_compatibility
+# setup_windows_compatibility()
 
 # Configure logging early - only show essential logs
 logging.basicConfig(
@@ -29,11 +31,168 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import os
+from pathlib import Path
+import importlib.util
 
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.core.database import init_db, get_connection_mode
 
+# Global variables to store the schedulers
+roi_scheduler_thread = None
+roi_scheduler_running = False
+monitoring_scheduler_task = None
+monitoring_scheduler_running = False
+
+def start_roi_scheduler():
+    """Start the ROI scheduler in a separate thread"""
+    global roi_scheduler_thread, roi_scheduler_running
+    
+    if roi_scheduler_running:
+        print("🔄 ROI scheduler is already running")
+        return
+    
+    try:
+        print("🚀 Starting ROI scheduler...")
+        
+        # Import the ROI scheduler using importlib to handle spaces in folder names
+        import importlib.util
+        from pathlib import Path
+        
+        # Get the path to the scheduler file
+        backend_path = Path(__file__).parent
+        scheduler_path = backend_path / "app" / "core" / "ROI backend" / "roi" / "services" / "scheduler.py"
+        
+        if not scheduler_path.exists():
+            raise ImportError(f"Scheduler file not found at: {scheduler_path}")
+        
+        # Load the scheduler module
+        spec = importlib.util.spec_from_file_location("roi_scheduler", str(scheduler_path))
+        if spec and spec.loader:
+            scheduler_module = importlib.util.module_from_spec(spec)
+            import sys
+            if spec.name:
+                sys.modules[spec.name] = scheduler_module
+            spec.loader.exec_module(scheduler_module)
+            
+            # Now we can use the functions
+            start_scheduler = getattr(scheduler_module, "start_scheduler")
+            start_scheduler()
+            roi_scheduler_running = True
+            print("✅ ROI scheduler started successfully")
+        else:
+            raise ImportError("Failed to load scheduler module")
+        
+    except ImportError as e:
+        print(f"❌ Failed to import ROI scheduler: {e}")
+        print("   Make sure the ROI backend services are properly installed")
+        print("   Path should be: app/core/ROI backend/roi/services/")
+    except Exception as e:
+        print(f"❌ Failed to start ROI scheduler: {e}")
+        print("   ROI updates will not be available")
+
+def stop_roi_scheduler():
+    """Stop the ROI scheduler"""
+    global roi_scheduler_running
+    
+    if roi_scheduler_running:
+        try:
+            # Import and stop the scheduler using the same approach
+            import importlib.util
+            from pathlib import Path
+            
+            backend_path = Path(__file__).parent
+            scheduler_path = backend_path / "app" / "core" / "ROI backend" / "roi" / "services" / "scheduler.py"
+            
+            if scheduler_path.exists():
+                spec = importlib.util.spec_from_file_location("roi_scheduler", str(scheduler_path))
+                if spec and spec.loader:
+                    scheduler_module = importlib.util.module_from_spec(spec)
+                    import sys
+                    if spec.name:
+                        sys.modules[spec.name] = scheduler_module
+                    spec.loader.exec_module(scheduler_module)
+                    
+                    stop_scheduler = getattr(scheduler_module, "stop_scheduler")
+                    stop_scheduler()
+                    roi_scheduler_running = False
+                    print("🛑 ROI scheduler stopped")
+                else:
+                    print("⚠️  Could not load scheduler module for stopping")
+            else:
+                print("⚠️  Scheduler file not found for stopping")
+                
+        except Exception as e:
+            print(f"⚠️  Warning: Could not stop ROI scheduler cleanly: {e}")
+
+def start_monitoring_scheduler():
+    """Start the monitoring scheduler in a separate thread"""
+    global monitoring_scheduler_task, monitoring_scheduler_running
+    
+    if monitoring_scheduler_running:
+        print("🔄 Monitoring scheduler is already running")
+        return
+    
+    try:
+        print("🚀 Starting monitoring scheduler...")
+        
+        # Import the monitoring scheduler
+        from app.services.monitoring.scheduler import start_monitoring_scheduler
+        
+        # Start the monitoring scheduler in a separate thread
+        def run_monitoring_scheduler():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(start_monitoring_scheduler())
+            except Exception as e:
+                print(f"❌ Monitoring scheduler error: {e}")
+            finally:
+                loop.close()
+        
+        monitoring_scheduler_task = threading.Thread(target=run_monitoring_scheduler, daemon=True)
+        monitoring_scheduler_task.start()
+        monitoring_scheduler_running = True
+        print("✅ Monitoring scheduler started successfully")
+        
+    except ImportError as e:
+        print(f"❌ Failed to import monitoring scheduler: {e}")
+        print("   Make sure the monitoring services are properly installed")
+    except Exception as e:
+        print(f"❌ Failed to start monitoring scheduler: {e}")
+        print("   Continuous monitoring will not be available")
+
+def stop_monitoring_scheduler():
+    """Stop the monitoring scheduler"""
+    global monitoring_scheduler_running
+    
+    if monitoring_scheduler_running:
+        try:
+            # Import and stop the scheduler
+            from app.services.monitoring.scheduler import stop_monitoring_scheduler
+            
+            # Create a new event loop to stop the scheduler
+            def stop_monitoring():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(stop_monitoring_scheduler())
+                except Exception as e:
+                    print(f"⚠️  Warning: Could not stop monitoring scheduler cleanly: {e}")
+                finally:
+                    loop.close()
+            
+            # Run the stop function in a separate thread
+            stop_thread = threading.Thread(target=stop_monitoring, daemon=True)
+            stop_thread.start()
+            stop_thread.join(timeout=5)  # Wait up to 5 seconds
+            
+            monitoring_scheduler_running = False
+            print("🛑 Monitoring scheduler stopped")
+                
+        except Exception as e:
+            print(f"⚠️  Warning: Could not stop monitoring scheduler cleanly: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,15 +202,32 @@ async def lifespan(app: FastAPI):
         await init_db()
         connection_mode = get_connection_mode()
         print(f"✅ Database initialized successfully in {connection_mode} mode")
+        
+        # Start ROI scheduler
+        start_roi_scheduler()
+        
+        # Start monitoring scheduler
+        start_monitoring_scheduler()
+        
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         print("⚠️  Application will continue using available connection methods")
+    
     yield
+    
     # Shutdown
     try:
+        # Stop monitoring scheduler
+        stop_monitoring_scheduler()
+        
+        # Stop ROI scheduler
+        stop_roi_scheduler()
+        
+        # Cleanup database
         from app.core.database import close_db
         await close_db()
         print("✅ Database cleanup completed")
+        
     except Exception as e:
         print(f"⚠️  Database cleanup warning: {e}")
 
@@ -91,6 +267,8 @@ if __name__ == "__main__":
     print(f"🌐 Host: {settings.HOST}")
     print(f"🔌 Port: {settings.PORT}")
     print(f"🐛 Debug: {settings.DEBUG}")
+    print(f"📊 ROI Scheduler: Will start automatically")
+    print(f"🔍 Monitoring Scheduler: Will start automatically")
     
     uvicorn.run(
         "main:app",

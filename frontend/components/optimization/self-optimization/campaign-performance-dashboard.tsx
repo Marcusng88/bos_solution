@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { useApiClient, handleApiError } from "@/lib/api-client"
-import { TrendingUp, TrendingDown, BarChart3, Calendar } from "lucide-react"
+import { TrendingUp, TrendingDown, BarChart3, Calendar, HelpCircle } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 interface CampaignData {
   name: string
@@ -48,6 +49,8 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
   const [loading, setLoading] = useState(true)
   const [currentStats, setCurrentStats] = useState<any>(null)
   const { apiClient, userId } = useApiClient()
+  const [selectedCampaignData, setSelectedCampaignData] = useState<CampaignData | null>(null)
+  const [isPerformanceDialogOpen, setIsPerformanceDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchCampaignData()
@@ -59,7 +62,7 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
       const campaignData = await apiClient.getCampaigns(userId)
       
       // Transform campaign data with all fields
-      const transformedCampaigns = campaignData.map((campaign: any) => ({
+      const transformedCampaigns = (campaignData as any[]).map((campaign: any) => ({
         name: campaign.name,
         spend: campaign.spend || 0,
         ctr: campaign.ctr || 0,
@@ -78,7 +81,7 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
       // Get overspending predictions to calculate risk scores
       try {
         const predictionsData = await apiClient.getOverspendingPredictions(userId)
-        const predictionsMap = new Map(predictionsData.map((p: any) => [p.campaign_name, p]))
+        const predictionsMap = new Map((predictionsData as any[]).map((p: any) => [p.campaign_name, p]))
         
         // Update campaigns with risk data
         const campaignsWithRisk = transformedCampaigns.map(campaign => {
@@ -86,12 +89,12 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
           if (prediction) {
             return {
               ...campaign,
-              risk_score: prediction.risk_score || 0,
-              overspend_risk: prediction.overspend_risk || 'low',
-              budget_utilization: prediction.budget_utilization || campaign.budget_utilization,
-              profit_margin: prediction.profit_margin || campaign.profit_margin,
-              performance_score: prediction.performance_score,
-              performance_category: prediction.performance_category
+              risk_score: (prediction as any).risk_score || 0,
+              overspend_risk: (prediction as any).overspend_risk || 'low',
+              budget_utilization: (prediction as any).budget_utilization || campaign.budget_utilization,
+              profit_margin: (prediction as any).profit_margin || campaign.profit_margin,
+              performance_score: (prediction as any).performance_score,
+              performance_category: (prediction as any).performance_category
             }
           }
           return campaign
@@ -175,10 +178,10 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
             trendDate.setDate(today.getDate() - i)
             
             // Calculate base daily values from total stats, with minimum thresholds
-            const baseSpend = Math.max(minBaseSpend, Number(stats.total_spend) / days)
-            const baseCTR = Math.max(minBaseCTR, Number(stats.avg_ctr))
-            const baseCPC = Math.max(minBaseCPC, Number(stats.avg_cpc))
-            const baseConversions = Math.max(minBaseConversions, Number(stats.total_conversions) / days)
+            const baseSpend = Math.max(minBaseSpend, Number((stats as any).total_spend) / days)
+            const baseCTR = Math.max(minBaseCTR, Number((stats as any).avg_ctr))
+            const baseCPC = Math.max(minBaseCPC, Number((stats as any).avg_cpc))
+            const baseConversions = Math.max(minBaseConversions, Number((stats as any).total_conversions) / days)
             
             // Add realistic daily variation to simulate real campaign performance
             // This variation represents the natural day-to-day fluctuations in campaign metrics
@@ -199,12 +202,12 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
         }
       } else {
         const performance = await apiClient.getCampaignPerformance(userId, selectedCampaign, days)
-        const trends = performance.dates.map((date: string, index: number) => ({
+        const trends = (performance as any).dates.map((date: string, index: number) => ({
           date,
-          spend: parseFloat(performance.spend_trend[index]),
-          ctr: parseFloat(performance.ctr_trend[index]),
-          cpc: parseFloat(performance.cpc_trend[index]),
-          conversions: performance.conversions_trend[index]
+          spend: parseFloat((performance as any).spend_trend[index]),
+          ctr: parseFloat((performance as any).ctr_trend[index]),
+          cpc: parseFloat((performance as any).cpc_trend[index]),
+          conversions: (performance as any).conversions_trend[index]
         }))
         setPerformanceTrends(trends)
       }
@@ -250,11 +253,11 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
   }
 
   const getPerformanceCategory = (performanceScore: number) => {
-    if (performanceScore >= 90) return { label: 'Excellent', color: 'text-green-600', bgColor: 'bg-green-50' }
-    if (performanceScore >= 80) return { label: 'Good', color: 'text-blue-600', bgColor: 'bg-blue-50' }
-    if (performanceScore >= 70) return { label: 'Fair', color: 'text-yellow-600', bgColor: 'bg-yellow-50' }
-    if (performanceScore >= 60) return { label: 'Underperform', color: 'text-orange-600', bgColor: 'bg-orange-50' }
-    return { label: 'Poor', color: 'text-red-600', bgColor: 'bg-red-50' }
+    if (performanceScore >= 90) return { label: 'Excellent', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-950/20' }
+    if (performanceScore >= 80) return { label: 'Good', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-950/20' }
+    if (performanceScore >= 70) return { label: 'Fair', color: 'text-yellow-600 dark:text-yellow-400', bgColor: 'bg-yellow-50 dark:bg-yellow-950/20' }
+    if (performanceScore >= 60) return { label: 'Underperform', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-950/20' }
+    return { label: 'Poor', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-950/20' }
   }
 
   // Sort campaigns by performance score (best to worst)
@@ -407,43 +410,43 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
             </div>
             
             {/* Performance Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <div className="text-center">
-                <div className="text-lg font-semibold text-blue-600">
-                  {campaigns.filter(c => c.ongoing === 'Yes').length}
+                                  <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                    {campaigns.filter(c => c.ongoing === 'Yes').length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Ongoing</div>
                 </div>
-                <div className="text-xs text-gray-600">Ongoing</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-green-600">
-                  {campaigns.filter(c => getPerformanceScore(c) >= 90).length}
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-green-600 dark:text-green-400">
+                    {campaigns.filter(c => getPerformanceScore(c) >= 90).length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Excellent</div>
                 </div>
-                <div className="text-xs text-gray-600">Excellent</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-blue-600">
-                  {campaigns.filter(c => getPerformanceScore(c) >= 80 && getPerformanceScore(c) < 90).length}
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                    {campaigns.filter(c => getPerformanceScore(c) >= 80 && getPerformanceScore(c) < 90).length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Good</div>
                 </div>
-                <div className="text-xs text-gray-600">Good</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-yellow-600">
-                  {campaigns.filter(c => getPerformanceScore(c) >= 70 && getPerformanceScore(c) < 80).length}
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">
+                    {campaigns.filter(c => getPerformanceScore(c) >= 70 && getPerformanceScore(c) < 80).length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Fair</div>
                 </div>
-                <div className="text-xs text-gray-600">Fair</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-orange-600">
-                  {campaigns.filter(c => getPerformanceScore(c) >= 60 && getPerformanceScore(c) < 70).length}
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-orange-600 dark:text-orange-400">
+                    {campaigns.filter(c => getPerformanceScore(c) >= 60 && getPerformanceScore(c) < 70).length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Underperform</div>
                 </div>
-                <div className="text-xs text-gray-600">Underperform</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-red-600">
-                  {campaigns.filter(c => getPerformanceScore(c) < 60).length}
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-red-600 dark:text-red-400">
+                    {campaigns.filter(c => getPerformanceScore(c) < 60).length}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Poor</div>
                 </div>
-                <div className="text-xs text-gray-600">Poor</div>
-              </div>
             </div>
 
             {/* Campaign Cards */}
@@ -457,10 +460,10 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
                     {/* Header with Status and Performance */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3">
-                        <div className={`w-3 h-3 rounded-full ${campaign.ongoing === 'Yes' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        <div className={`w-3 h-3 rounded-full ${campaign.ongoing === 'Yes' ? 'bg-green-500 dark:bg-green-400' : 'bg-gray-400 dark:bg-gray-500'}`} />
                         <div>
                           <div className="font-semibold text-lg">{campaign.name}</div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-muted-foreground">
                             {campaign.ongoing === 'Yes' ? 'Active' : 'Paused'}
                           </div>
                         </div>
@@ -470,62 +473,103 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
                           {performanceCategory.label}
                         </div>
                         <div className="flex items-center gap-2 mt-1">
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-muted-foreground">
                             Score: {performanceScore.toFixed(0)}
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              alert(`Performance Score Calculation:\n\nFormula: 100 - (Risk Score × 100)\n\nRisk Score Breakdown:\n• Budget Utilization Risk (40% weight)\n• Profit Performance Risk (30% weight)\n• Performance Metrics Risk (20% weight)\n• Spending Velocity Risk (10% weight)\n\nYour Score: 100 - (${(campaign.risk_score * 100).toFixed(1)}%) = ${performanceScore.toFixed(1)}`)
-                            }}
-                          >
-                            ?
-                          </Button>
+                          <Dialog open={isPerformanceDialogOpen && selectedCampaignData?.name === campaign.name} onOpenChange={(open) => {
+                            if (open) {
+                              setSelectedCampaignData(campaign)
+                              setIsPerformanceDialogOpen(true)
+                            } else {
+                              setIsPerformanceDialogOpen(false)
+                              setSelectedCampaignData(null)
+                            }
+                          }}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => {
+                                  setSelectedCampaignData(campaign)
+                                  setIsPerformanceDialogOpen(true)
+                                }}
+                              >
+                                <HelpCircle className="h-3 w-3" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <HelpCircle className="h-5 w-5 text-blue-600" />
+                                  Performance Score Calculation
+                                </DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="text-sm space-y-2">
+                                  <p className="font-medium">Formula: 100 - (Risk Score × 100)</p>
+                                  <div className="space-y-1">
+                                    <p className="font-medium text-foreground">Risk Score Breakdown:</p>
+                                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                                      <li>Budget Utilization Risk (40% weight)</li>
+                                      <li>Profit Performance Risk (30% weight)</li>
+                                      <li>Performance Metrics Risk (20% weight)</li>
+                                      <li>Spending Velocity Risk (10% weight)</li>
+                                    </ul>
+                                  </div>
+                                  <div className="pt-2 border-t">
+                                    <p className="font-medium text-foreground">Your Score:</p>
+                                    <p className="text-lg font-bold text-blue-600">
+                                      100 - ({(campaign.risk_score * 100).toFixed(1)}%) = {performanceScore.toFixed(1)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         </div>
                       </div>
                     </div>
 
                     {/* Main Metrics Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-                      <div className="text-center p-3 bg-blue-50 rounded-lg">
-                        <div className="text-lg font-bold text-blue-600">${campaign.spend.toLocaleString()}</div>
-                        <div className="text-xs text-gray-600">Spend</div>
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">${campaign.spend.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Spend</div>
                       </div>
-                      <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <div className="text-lg font-bold text-green-600">{campaign.conversions.toLocaleString()}</div>
-                        <div className="text-xs text-gray-600">Conversions</div>
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-green-600 dark:text-green-400">{campaign.conversions.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Conversions</div>
                       </div>
-                      <div className="text-center p-3 bg-purple-50 rounded-lg">
-                        <div className="text-lg font-bold text-purple-600">{campaign.ctr.toFixed(2)}%</div>
-                        <div className="text-xs text-gray-600">CTR</div>
+                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{campaign.ctr.toFixed(2)}%</div>
+                        <div className="text-xs text-muted-foreground">CTR</div>
                       </div>
-                      <div className="text-center p-3 bg-orange-50 rounded-lg">
-                        <div className="text-lg font-bold text-orange-600">${campaign.cpc.toFixed(2)}</div>
-                        <div className="text-xs text-gray-600">CPC</div>
+                      <div className="text-center p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-orange-600 dark:text-orange-400">${campaign.cpc.toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground">CPC</div>
                       </div>
                     </div>
 
                     {/* Additional Metrics Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-lg font-bold text-gray-600">${campaign.budget.toLocaleString()}</div>
-                        <div className="text-xs text-gray-600">Budget</div>
+                      <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="text-lg font-bold text-gray-600 dark:text-gray-300">${campaign.budget.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Budget</div>
                       </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-lg font-bold text-gray-600">{campaign.impressions.toLocaleString()}</div>
-                        <div className="text-xs text-gray-600">Impressions</div>
+                      <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="text-lg font-bold text-gray-600 dark:text-gray-300">{campaign.impressions.toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">Impressions</div>
                       </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-lg font-bold text-gray-600">{campaign.budget_utilization.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-600">Utilization</div>
+                      <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="text-lg font-bold text-gray-600 dark:text-gray-300">{campaign.budget_utilization.toFixed(1)}%</div>
+                        <div className="text-xs text-muted-foreground">Utilization</div>
                       </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className={`text-lg font-bold ${campaign.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className={`text-lg font-bold ${campaign.net_profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                           ${campaign.net_profit.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600">Net Profit</div>
+                        <div className="text-xs text-muted-foreground">Net Profit</div>
                       </div>
                     </div>
 
@@ -534,10 +578,10 @@ export function CampaignPerformanceDashboard({ detailed = false }: CampaignPerfo
                       <div className="flex items-center space-x-2">
                         <div className="text-sm text-red-600 font-medium">Risk Level:</div>
                         <div className={`px-2 py-1 rounded text-xs font-medium ${
-                          campaign.overspend_risk === 'critical' ? 'bg-red-500 text-white' :
-                          campaign.overspend_risk === 'high' ? 'bg-orange-500 text-white' :
-                          campaign.overspend_risk === 'medium' ? 'bg-yellow-500 text-black' :
-                          'bg-green-500 text-white'
+                          campaign.overspend_risk === 'critical' ? 'bg-red-500 dark:bg-red-600 text-white' :
+                          campaign.overspend_risk === 'high' ? 'bg-orange-500 dark:bg-orange-600 text-white' :
+                          campaign.overspend_risk === 'medium' ? 'bg-yellow-500 dark:bg-yellow-600 text-black' :
+                          'bg-green-500 dark:bg-green-600 text-white'
                         }`}>
                           {campaign.overspend_risk.charAt(0).toUpperCase() + campaign.overspend_risk.slice(1)} Risk
                         </div>

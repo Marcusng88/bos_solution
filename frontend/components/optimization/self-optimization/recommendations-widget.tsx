@@ -62,17 +62,17 @@ export function RecommendationsWidget() {
   }
 
   const getPriorityColor = (priority: string, isApplied: boolean) => {
-    if (isApplied) return 'text-gray-600 bg-gray-50 border-gray-200'
+    if (isApplied) return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
     
     switch (priority) {
       case 'critical':
-        return 'text-red-600 bg-red-50 border-red-200'
+        return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
       case 'high':
-        return 'text-orange-600 bg-orange-50 border-orange-200'
+        return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
       case 'medium':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+        return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800'
       default:
-        return 'text-blue-600 bg-blue-50 border-blue-200'
+        return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
     }
   }
 
@@ -161,9 +161,9 @@ export function RecommendationsWidget() {
                             {recommendation.priority}
                           </Badge>
                           {recommendation.is_applied && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Applied
-                            </Badge>
+                                                    <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800">
+                          Applied
+                        </Badge>
                           )}
                         </div>
                         <p className="text-xs mb-2 leading-relaxed">{recommendation.description}</p>

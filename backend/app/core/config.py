@@ -34,8 +34,7 @@ class Settings(BaseSettings):
         env="ALLOWED_HOSTS"
     )
     
-    # Database
-    DATABASE_URL: str = Field(default="sqlite+aiosqlite:///./dev.db", env="DATABASE_URL")
+    # Database - Using Supabase REST API only
     SUPABASE_URL: str = Field(default="", env="SUPABASE_URL")
     SUPABASE_ANON_KEY: str = Field(default="", env="SUPABASE_ANON_KEY")
     SUPABASE_SERVICE_ROLE_KEY: str = Field(default="", env="SUPABASE_SERVICE_ROLE_KEY")

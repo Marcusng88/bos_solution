@@ -43,23 +43,13 @@ function YouTubeCallbackContent() {
       
       await handleCallback(code)
 
-      // After tokens are stored, fetch ROI analytics first
-      setMessage('Fetching ROI analytics...')
+      // After tokens are stored, fetch ROI analytics for display purposes only
+      setMessage('Fetching channel information...')
       try {
-        const roi = await getROIAnalytics()
-
-        // Trigger JSON download
-        const blob = new Blob([JSON.stringify(roi, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'youtube_roi_analytics.json'
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        URL.revokeObjectURL(url)
+        await getROIAnalytics()
       } catch (e) {
         console.error('ROI fetch error:', e)
+        // Don't show error to user as this is not critical for connection
       }
 
       setStatus('success')

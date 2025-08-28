@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Target, FileText, Globe, BarChart3 } from "lucide-react"
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Target, FileText, Globe, BarChart3, Brain, AlertCircle } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
+import { AIInsightsDetailsDialog } from "./ai-insights-details-dialog"
 
 interface CompetitorOverviewProps {
   timeRange: string
@@ -17,6 +18,15 @@ interface Competitor {
   id: string
   name: string
   status: string
+}
+
+interface AIInsight {
+  type: "opportunity" | "threat" | "trend"
+  title: string
+  description: string
+  impact: "Low" | "Medium" | "High"
+  confidence: number
+  data?: any
 }
 
 export function CompetitorOverview({ timeRange, monitoringData = [] }: CompetitorOverviewProps) {
@@ -61,12 +71,12 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
   }
 
   // Calculate real insights from actual monitoring data
-  const calculateInsights = () => {
+  const calculateInsights = (): AIInsight[] => {
     if (!monitoringData || monitoringData.length === 0) {
       return []
     }
 
-    const insights = []
+    const insights: AIInsight[] = []
     
     // Platform distribution insight
     const platformCounts = monitoringData.reduce((acc: Record<string, number>, post) => {
@@ -79,10 +89,11 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
     if (dominantPlatform) {
       insights.push({
         type: "trend",
-        title: "Platform Activity",
-        description: `Most content is being monitored on ${dominantPlatform[0]} (${dominantPlatform[1]} posts). Consider focusing your monitoring efforts here.`,
+        title: "Platform Activity Concentration",
+        description: `Most content is being monitored on ${dominantPlatform[0]} (${dominantPlatform[1]} posts). Consider focusing your monitoring efforts here for maximum competitive intelligence coverage.`,
         impact: "Medium",
         confidence: 85,
+        data: { platform: dominantPlatform[0], count: dominantPlatform[1] }
       })
     }
 
@@ -96,10 +107,11 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
     if (Object.keys(contentTypes).length > 1) {
       insights.push({
         type: "opportunity",
-        title: "Content Diversity",
-        description: `Competitors are using multiple content types: ${Object.keys(contentTypes).join(', ')}. This shows content strategy variety.`,
+        title: "Content Strategy Diversity",
+        description: `Competitors are using multiple content types: ${Object.keys(contentTypes).join(', ')}. This shows content strategy variety and presents opportunities to identify gaps in your content mix.`,
         impact: "Medium",
         confidence: 78,
+        data: { contentTypes: Object.keys(contentTypes) }
       })
     }
 
@@ -114,10 +126,37 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
       
       insights.push({
         type: "trend",
-        title: "Content Sentiment",
-        description: `Overall content sentiment is ${sentimentInsight} (average: ${avgSentiment.toFixed(2)}). This reflects the tone of competitor content.`,
+        title: "Content Sentiment Analysis",
+        description: `Overall content sentiment is ${sentimentInsight} (average: ${avgSentiment.toFixed(2)}). This reflects the tone of competitor content and can inform your messaging strategy.`,
         impact: "Low",
         confidence: 72,
+        data: { avgSentiment, sentimentInsight }
+      })
+    }
+
+    // Engagement pattern insight
+    const engagementData = monitoringData.filter(post => post.engagement_metrics)
+    if (engagementData.length > 0) {
+      insights.push({
+        type: "opportunity",
+        title: "Engagement Pattern Analysis",
+        description: `Found ${engagementData.length} posts with engagement metrics. Analyzing these patterns can reveal what content resonates with your target audience.`,
+        impact: "High",
+        confidence: 68,
+        data: { engagementPosts: engagementData.length }
+      })
+    }
+
+    // New content detection
+    const newPosts = monitoringData.filter(post => post.is_new_post === true)
+    if (newPosts.length > 0) {
+      insights.push({
+        type: "trend",
+        title: "Fresh Content Detection",
+        description: `Detected ${newPosts.length} new posts in the last monitoring cycle. This indicates active competitor activity and content strategy evolution.`,
+        impact: "Medium",
+        confidence: 75,
+        data: { newPosts: newPosts.length }
       })
     }
 
@@ -140,7 +179,9 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
           platforms: new Set(),
           contentTypes: new Set(),
           totalSentiment: 0,
-          sentimentCount: 0
+          sentimentCount: 0,
+          newPosts: 0,
+          contentChanges: 0
         }
       }
       
@@ -152,6 +193,9 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
         acc[competitorId].totalSentiment += parseFloat(post.sentiment_score)
         acc[competitorId].sentimentCount += 1
       }
+
+      if (post.is_new_post) acc[competitorId].newPosts += 1
+      if (post.is_content_change) acc[competitorId].contentChanges += 1
       
       return acc
     }, {})
@@ -164,6 +208,8 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
       platforms: comp.platforms.size,
       contentTypes: comp.contentTypes.size,
       avgSentiment: comp.sentimentCount > 0 ? (comp.totalSentiment / comp.sentimentCount).toFixed(2) : 'N/A',
+      newPosts: comp.newPosts,
+      contentChanges: comp.contentChanges,
       trend: comp.posts > 5 ? "up" : "stable"
     }))
   }
@@ -180,7 +226,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
           <CardDescription>Summary of monitored competitor activity</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 border rounded-lg">
               <FileText className="h-8 w-8 mx-auto mb-2 text-blue-500" />
               <div className="text-2xl font-bold text-foreground">{monitoringData.length}</div>
@@ -188,8 +234,10 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
             </div>
             <div className="text-center p-4 border rounded-lg">
               <Globe className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold text-foreground">3</div>
-              <p className="text-sm text-muted-foreground">Core Platforms (YouTube, Web, Website)</p>
+              <div className="text-2xl font-bold text-foreground">
+                {new Set(monitoringData.map(post => post.platform)).size}
+              </div>
+              <p className="text-sm text-muted-foreground">Platforms Monitored</p>
             </div>
             <div className="text-center p-4 border rounded-lg">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-purple-500" />
@@ -197,6 +245,11 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                 {new Set(monitoringData.map(post => post.competitor_id)).size}
               </div>
               <p className="text-sm text-muted-foreground">Competitors Tracked</p>
+            </div>
+            <div className="text-center p-4 border rounded-lg">
+              <Brain className="h-8 w-8 mx-auto mb-2 text-orange-500" />
+              <div className="text-2xl font-bold text-foreground">{insights.length}</div>
+              <p className="text-sm text-muted-foreground">AI Insights Generated</p>
             </div>
           </div>
         </CardContent>
@@ -206,7 +259,10 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
       {insights.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>AI Competitive Insights</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-blue-600" />
+              AI Competitive Insights
+            </CardTitle>
             <CardDescription>Key findings from actual competitor analysis</CardDescription>
           </CardHeader>
           <CardContent>
@@ -232,9 +288,15 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                       <span className="text-xs font-medium text-foreground">{insight.confidence}%</span>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
+                  <AIInsightsDetailsDialog 
+                    insight={insight}
+                    trigger={
+                      <Button variant="outline" size="sm">
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        View Details
+                      </Button>
+                    }
+                  />
                 </div>
               ))}
             </div>
@@ -243,7 +305,10 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>AI Competitive Insights</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-blue-600" />
+              AI Competitive Insights
+            </CardTitle>
             <CardDescription>Key findings from competitor analysis</CardDescription>
           </CardHeader>
           <CardContent>
@@ -266,7 +331,7 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
           <CardContent>
             <div className="space-y-4">
               {competitorMetrics.map((competitor, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
+                <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
                       <span className="font-semibold text-xs text-foreground">{competitor.name.charAt(0).toUpperCase()}</span>
@@ -301,6 +366,10 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
                     <div className="text-sm font-medium text-foreground">Avg. Sentiment</div>
                     <div className="text-lg font-bold text-foreground">{competitor.avgSentiment}</div>
                   </div>
+                  <div>
+                    <div className="text-sm font-medium text-foreground">New Posts</div>
+                    <div className="text-lg font-bold text-foreground">{competitor.newPosts}</div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -321,48 +390,6 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
           </CardContent>
         </Card>
       )}
-
-      {/* Quick Actions - Based on available data */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recommended Actions</CardTitle>
-          <CardDescription>Based on competitive intelligence analysis</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="h-4 w-4 text-blue-500" />
-                <h3 className="font-medium text-foreground">Expand Monitoring</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">
-                {monitoringData.length > 0 
-                  ? `Currently monitoring ${monitoringData.length} posts. Consider adding more competitors or platforms.`
-                  : "No monitoring data yet. Add competitors to start gathering intelligence."
-                }
-              </p>
-              <Button size="sm" className="w-full">
-                Add Competitors
-              </Button>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-4 w-4 text-green-500" />
-                <h3 className="font-medium text-foreground">Review Insights</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">
-                {insights.length > 0 
-                  ? `Found ${insights.length} insights. Review and act on competitive opportunities.`
-                  : "Run competitor scans to generate actionable insights."
-                }
-              </p>
-              <Button size="sm" variant="outline" className="w-full bg-transparent">
-                {insights.length > 0 ? "Review Insights" : "Start Scanning"}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

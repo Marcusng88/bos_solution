@@ -93,7 +93,7 @@ export default function ContentUpload() {
       case 'facebook': return '📘';
       case 'twitter': return '🐦';
       case 'linkedin': return '💼';
-      case 'tiktok': return '🎵';
+      // tiktok removed
       case 'youtube': return '📺';
       default: return '🌐';
     }
@@ -196,7 +196,7 @@ export default function ContentUpload() {
               <option value="facebook">📘 Facebook</option>
               <option value="twitter">🐦 Twitter</option>
               <option value="linkedin">💼 LinkedIn</option>
-              <option value="tiktok">🎵 TikTok</option>
+              {/* TikTok removed */}
               <option value="youtube">📺 YouTube</option>
             </select>
           </div>

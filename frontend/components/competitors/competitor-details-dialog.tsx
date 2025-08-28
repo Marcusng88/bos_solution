@@ -154,7 +154,22 @@ export function CompetitorDetailsDialog({ competitor, onCompetitorUpdated, onCom
       
       let errorMessage = "Failed to delete competitor. Please try again.";
       if (error instanceof Error) {
-        errorMessage = error.message;
+        // Handle specific error cases
+        if (error.message.includes("404") || error.message.includes("not found")) {
+          errorMessage = "Competitor has already been deleted.";
+          // Still call onCompetitorDeleted to refresh the list
+          setOpen(false)
+          setShowDeleteConfirm(false)
+          onCompetitorDeleted()
+          toast({
+            title: "Info",
+            description: "Competitor was already deleted from the database.",
+            variant: "default"
+          })
+          return;
+        } else {
+          errorMessage = error.message;
+        }
       }
       
       toast({

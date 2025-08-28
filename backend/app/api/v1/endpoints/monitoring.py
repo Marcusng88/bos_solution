@@ -272,6 +272,41 @@ async def get_monitoring_alerts(
         # Return empty list instead of raising error to prevent frontend crashes
         return []
 
+@router.put("/alerts/{alert_id}/read")
+async def mark_monitoring_alert_as_read(
+    alert_id: str,
+    user_id: str = Depends(get_user_id_from_header),
+    db: SupabaseClient = Depends(get_db)
+):
+    """Mark monitoring alert as read"""
+    try:
+        # Verify the alert belongs to the user
+        alert = await db.get_monitoring_alert_by_id(alert_id)
+        if not alert or alert.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Update the alert to mark it as read
+        update_data = {
+            "is_read": True,
+            "read_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        result = await db.update_monitoring_alert(alert_id, update_data)
+        
+        if result:
+            return {"message": "Alert marked as read"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to mark alert as read")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking monitoring alert as read: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to mark alert as read: {str(e)}"
+        )
+
 @router.post("/data")
 async def create_monitoring_data(
     monitoring_data: dict,
@@ -616,4 +651,59 @@ async def run_monitoring_for_all_competitors(
         return {
             "success": False,
             "message": f"Failed to run monitoring scan: {str(e)}"
+        }
+
+@router.get("/scheduler-status")
+async def get_monitoring_scheduler_status():
+    """Get the current status of the monitoring scheduler"""
+    try:
+        from app.services.monitoring.scheduler import monitoring_scheduler
+        
+        if monitoring_scheduler:
+            status = monitoring_scheduler.get_status()
+            return {
+                "success": True,
+                "scheduler_status": status,
+                "message": "Monitoring scheduler status retrieved successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "scheduler_status": None,
+                "message": "Monitoring scheduler not available"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting monitoring scheduler status: {e}")
+        return {
+            "success": False,
+            "scheduler_status": None,
+            "message": f"Failed to get scheduler status: {str(e)}"
+        }
+
+@router.post("/trigger-immediate-scan")
+async def trigger_immediate_monitoring_scan(
+    user_id: str = Depends(get_user_id_from_header),
+    db: SupabaseClient = Depends(get_db)
+):
+    """Trigger an immediate monitoring scan for all user's competitors"""
+    try:
+        from app.services.monitoring.scheduler import monitoring_scheduler
+        
+        if not monitoring_scheduler:
+            return {
+                "success": False,
+                "message": "Monitoring scheduler not available"
+            }
+        
+        # Trigger immediate scan for the user
+        result = await monitoring_scheduler.trigger_immediate_scan_for_user(user_id)
+        
+        return result
+            
+    except Exception as e:
+        logger.error(f"Error triggering immediate monitoring scan: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to trigger immediate scan: {str(e)}"
         }

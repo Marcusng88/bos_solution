@@ -1,3 +1,74 @@
+export type TimeRange = '7d' | '14d' | '30d' | '90d'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
+
+async function get<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
+  const url = new URL(`${API_BASE}${path}`)
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
+  const data: T = await res.json()
+  return data
+}
+
+export const roiApi = {
+  overview: (range: TimeRange) => get(`${'/roi/overview'}`, { range }),
+  revenueBySource: (range: TimeRange) => get(`${'/roi/revenue/by-source'}`, { range }),
+  revenueTrends: (range: TimeRange) => get(`${'/roi/revenue/trends'}`, { range }),
+  costBreakdown: (range: TimeRange) => get(`${'/roi/cost/breakdown'}`, { range }),
+  monthlySpendTrends: (year: number) => get(`${'/roi/cost/monthly-trends'}`, { year }),
+  clv: (range: TimeRange) => get(`${'/roi/profitability/clv'}`, { range }),
+  cac: (range: TimeRange) => get(`${'/roi/profitability/cac'}`, { range }),
+  roiTrends: (range: TimeRange) => get(`${'/roi/trends'}`, { range }),
+  channelPerformance: (range: TimeRange) => get(`${'/roi/channel/performance'}`, { range }),
+  generateReport: () => {
+    const url = new URL(`${API_BASE}/roi/generate-report`)
+    return fetch(url.toString(), { 
+      method: 'POST',
+      cache: 'no-store' 
+    }).then(async res => {
+      if (!res.ok) {
+        // Try to get error details from response
+        let errorMessage = `POST /roi/generate-report failed: ${res.status}`
+        try {
+          const errorData = await res.json()
+          if (errorData.detail) {
+            errorMessage = errorData.detail
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the status text
+          errorMessage = `POST /roi/generate-report failed: ${res.status} ${res.statusText}`
+        }
+        throw new Error(errorMessage)
+      }
+      return res.json()
+    })
+  },
+  generateHtmlReport: () => {
+    const url = new URL(`${API_BASE}/roi/generate-html-report`)
+    return fetch(url.toString(), { 
+      method: 'POST',
+      cache: 'no-store' 
+    }).then(async res => {
+      if (!res.ok) {
+        // Try to get error details from response
+        let errorMessage = `POST /roi/generate-html-report failed: ${res.status}`
+        try {
+          const errorData = await res.json()
+          if (errorData.detail) {
+            errorMessage = errorData.detail
+          }
+        } catch (e) {
+          // If we can't parse the error response, use the status text
+          errorMessage = `POST /roi/generate-html-report failed: ${res.status} ${res.statusText}`
+        }
+        throw new Error(errorMessage)
+      }
+      return res.json()
+    })
+  },
+}
+
 /**
  * API Client for BOS Solution Backend
  * Handles authentication headers and API communication
@@ -604,6 +675,61 @@ export const competitorAPI = {
     }
   },
 
+  // Create a new campaign
+  createCampaign: async (userId: string, campaignData: {
+    name: string;
+    budget: number;
+    ongoing: 'Yes' | 'No';
+  }): Promise<any> => {
+    try {
+      console.log('Creating campaign with data:', campaignData);
+      console.log('User ID:', userId);
+      console.log('API URL:', `${API_BASE_URL}/self-optimization/campaigns`);
+      console.log('Headers:', createApiHeaders(userId));
+      
+      if (!userId || userId.trim() === '') {
+        throw new Error('User ID is required');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/self-optimization/campaigns`, {
+        method: 'POST',
+        headers: createApiHeaders(userId),
+        body: JSON.stringify(campaignData),
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        
+        let errorMessage = 'Failed to create campaign';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = `${errorMessage}: ${response.status} ${response.statusText}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const result = await response.json();
+      console.log('Success response:', result);
+      return result;
+    } catch (error) {
+      console.error('Error in createCampaign:', error);
+      
+      // Provide more specific error messages
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+      }
+      
+      throw error;
+    }
+  },
+
   // Update a competitor
   updateCompetitor: async (id: string, competitorData: Partial<CompetitorCreate>, userId: string): Promise<Competitor> => {
     const response = await fetch(`${API_BASE_URL}/competitors/${id}`, {
@@ -627,7 +753,18 @@ export const competitorAPI = {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to delete competitor');
+      const errorData = await response.text();
+      let errorMessage = 'Failed to delete competitor';
+      
+      try {
+        const errorJson = JSON.parse(errorData);
+        errorMessage = errorJson.detail || errorMessage;
+      } catch {
+        // If not JSON, use the raw text or default message
+        errorMessage = errorData || errorMessage;
+      }
+      
+      throw new Error(`${errorMessage} (${response.status})`);
     }
   },
 

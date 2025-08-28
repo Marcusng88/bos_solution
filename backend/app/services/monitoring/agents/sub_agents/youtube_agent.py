@@ -10,8 +10,6 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 
-# Import Windows compatibility utilities
-from app.core.windows_compatibility import setup_windows_compatibility
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)

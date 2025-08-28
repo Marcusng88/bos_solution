@@ -13,8 +13,8 @@ import logging
 import sys
 
 # Import and setup Windows compatibility early
-from app.core.windows_compatibility import setup_windows_compatibility
-setup_windows_compatibility()
+# from app.core.windows_compatibility import setup_windows_compatibility
+# setup_windows_compatibility()
 
 # Configure logging to output to terminal with colors and formatting
 logger = logging.getLogger(__name__)

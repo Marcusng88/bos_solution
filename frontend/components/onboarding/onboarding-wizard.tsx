@@ -200,7 +200,7 @@ export function OnboardingWizard() {
             <div className="p-3 bg-blue-600 rounded-xl">
               <Brain className="h-8 w-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold">CompetitorAI Pro</h1>
+            <h1 className="text-3xl font-bold">Bos Solution</h1>
           </div>
           <p className="text-muted-foreground">AI-powered competitive intelligence for your marketing</p>
         </div>

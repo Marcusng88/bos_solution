@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from typing import List, Optional
 from app.core.supabase_client import supabase_client
 from app.schemas.social_media import (
@@ -16,6 +16,7 @@ import time
 from pydantic import BaseModel
 from app.core.social_media_config import SocialMediaConfig
 from app.services.youtube_service import youtube_service
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
@@ -23,9 +24,9 @@ router = APIRouter()
 # SOCIAL MEDIA POSTING FUNCTIONS
 # ============================================================================
 
-async def post_to_social_media(upload_data: dict, account_data: dict) -> dict:
-    """Post content to actual social media platforms"""
-    platform = upload_data.get("platform")
+async def post_to_social_media(upload_data: dict, account_data: dict, user_id: Optional[str] = None) -> dict:
+    """Post content to the appropriate social media platform"""
+    platform = account_data.get("platform", "").lower()
     
     if platform == "facebook":
         return await post_to_facebook(upload_data, account_data)
@@ -36,7 +37,7 @@ async def post_to_social_media(upload_data: dict, account_data: dict) -> dict:
     elif platform == "linkedin":
         return await post_to_linkedin(upload_data, account_data)
     elif platform == "youtube":
-        return await post_to_youtube(upload_data, account_data)
+        return await post_to_youtube(upload_data, account_data, user_id)
     else:
         raise Exception(f"Platform {platform} not yet implemented")
 
@@ -266,7 +267,7 @@ async def post_to_linkedin(upload_data: dict, account_data: dict) -> dict:
     except Exception as e:
         raise Exception(f"Failed to post to LinkedIn: {str(e)}")
 
-async def post_to_youtube(upload_data: dict, account_data: dict) -> dict:
+async def post_to_youtube(upload_data: dict, account_data: dict, user_id: Optional[str] = None) -> dict:
     """Post video to YouTube using YouTube Data API"""
     try:
         access_token = account_data.get("access_token")
@@ -300,7 +301,8 @@ async def post_to_youtube(upload_data: dict, account_data: dict) -> dict:
                 title=title,
                 description=description,
                 tags=tags,
-                privacy_status=privacy_status
+                privacy_status=privacy_status,
+                user_id=user_id
             )
         else:
             # For direct file uploads, we would need the file content
@@ -512,7 +514,7 @@ async def post_content_now(
         
         # Post to actual social media platform
         try:
-            post_result = await post_to_social_media(upload, account)
+            post_result = await post_to_social_media(upload, account, current_user_id)
             update_data = {
                 "status": "posted",
                 "post_id": post_result.get("post_id"),
@@ -738,7 +740,8 @@ async def upload_youtube_video_file(
             description=description,
             tags=video_tags,
             privacy_status=privacy_status,
-            content_type=video_file.content_type
+            content_type=video_file.content_type,
+            user_id=current_user_id
         )
         
         if result.get("success"):
@@ -789,7 +792,7 @@ async def get_youtube_channel_info(current_user_id: str = Depends(get_user_id_fr
 async def get_platform_status():
     """Get status of social media platform configurations"""
     try:
-        platforms = ["facebook", "instagram", "twitter", "linkedin", "tiktok", "youtube"]
+        platforms = ["facebook", "instagram", "twitter", "linkedin", "youtube"]
         status = {}
         
         for platform in platforms:
@@ -820,6 +823,7 @@ async def get_account_info(
         if platform == 'facebook':
             access_token = SocialMediaConfig.get_facebook_config().get('default_access_token')
             if not access_token:
+                print(f"Facebook access token not configured for user {user_id}")
                 raise HTTPException(status_code=400, detail="Facebook access token not configured")
             
             # Get Facebook account info
@@ -848,6 +852,7 @@ async def get_account_info(
         elif platform == 'instagram':
             access_token = SocialMediaConfig.get_facebook_config().get('default_access_token')
             if not access_token:
+                print(f"Instagram access token not configured for user {user_id}")
                 raise HTTPException(status_code=400, detail="Instagram access token not configured")
             
             # Get Instagram account info (using Facebook Graph API)
@@ -918,6 +923,11 @@ async def get_connected_accounts(
         if not sanitized_accounts:
             for platform in ["facebook", "instagram"]:
                 try:
+                    # Check if we have the required access token before attempting API calls
+                    if not SocialMediaConfig.get_facebook_config().get("default_access_token"):
+                        print(f"Skipping {platform} account info fetch - no access token configured")
+                        continue
+                    
                     info = await get_account_info(platform, user_id)
                     sanitized_accounts.append(info)
                 except Exception:
@@ -963,7 +973,8 @@ async def get_connected_accounts(
         return {"accounts": sanitized_accounts, "total": len(sanitized_accounts)}
     except Exception as e:
         print(f"Error getting connected accounts: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get connected accounts")
+        # Return empty accounts instead of crashing
+        return {"accounts": [], "total": 0}
 
 
 class ConnectRequest(BaseModel):
@@ -1001,6 +1012,8 @@ async def connect_platform(
         except Exception as e:
             print(f"Upsert user failed before connect: {e}")
             # Continue anyway - user might already exist
+
+        connection_result = {"success": True, "facebook": {"connected": False}, "instagram": {"connected": False}}
 
         async with httpx.AsyncClient() as client:
             if platform == "facebook":
@@ -1054,6 +1067,80 @@ async def connect_platform(
                         print(f"Fallback also failed: {fallback_error}")
                         raise HTTPException(status_code=500, detail=f"Failed to save Facebook account: {str(save_error)}")
 
+                # Mark facebook connection result
+                connection_result["facebook"] = {
+                    "connected": True,
+                    "accountId": account_payload.get("account_id"),
+                    "accountName": account_payload.get("account_name"),
+                    "username": account_payload.get("username"),
+                    "profilePicture": account_payload.get("profile_picture_url"),
+                }
+
+                # Attempt to persist Instagram Business account linked to Page
+                try:
+                    pages_resp = await client.get(
+                        "https://graph.facebook.com/me/accounts",
+                        params={
+                            "access_token": access_token,
+                            "fields": "instagram_business_account{id,username,profile_picture_url,name}"
+                        },
+                    )
+                    if pages_resp.status_code == 200:
+                        pdata = pages_resp.json()
+                        accounts = pdata.get("data", [])
+                        ig = None
+                        for page in accounts:
+                            if page.get("instagram_business_account"):
+                                ig = page["instagram_business_account"]
+                                break
+                        if ig:
+                            ig_payload = {
+                                "user_id": user_id,
+                                "platform": "instagram",
+                                "account_id": ig.get("id"),
+                                "account_name": ig.get("name") or ig.get("username"),
+                                "username": ig.get("username"),
+                                "profile_picture_url": ig.get("profile_picture_url"),
+                                "access_token": access_token,
+                                "refresh_token": None,
+                                "token_expires_at": None,
+                                "is_active": True,
+                                "is_test_account": False,
+                                "permissions": await _get_facebook_permissions(access_token),
+                            }
+                            try:
+                                await supabase_client.create_social_media_account(ig_payload)
+                            except Exception:
+                                # Update if exists
+                                try:
+                                    existing_ig = await supabase_client.get_user_social_accounts(user_id, "instagram")
+                                    if existing_ig:
+                                        await supabase_client.update_social_media_account(existing_ig[0]["id"], ig_payload)
+                                except Exception:
+                                    pass
+                            connection_result["instagram"] = {
+                                "connected": True,
+                                "accountId": ig_payload.get("account_id"),
+                                "accountName": ig_payload.get("account_name"),
+                                "username": ig_payload.get("username"),
+                                "profilePicture": ig_payload.get("profile_picture_url"),
+                            }
+                        else:
+                            connection_result["instagram"] = {
+                                "connected": False,
+                                "reason": "No Instagram business account linked"
+                            }
+                    else:
+                        connection_result["instagram"] = {
+                            "connected": False,
+                            "reason": "Failed to query pages for Instagram link"
+                        }
+                except Exception as e:
+                    print(f"IG dual-write attempt failed: {e}")
+                    # Keep instagram as not connected; provide generic reason
+                    if not connection_result["instagram"]["connected"]:
+                        connection_result["instagram"] = {"connected": False, "reason": "Error while linking Instagram"}
+
             elif platform == "instagram":
                 pages = await client.get(
                     "https://graph.facebook.com/me/accounts",
@@ -1084,9 +1171,72 @@ async def connect_platform(
                     "is_test_account": False,
                     "permissions": await _get_facebook_permissions(access_token),
                 }
-                await supabase_client.create_social_media_account(account_payload)
+                try:
+                    await supabase_client.create_social_media_account(account_payload)
+                except Exception:
+                    try:
+                        existing_ig = await supabase_client.get_user_social_accounts(user_id, "instagram")
+                        if existing_ig:
+                            await supabase_client.update_social_media_account(existing_ig[0]["id"], account_payload)
+                    except Exception:
+                        pass
 
-        return {"success": True}
+                connection_result["instagram"] = {
+                    "connected": True,
+                    "accountId": account_payload.get("account_id"),
+                    "accountName": account_payload.get("account_name"),
+                    "username": account_payload.get("username"),
+                    "profilePicture": account_payload.get("profile_picture_url"),
+                }
+
+                # Also ensure a Facebook account record exists for this token
+                try:
+                    me = await client.get(
+                        "https://graph.facebook.com/me",
+                        params={
+                            "access_token": access_token,
+                            "fields": "id,name,picture"
+                        },
+                    )
+                    if me.status_code == 200:
+                        data = me.json()
+                        fb_payload = {
+                            "user_id": user_id,
+                            "platform": "facebook",
+                            "account_id": data.get("id"),
+                            "account_name": data.get("name"),
+                            "username": data.get("name"),
+                            "profile_picture_url": data.get("picture", {}).get("data", {}).get("url") if data.get("picture") else None,
+                            "access_token": access_token,
+                            "refresh_token": None,
+                            "token_expires_at": None,
+                            "is_active": True,
+                            "is_test_account": False,
+                            "permissions": await _get_facebook_permissions(access_token),
+                        }
+                        try:
+                            await supabase_client.create_social_media_account(fb_payload)
+                        except Exception:
+                            try:
+                                existing_fb = await supabase_client.get_user_social_accounts(user_id, "facebook")
+                                if existing_fb:
+                                    await supabase_client.update_social_media_account(existing_fb[0]["id"], fb_payload)
+                            except Exception:
+                                pass
+                        connection_result["facebook"] = {
+                            "connected": True,
+                            "accountId": fb_payload.get("account_id"),
+                            "accountName": fb_payload.get("account_name"),
+                            "username": fb_payload.get("username"),
+                            "profilePicture": fb_payload.get("profile_picture_url"),
+                        }
+                    else:
+                        # FB not ensured; keep as is
+                        pass
+                except Exception as e:
+                    print(f"FB ensure attempt failed: {e}")
+
+        return connection_result
     except HTTPException:
         raise
     except Exception as e:
@@ -1185,3 +1335,157 @@ async def facebook_auth_callback(
     except Exception as e:
         print(f"Facebook auth callback error: {e}")
         raise HTTPException(status_code=500, detail="Authentication failed")
+
+
+# ============================================================================
+# INSIGHTS: SYNC AND READ ENDPOINTS
+# ============================================================================
+
+async def _floor_to_hour(dt: datetime) -> datetime:
+    return dt.replace(minute=0, second=0, microsecond=0)
+
+async def _fetch_facebook_page_insights(client: httpx.AsyncClient, access_token: str) -> dict:
+    try:
+        # With a Page access token, 'me' refers to the Page
+        metrics = ["page_impressions", "page_engaged_users"]
+        resp = await client.get(
+            "https://graph.facebook.com/me/insights",
+            params={"access_token": access_token, "metric": ",".join(metrics)},
+        )
+        if resp.status_code != 200:
+            return {"error": resp.text}
+        data = resp.json().get("data", [])
+        out = {}
+        for m in data:
+            key = m.get("name")
+            values = m.get("values", [])
+            if values:
+                out[key] = values[0].get("value")
+        return out
+    except Exception as e:
+        return {"error": str(e)}
+
+async def _fetch_instagram_user_insights(client: httpx.AsyncClient, ig_user_id: str, access_token: str) -> dict:
+    try:
+        metrics = ["impressions", "reach", "profile_views"]
+        resp = await client.get(
+            f"https://graph.facebook.com/{ig_user_id}/insights",
+            params={"access_token": access_token, "metric": ",".join(metrics), "period": "day"},
+        )
+        if resp.status_code != 200:
+            return {"error": resp.text}
+        data = resp.json().get("data", [])
+        out = {}
+        for m in data:
+            key = m.get("name")
+            values = m.get("values", [])
+            if values:
+                out[key] = values[0].get("value")
+        return out
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.post("/insights/sync")
+async def sync_social_insights(current_user_id: str = Depends(get_user_id_from_header)):
+    """Sync hourly insights for the current user's connected FB/IG accounts."""
+    try:
+        accounts = await supabase_client.get_user_social_accounts(current_user_id)
+        if not accounts:
+            return {"success": True, "synced": {"facebook": 0, "instagram": 0}}
+
+        now = datetime.now(timezone.utc)
+        window_start = await _floor_to_hour(now)
+        window_end = window_start + timedelta(hours=1)
+
+        synced_fb = 0
+        synced_ig = 0
+
+        async with httpx.AsyncClient() as client:
+            for acc in accounts:
+                platform = acc.get("platform")
+                if platform not in ["facebook", "instagram"]:
+                    continue
+                access_token = acc.get("access_token")
+                if not access_token:
+                    continue
+
+                if platform == "facebook":
+                    metrics = await _fetch_facebook_page_insights(client, access_token)
+                    row = {
+                        "user_id": current_user_id,
+                        "platform": "facebook",
+                        "account_id": acc.get("account_id"),
+                        "period": "hour",
+                        "window_start": window_start.isoformat(),
+                        "window_end": window_end.isoformat(),
+                        "metrics": metrics,
+                        "derived": {},
+                    }
+                    try:
+                        await supabase_client.upsert_insights(row)
+                        synced_fb += 1
+                    except Exception:
+                        pass
+
+                elif platform == "instagram":
+                    ig_user_id = acc.get("account_id")
+                    metrics = await _fetch_instagram_user_insights(client, ig_user_id, access_token)
+                    row = {
+                        "user_id": current_user_id,
+                        "platform": "instagram",
+                        "account_id": ig_user_id,
+                        "period": "hour",
+                        "window_start": window_start.isoformat(),
+                        "window_end": window_end.isoformat(),
+                        "metrics": metrics,
+                        "derived": {},
+                    }
+                    try:
+                        await supabase_client.upsert_insights(row)
+                        synced_ig += 1
+                    except Exception:
+                        pass
+
+        return {
+            "success": True,
+            "synced": {"facebook": synced_fb, "instagram": synced_ig},
+            "window": {
+                "period": "hour",
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to sync insights: {str(e)}")
+
+
+@router.get("/insights")
+async def get_social_insights(
+    platform: str,
+    period: str = Query(default="hour"),
+    hours: int = Query(default=24),
+    current_user_id: str = Depends(get_user_id_from_header),
+):
+    """Read recent insights for the current user (last N hours)."""
+    try:
+        until = datetime.now(timezone.utc)
+        since = until - timedelta(hours=hours)
+        rows = await supabase_client.get_insights(
+            user_id=current_user_id,
+            platform=platform,
+            period=period,
+            since=since.isoformat(),
+            until=until.isoformat(),
+        )
+        return {
+            "platform": platform,
+            "period": period,
+            "series": [
+                {"window_start": r.get("window_start"), "metrics": r.get("metrics", {})}
+                for r in rows
+            ],
+            "aggregates": {},
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read insights: {str(e)}")

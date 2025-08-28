@@ -512,7 +512,7 @@ export function ContinuousMonitoringDashboard() {
         <TabsList>
           <TabsTrigger value="analysis-results">Analysis Results</TabsTrigger>
           <TabsTrigger value="alerts">Recent Alerts</TabsTrigger>
-          <TabsTrigger value="scanning">Scanning Status</TabsTrigger>
+          {/* <TabsTrigger value="scanning">Scanning Status</TabsTrigger> */}
         </TabsList>
 
         {/* Search and Filter */}

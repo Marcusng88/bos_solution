@@ -246,8 +246,9 @@ async def create_campaign(
             # If check fails, continue with creation (better to create than block)
             pass
         
-        # Create new campaign with default values - NOTE: campaign_data table doesn't have user_id column
+        # Create new campaign with default values
         new_campaign = {
+            "user_id": user_id,
             "name": campaign_name,
             "date": date.today().isoformat(),
             "impressions": 0,
@@ -261,14 +262,22 @@ async def create_campaign(
             "ongoing": ongoing
         }
         
-        # Use the Supabase client's campaign creation method
-        created_campaign = await supabase_client.create_campaign(new_campaign)
+        # Insert the campaign into the campaign_data table
+        response = await supabase_client._make_request(
+            "POST",
+            "campaign_data",
+            data=new_campaign
+        )
         
-        if not created_campaign:
+        if response.status_code != 201 and response.status_code != 200:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create campaign"
+                detail=f"Failed to create campaign: {response.text}"
             )
+        
+        created_campaign = response.json()
+        if isinstance(created_campaign, list) and len(created_campaign) > 0:
+            created_campaign = created_campaign[0]
         
         return {
             "message": f"Campaign '{campaign_name}' created successfully",
@@ -432,7 +441,7 @@ async def update_campaign_status(
         
         # Update the ongoing field in campaign_data table
         success = await supabase_client.update_campaign_by_name_and_user(
-            user_id="",  # Not used for campaign_data table
+            user_id=user_id,
             campaign_name=campaign_name,
             update_data={"ongoing": ongoing_status}
         )
@@ -472,7 +481,7 @@ async def update_campaign_budget(
         
         # Update the budget field in campaign_data table
         success = await supabase_client.update_campaign_by_name_and_user(
-            user_id="",  # Not used for campaign_data table
+            user_id=user_id,
             campaign_name=campaign_name,
             update_data={"budget": float(new_budget)}
         )

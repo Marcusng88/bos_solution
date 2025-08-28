@@ -21,6 +21,7 @@ interface CompetitorStepProps {
   onNext: () => void
   onPrev: () => void
   isFromSettings?: boolean
+  readOnly?: boolean
 }
 
 const platformIcons = {
@@ -35,7 +36,7 @@ const platformOptions = [
   { id: "youtube", name: "YouTube", icon: Youtube },
 ]
 
-export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSettings = false }: CompetitorStepProps) {
+export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSettings = false, readOnly = false }: CompetitorStepProps) {
   const { toast } = useToast()
   const { user } = useUser()
   const [isSaving, setIsSaving] = useState(false)
@@ -47,6 +48,7 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
   })
 
   const addCompetitor = () => {
+    if (readOnly) return
     if (newCompetitor.name && newCompetitor.website) {
       updateData({
         competitors: [...data.competitors, { ...newCompetitor }],
@@ -56,11 +58,13 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
   }
 
   const removeCompetitor = (index: number) => {
+    if (readOnly) return
     const updatedCompetitors = data.competitors.filter((_, i) => i !== index)
     updateData({ competitors: updatedCompetitors })
   }
 
   const togglePlatform = (platform: string) => {
+    if (readOnly) return
     const updatedPlatforms = newCompetitor.platforms.includes(platform)
       ? newCompetitor.platforms.filter((p) => p !== platform)
       : [...newCompetitor.platforms, platform]
@@ -71,6 +75,8 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
   const canProceed = data.competitors.length >= 1
 
   const handleSaveAndContinue = async () => {
+    if (readOnly) return
+    
     if (!user?.id) {
       toast({
         title: "Error",
@@ -156,67 +162,69 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Add New Competitor */}
-        <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-          <h3 className="font-medium">Add Competitor</h3>
+        {!readOnly && (
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+            <h3 className="font-medium">Add Competitor</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="competitor-name">Company Name</Label>
+                <Input
+                  id="competitor-name"
+                  placeholder="e.g., Nike, Apple, Starbucks"
+                  value={newCompetitor.name}
+                  onChange={(e) => setNewCompetitor({ ...newCompetitor, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="competitor-website">Website</Label>
+                <Input
+                  id="competitor-website"
+                  placeholder="https://competitor.com"
+                  value={newCompetitor.website}
+                  onChange={(e) => setNewCompetitor({ ...newCompetitor, website: e.target.value })}
+                />
+              </div>
+            </div>
+            
             <div>
-              <Label htmlFor="competitor-name">Company Name</Label>
+              <Label htmlFor="competitor-description">Description (Optional)</Label>
               <Input
-                id="competitor-name"
-                placeholder="e.g., Nike, Apple, Starbucks"
-                value={newCompetitor.name}
-                onChange={(e) => setNewCompetitor({ ...newCompetitor, name: e.target.value })}
+                id="competitor-description"
+                placeholder="Brief description of this competitor..."
+                value={newCompetitor.description}
+                onChange={(e) => setNewCompetitor({ ...newCompetitor, description: e.target.value })}
               />
             </div>
+
             <div>
-              <Label htmlFor="competitor-website">Website</Label>
-              <Input
-                id="competitor-website"
-                placeholder="https://competitor.com"
-                value={newCompetitor.website}
-                onChange={(e) => setNewCompetitor({ ...newCompetitor, website: e.target.value })}
-              />
+              <Label>Platforms they're active on</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                {platformOptions.map((platform) => {
+                  const Icon = platform.icon
+                  return (
+                    <div key={platform.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={platform.id}
+                        checked={newCompetitor.platforms.includes(platform.id)}
+                        onCheckedChange={() => togglePlatform(platform.id)}
+                      />
+                      <Label htmlFor={platform.id} className="flex items-center gap-2 cursor-pointer">
+                        <Icon className="h-4 w-4" />
+                        {platform.name}
+                      </Label>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-          
-          <div>
-            <Label htmlFor="competitor-description">Description (Optional)</Label>
-            <Input
-              id="competitor-description"
-              placeholder="Brief description of this competitor..."
-              value={newCompetitor.description}
-              onChange={(e) => setNewCompetitor({ ...newCompetitor, description: e.target.value })}
-            />
-          </div>
 
-          <div>
-            <Label>Platforms they're active on</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
-              {platformOptions.map((platform) => {
-                const Icon = platform.icon
-                return (
-                  <div key={platform.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={platform.id}
-                      checked={newCompetitor.platforms.includes(platform.id)}
-                      onCheckedChange={() => togglePlatform(platform.id)}
-                    />
-                    <Label htmlFor={platform.id} className="flex items-center gap-2 cursor-pointer">
-                      <Icon className="h-4 w-4" />
-                      {platform.name}
-                    </Label>
-                  </div>
-                )
-              })}
-            </div>
+            <Button onClick={addCompetitor} className="w-full" disabled={!newCompetitor.name || !newCompetitor.website}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Competitor
+            </Button>
           </div>
-
-          <Button onClick={addCompetitor} className="w-full" disabled={!newCompetitor.name || !newCompetitor.website}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Competitor
-          </Button>
-        </div>
+        )}
 
         {/* Competitor List */}
         {data.competitors.length > 0 && (
@@ -245,14 +253,16 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
                     })}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeCompetitor(index)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                {!readOnly && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeCompetitor(index)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -279,29 +289,31 @@ export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSetting
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onPrev}>
-            Previous
-          </Button>
-          <Button 
-            onClick={handleSaveAndContinue} 
-            disabled={!canProceed || isSaving}
-            className="min-w-[140px]"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save & Continue
-              </>
-            )}
-          </Button>
-        </div>
+        {/* Navigation - only show if not in settings mode */}
+        {!isFromSettings && (
+          <div className="flex justify-between pt-4">
+            <Button variant="outline" onClick={onPrev}>
+              Previous
+            </Button>
+            <Button 
+              onClick={handleSaveAndContinue} 
+              disabled={!canProceed || isSaving}
+              className="min-w-[140px]"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save & Continue
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

@@ -41,17 +41,17 @@ export function RiskPatternsWidget() {
 
 
   const getSeverityColor = (severity: string, resolved: boolean) => {
-    if (resolved) return 'text-gray-600 bg-gray-50 border-gray-200'
+    if (resolved) return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
     
     switch (severity) {
       case 'critical':
-        return 'text-red-600 bg-red-50 border-red-200'
+        return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
       case 'high':
-        return 'text-orange-600 bg-orange-50 border-orange-200'
+        return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
       case 'medium':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+        return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800'
       default:
-        return 'text-blue-600 bg-blue-50 border-blue-200'
+        return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
     }
   }
 
@@ -116,17 +116,17 @@ export function RiskPatternsWidget() {
           <div className="space-y-4">
             {/* Risk Summary */}
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="text-center p-3 rounded-lg bg-red-50 border border-red-200">
-                <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
-                <div className="text-xs text-red-700">Critical</div>
+              <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{criticalCount}</div>
+                <div className="text-xs text-red-700 dark:text-red-300">Critical</div>
               </div>
-              <div className="text-center p-3 rounded-lg bg-orange-50 border border-orange-200">
-                <div className="text-2xl font-bold text-orange-600">{highCount}</div>
-                <div className="text-xs text-orange-700">High</div>
+              <div className="text-center p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
+                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{highCount}</div>
+                <div className="text-xs text-orange-700 dark:text-orange-300">High</div>
               </div>
-              <div className="text-center p-3 rounded-lg bg-yellow-50 border border-yellow-200">
-                <div className="text-2xl font-bold text-yellow-600">{mediumCount}</div>
-                <div className="text-xs text-yellow-700">Medium</div>
+              <div className="text-center p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800">
+                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{mediumCount}</div>
+                <div className="text-xs text-yellow-700 dark:text-yellow-300">Medium</div>
               </div>
             </div>
             
@@ -156,7 +156,7 @@ export function RiskPatternsWidget() {
                           <div className="text-xs mb-2 space-y-1">
                             <div>Budget: ${prediction.current_budget.toLocaleString()} | Spend: ${prediction.current_spend.toLocaleString()}</div>
                             <div>Utilization: {prediction.budget_utilization.toFixed(1)}% | Risk Score: {(prediction.risk_score * 100).toFixed(0)}%</div>
-                            <div className={`font-medium ${prediction.net_profit >= 0 ? 'text-green-600' : 'text-xs text-red-600'}`}>
+                            <div className={`font-medium ${prediction.net_profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                               Net Profit: ${prediction.net_profit.toLocaleString()}
                             </div>
                           </div>

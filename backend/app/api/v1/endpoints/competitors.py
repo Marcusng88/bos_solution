@@ -5,14 +5,25 @@ Competitors endpoints for managing competitor monitoring
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
+from urllib.parse import urlparse
 from app.core.database import get_db
 from app.core.auth_utils import get_user_id_from_header
 from app.schemas.competitor import CompetitorCreate, CompetitorUpdate, CompetitorResponse
 from app.core.supabase_client import SupabaseClient
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+def _sanitize_website(url_value):
+    """Return a valid http(s) URL string or None if invalid."""
+    if not url_value or not isinstance(url_value, str):
+        return None
+    try:
+        parsed = urlparse(url_value)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return url_value
+    except Exception:
+        pass
+    return None
 
 @router.get("/", response_model=List[CompetitorResponse])
 async def get_competitors(
@@ -121,27 +132,35 @@ async def delete_competitor(
 ):
     """Delete a competitor"""
     try:
+        logger.info(f"Attempting to delete competitor {competitor_id} for user {user_id}")
+        
         # Verify the competitor exists and belongs to the user
         existing_competitor = await db.get_competitor_by_id(competitor_id)
         
         if not existing_competitor:
-            raise HTTPException(status_code=404, detail="Competitor not found")
+            logger.warning(f"Competitor {competitor_id} not found - may have been already deleted")
+            # Return success since the end result is the same (competitor doesn't exist)
+            return {"message": "Competitor deleted successfully", "note": "Competitor was already deleted or did not exist"}
         
         if existing_competitor.get("user_id") != user_id:
+            logger.warning(f"Access denied: competitor {competitor_id} belongs to user {existing_competitor.get('user_id')}, not {user_id}")
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Delete competitor
-        success = await db.delete_competitor(competitor_id)
+        # Delete competitor and all related records
+        logger.info(f"Deleting competitor {competitor_id} and related data from database")
+        success = await db.delete_competitor_cascade(competitor_id)
         
         if success:
+            logger.info(f"Successfully deleted competitor {competitor_id}")
             return {"message": "Competitor deleted successfully"}
         else:
-            raise HTTPException(status_code=500, detail="Failed to delete competitor")
+            logger.error(f"Database deletion failed for competitor {competitor_id}")
+            raise HTTPException(status_code=500, detail="Database deletion failed")
             
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting competitor: {e}")
+        logger.error(f"Unexpected error deleting competitor {competitor_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete competitor: {str(e)}")
 
 

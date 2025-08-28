@@ -34,7 +34,7 @@ function YouTubeCallbackContent() {
     }
 
     handleYouTubeCallback(code)
-  }, [searchParams])
+  }, [searchParams, handleCallback, getROIAnalytics])
 
   const handleYouTubeCallback = async (code: string) => {
     try {
@@ -43,23 +43,51 @@ function YouTubeCallbackContent() {
       
       await handleCallback(code)
 
-      // After tokens are stored, fetch ROI analytics first
-      setMessage('Fetching ROI analytics...')
+      // After tokens are stored, fetch ROI analytics for display purposes only
+      setMessage('Fetching channel information...')
+      
+      // Test backend connectivity first
       try {
-        const roi = await getROIAnalytics()
-
-        // Trigger JSON download
-        const blob = new Blob([JSON.stringify(roi, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'youtube_roi_analytics.json'
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        URL.revokeObjectURL(url)
-      } catch (e) {
-        console.error('ROI fetch error:', e)
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+        const baseUrl = apiUrl.replace('/api/v1', '')
+        
+        // Simple connectivity test
+        const connectivityTest = await fetch(`${baseUrl}/docs`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(5000)
+        })
+        
+        if (!connectivityTest.ok && connectivityTest.status !== 404) {
+          console.warn('Backend connectivity test failed:', connectivityTest.status)
+        } else {
+          console.log('Backend connectivity test passed')
+        }
+      } catch (connectivityError) {
+        console.warn('Backend connectivity test failed:', connectivityError)
+        // Continue anyway, the main request might still work
+      }
+      
+      // Try to fetch ROI analytics with retry mechanism
+      let retryCount = 0
+      const maxRetries = 2
+      
+      while (retryCount <= maxRetries) {
+        try {
+          await getROIAnalytics()
+          break // Success, exit retry loop
+        } catch (e) {
+          retryCount++
+          console.error(`ROI fetch error (attempt ${retryCount}):`, e)
+          
+          if (retryCount > maxRetries) {
+            const errorMessage = e instanceof Error ? e.message : 'Unknown error'
+            console.warn('ROI analytics fetch failed after all retries, but connection is still successful:', errorMessage)
+            // Don't show error to user as this is not critical for connection
+          } else {
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
+          }
+        }
       }
 
       setStatus('success')

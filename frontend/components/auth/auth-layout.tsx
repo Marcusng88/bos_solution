@@ -197,7 +197,7 @@ export function AuthLayout({ children, title, subtitle, footerText, footerLinkTe
           <div className="p-2 bg-blue-600 rounded-lg">
             <Brain className="h-6 w-6 text-white" />
           </div>
-          <span className="text-xl font-bold">MarketingAI Pro</span>
+          <span className="text-xl font-bold">Bos Solution</span>
         </div>
 
         <div className="text-center mb-8">

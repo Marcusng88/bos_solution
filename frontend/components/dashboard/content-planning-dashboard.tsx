@@ -192,8 +192,8 @@ export function ContentPlanningDashboard() {
       <Tabs defaultValue="calendar" className="space-y-6">
         <TabsList>
           <TabsTrigger value="calendar">Content Calendar</TabsTrigger>
-          <TabsTrigger value="gaps">Competitor Gaps</TabsTrigger>
-          <TabsTrigger value="strategy">Strategy Insights</TabsTrigger>
+          {/* <TabsTrigger value="gaps">Competitor Gaps</TabsTrigger>
+          <TabsTrigger value="strategy">Strategy Insights</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="calendar" className="space-y-6">

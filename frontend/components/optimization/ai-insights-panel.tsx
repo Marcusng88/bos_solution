@@ -328,11 +328,11 @@ please be short, give your response in less than 3000 characters`
           {analysis && !isScanning && (
             <div className="space-y-6">
               {/* Performance Score */}
-              <Card className="border-blue-200 bg-blue-50">
+              <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground">
                         <TrendingUp className="h-5 w-5" />
                         Campaign Health Score
                       </h3>
@@ -368,9 +368,9 @@ please be short, give your response in less than 3000 characters`
                   <CardContent>
                     <div className="space-y-3">
                       {analysis.risk_alerts.map((alert, index) => (
-                        <div key={index} className="flex items-start gap-3 p-4 bg-red-50 rounded-lg border border-red-200">
-                          <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5 flex-shrink-0" />
-                          <p className="text-sm">{alert}</p>
+                        <div key={index} className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+                          <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-red-900 dark:text-red-100">{alert}</p>
                         </div>
                       ))}
                     </div>

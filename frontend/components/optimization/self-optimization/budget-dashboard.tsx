@@ -92,10 +92,10 @@ export function BudgetDashboard() {
   }
 
   const getUtilizationBadge = (utilization: number) => {
-    if (utilization >= 95) return { label: 'Critical', color: 'bg-red-500 text-white' }
-    if (utilization >= 85) return { label: 'High', color: 'bg-orange-500 text-white' }
-    if (utilization >= 75) return { label: 'Warning', color: 'bg-yellow-500 text-black' }
-    return { label: 'Healthy', color: 'bg-green-500 text-white' }
+    if (utilization >= 95) return { label: 'Critical', color: 'bg-red-500 dark:bg-red-600 text-white' }
+    if (utilization >= 85) return { label: 'High', color: 'bg-orange-500 dark:bg-orange-600 text-white' }
+    if (utilization >= 75) return { label: 'Warning', color: 'bg-yellow-500 dark:bg-yellow-600 text-black' }
+    return { label: 'Healthy', color: 'bg-green-500 dark:bg-green-600 text-white' }
   }
 
   if (loading) {
@@ -126,7 +126,7 @@ export function BudgetDashboard() {
         <CardContent>
           <div className="space-y-4">
             <div>
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <div className="flex justify-between text-sm text-muted-foreground mb-2">
                 <span>0%</span>
                 <span>50%</span>
                 <span>100%</span>
@@ -139,28 +139,28 @@ export function BudgetDashboard() {
             
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
-                <div className="text-lg font-semibold text-blue-600">
+                <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
                   {overallStats.ongoingCount}
                 </div>
-                <div className="text-xs text-gray-600">Ongoing Campaigns</div>
+                <div className="text-xs text-muted-foreground">Ongoing Campaigns</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-semibold text-green-600">
+                <div className="text-lg font-semibold text-green-600 dark:text-green-400">
                   {overallStats.overallUtilization.toFixed(1)}%
                 </div>
-                <div className="text-xs text-gray-600">Utilized</div>
+                <div className="text-xs text-muted-foreground">Utilized</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-semibold text-purple-600">
+                <div className="text-lg font-semibold text-purple-600 dark:text-purple-400">
                   ${(overallStats.totalBudget - overallStats.totalSpend).toLocaleString()}
                 </div>
-                <div className="text-xs text-gray-600">Remaining</div>
+                <div className="text-xs text-muted-foreground">Remaining</div>
               </div>
             </div>
             
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <div className="text-sm text-gray-600">Current Spend / Total Budget</div>
-              <div className="text-lg font-semibold">
+            <div className="text-center p-3 bg-muted rounded-lg">
+              <div className="text-sm text-muted-foreground">Current Spend / Total Budget</div>
+              <div className="text-lg font-semibold text-foreground">
                 ${overallStats.totalSpend.toLocaleString()} / ${overallStats.totalBudget.toLocaleString()}
               </div>
             </div>
@@ -176,7 +176,7 @@ export function BudgetDashboard() {
         <CardContent>
           <div className="space-y-4">
             {campaigns.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-muted-foreground">
                 No ongoing campaigns found.
               </div>
             ) : (
@@ -195,7 +195,7 @@ export function BudgetDashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-500">Budget Utilization</div>
+                        <div className="text-sm text-muted-foreground">Budget Utilization</div>
                         <div className={`text-lg font-semibold ${getUtilizationColor(campaign.budget_utilization)}`}>
                           {campaign.budget_utilization.toFixed(1)}%
                         </div>
@@ -203,34 +203,34 @@ export function BudgetDashboard() {
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-                      <div className="text-center p-3 bg-blue-50 rounded-lg">
-                        <div className="text-lg font-bold text-blue-600">
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                           ${campaign.spend.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600">Spent</div>
+                        <div className="text-xs text-muted-foreground">Spent</div>
                       </div>
-                      <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <div className="text-lg font-bold text-green-600">
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-green-600 dark:text-green-400">
                           ${campaign.budget.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600">Budget</div>
+                        <div className="text-xs text-muted-foreground">Budget</div>
                       </div>
-                      <div className="text-center p-3 bg-purple-50 rounded-lg">
-                        <div className="text-lg font-bold text-purple-600">
+                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                        <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
                           ${campaign.remaining_budget.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600">Remaining</div>
+                        <div className="text-xs text-muted-foreground">Remaining</div>
                       </div>
-                      <div className="text-center p-3 bg-orange-50 rounded-lg">
-                        <div className={`text-lg font-bold ${campaign.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className="text-center p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+                        <div className={`text-lg font-bold ${campaign.net_profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                           ${campaign.net_profit.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600">Net Profit</div>
+                        <div className="text-xs text-muted-foreground">Net Profit</div>
                       </div>
                     </div>
                     
                     <div className="mb-3">
-                      <div className="flex justify-between text-sm text-gray-500 mb-1">
+                      <div className="flex justify-between text-sm text-muted-foreground mb-1">
                         <span>Budget Utilization</span>
                         <span>{campaign.budget_utilization.toFixed(1)}%</span>
                       </div>

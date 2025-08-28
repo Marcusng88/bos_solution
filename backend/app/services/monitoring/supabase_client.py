@@ -64,45 +64,66 @@ class SupabaseMonitoringClient:
             return None
     
     async def get_competitors_due_for_scan(self) -> List[Dict[str, Any]]:
-        """Get all active competitors that are due for scanning"""
+        """Get all active competitors that are due for scanning, respecting user monitoring settings"""
         try:
             current_time = datetime.now(timezone.utc)
             
-            # Get all active competitors
-            response = self.client.table('competitors').select('*').eq('status', 'active').execute()
+            # First, get all users with monitoring enabled
+            users_with_monitoring = await self._get_users_with_monitoring_enabled()
             
-            if not response.data:
+            if not users_with_monitoring:
+                logger.info("✅ No users have monitoring enabled - skipping competitor scans")
                 return []
             
+            logger.info(f"✅ Found {len(users_with_monitoring)} users with monitoring enabled")
+            
+            # Get competitors only for users who have monitoring enabled
             competitors_due = []
             
-            for competitor in response.data:
+            for user_id in users_with_monitoring:
                 try:
-                    # Check if due for scan (24 hours since last scan)
-                    last_scan_at = competitor.get('last_scan_at')
+                    # Get competitors for this specific user
+                    user_competitors = await self.get_competitors_by_user(user_id)
                     
-                    if not last_scan_at:
-                        # Never scanned before
-                        competitors_due.append(competitor)
+                    if not user_competitors:
                         continue
                     
-                    # Parse last scan time
-                    if isinstance(last_scan_at, str):
-                        last_scan_time = datetime.fromisoformat(last_scan_at.replace('Z', '+00:00'))
-                    else:
-                        last_scan_time = last_scan_at
-                    
-                    # Check if 24 hours have passed
-                    next_scan_time = last_scan_time + timedelta(hours=24)
-                    
-                    if current_time >= next_scan_time:
-                        competitors_due.append(competitor)
-                        
+                    for competitor in user_competitors:
+                        try:
+                            # Only process active competitors
+                            if competitor.get('status') != 'active':
+                                continue
+                            
+                            # Check if due for scan based on scan frequency
+                            scan_frequency_minutes = competitor.get('scan_frequency_minutes', 1440)  # Default 24 hours
+                            last_scan_at = competitor.get('last_scan_at')
+                            
+                            if not last_scan_at:
+                                # Never scanned before - add to scan queue
+                                competitors_due.append(competitor)
+                                continue
+                            
+                            # Parse last scan time
+                            if isinstance(last_scan_at, str):
+                                last_scan_time = datetime.fromisoformat(last_scan_at.replace('Z', '+00:00'))
+                            else:
+                                last_scan_time = last_scan_at
+                            
+                            # Check if scan frequency has elapsed
+                            next_scan_time = last_scan_time + timedelta(minutes=scan_frequency_minutes)
+                            
+                            if current_time >= next_scan_time:
+                                competitors_due.append(competitor)
+                                
+                        except Exception as e:
+                            logger.error(f"❌ Error processing competitor {competitor.get('id')}: {e}")
+                            continue
+                            
                 except Exception as e:
-                    logger.error(f"❌ Error processing competitor {competitor.get('id')}: {e}")
+                    logger.error(f"❌ Error getting competitors for user {user_id}: {e}")
                     continue
             
-            logger.info(f"✅ Found {len(competitors_due)} competitors due for scanning")
+            logger.info(f"✅ Found {len(competitors_due)} competitors due for scanning (respecting user monitoring settings)")
             return competitors_due
             
         except Exception as e:
@@ -229,6 +250,40 @@ class SupabaseMonitoringClient:
         except Exception as e:
             logger.error(f"❌ Error updating post content: {e}")
             return False
+    
+    async def _get_users_with_monitoring_enabled(self) -> List[str]:
+        """Get list of user IDs with monitoring enabled"""
+        try:
+            # Query user monitoring settings to find users with monitoring enabled
+            response = self.client.table('user_monitoring_settings').select('user_id').eq('global_monitoring_enabled', True).execute()
+            
+            if response and response.data:
+                user_ids = [user["user_id"] for user in response.data if user.get("user_id")]
+                logger.info(f"✅ Found {len(user_ids)} users with monitoring enabled")
+                return user_ids
+            
+            logger.info("✅ No users have monitoring enabled")
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting users with monitoring enabled: {e}")
+            return []
+    
+    async def get_competitors_by_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all competitors for a specific user"""
+        try:
+            response = self.client.table('competitors').select('*').eq('user_id', user_id).execute()
+            
+            if response and response.data:
+                logger.info(f"✅ Found {len(response.data)} competitors for user {user_id}")
+                return response.data
+            
+            logger.info(f"✅ No competitors found for user {user_id}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting competitors for user {user_id}: {e}")
+            return []
 
 
 # Global client instance - only create if dependencies are available

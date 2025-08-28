@@ -32,8 +32,7 @@ const navigation = [
   { name: "Competitor Intelligence", href: "/dashboard/competitors", icon: Search },
   { name: "Content Planning", href: "/dashboard", icon: Calendar },
   { name: "Publishing", href: "/dashboard/publishing", icon: Send },
-  { name: "Campaign Tracking", href: "/dashboard/campaigns", icon: BarChart3 },
-  { name: "Optimization", href: "/dashboard/optimization", icon: Lightbulb },
+  { name: "Campaign & Optimization", href: "/dashboard/optimization", icon: Lightbulb },
   { name: "ROI Dashboard", href: "/dashboard/roi", icon: DollarSign },
   { name: "Continuous Monitoring", href: "/dashboard/monitoring", icon: Eye },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
@@ -146,7 +145,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               }}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
-              Debug: Skip Onboarding
             </button>
           )}
         </div>
@@ -170,7 +168,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">CompetitorAI</span>
+              <span className="text-xl font-bold">Bos Solution</span>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
               <X className="h-6 w-6" />
@@ -208,7 +206,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">CompetitorAI</span>
+              <span className="text-xl font-bold">Bos Solution</span>
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">

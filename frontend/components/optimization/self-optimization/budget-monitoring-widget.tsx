@@ -65,11 +65,11 @@ export function BudgetMonitoringWidget({ detailed = false }: BudgetMonitoringWid
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'critical':
-        return 'bg-red-500'
+        return 'bg-red-500 dark:bg-red-600'
       case 'warning':
-        return 'bg-orange-500'
+        return 'bg-orange-500 dark:bg-orange-600'
       default:
-        return 'bg-green-500'
+        return 'bg-green-500 dark:bg-green-600'
     }
   }
 
@@ -183,16 +183,16 @@ export function BudgetMonitoringWidget({ detailed = false }: BudgetMonitoringWid
                     ${campaign.spend.toFixed(0)}/${campaign.budget.toFixed(0)}
                   </span>
                 </div>
-                {campaign.status === 'critical' && (
-                  <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                    ⚠️ Budget exceeded by ${(campaign.spend - campaign.budget).toFixed(2)}
-                  </div>
-                )}
-                {campaign.status === 'warning' && campaign.utilization_pct > 80 && (
-                  <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                    ⚡ Approaching budget limit
-                  </div>
-                )}
+                                 {campaign.status === 'critical' && (
+                   <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-2 rounded">
+                     ⚠️ Budget exceeded by ${(campaign.spend - campaign.budget).toFixed(2)}
+                   </div>
+                 )}
+                 {campaign.status === 'warning' && campaign.utilization_pct > 80 && (
+                   <div className="text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/20 p-2 rounded">
+                     ⚡ Approaching budget limit
+                   </div>
+                 )}
               </div>
             ))}
           </div>
@@ -203,28 +203,28 @@ export function BudgetMonitoringWidget({ detailed = false }: BudgetMonitoringWid
           <div className="space-y-3">
             <h4 className="font-medium">Real-time Insights</h4>
             <div className="space-y-2">
-              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <div className="text-sm font-medium text-blue-900">Spending Velocity</div>
-                <div className="text-xs text-blue-700">
-                  Current pace suggests {overallUtilization > 90 ? 'budget exhaustion by end of day' : 'healthy budget utilization'}
-                </div>
-              </div>
-              {criticalCount > 0 && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-200">
-                  <div className="text-sm font-medium text-red-900">Action Required</div>
-                  <div className="text-xs text-red-700">
-                    {criticalCount} campaign{criticalCount > 1 ? 's' : ''} exceeded budget. Consider pausing or reallocating.
-                  </div>
-                </div>
-              )}
-              {warningCount > 0 && (
-                <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
-                  <div className="text-sm font-medium text-orange-900">Monitor Closely</div>
-                  <div className="text-xs text-orange-700">
-                    {warningCount} campaign{warningCount > 1 ? 's' : ''} approaching budget limit.
-                  </div>
-                </div>
-              )}
+                             <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                 <div className="text-sm font-medium text-blue-900 dark:text-blue-100">Spending Velocity</div>
+                 <div className="text-xs text-blue-700 dark:text-blue-300">
+                   Current pace suggests {overallUtilization > 90 ? 'budget exhaustion by end of day' : 'healthy budget utilization'}
+                 </div>
+               </div>
+               {criticalCount > 0 && (
+                 <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800">
+                   <div className="text-sm font-medium text-red-900 dark:text-red-100">Action Required</div>
+                   <div className="text-xs text-red-700 dark:text-red-300">
+                     {criticalCount} campaign{criticalCount > 1 ? 's' : ''} exceeded budget. Consider pausing or reallocating.
+                   </div>
+                 </div>
+               )}
+               {warningCount > 0 && (
+                 <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
+                   <div className="text-sm font-medium text-orange-900 dark:text-orange-100">Monitor Closely</div>
+                   <div className="text-xs text-orange-700 dark:text-orange-300">
+                     {warningCount} campaign{warningCount > 1 ? 's' : ''} approaching budget limit.
+                   </div>
+                 </div>
+               )}
             </div>
           </div>
         )}

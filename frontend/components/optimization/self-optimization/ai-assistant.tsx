@@ -172,7 +172,7 @@ export function AIAssistant() {
                     className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`flex items-start space-x-2 max-w-[80%] ${
+                      className={`flex items-start space-x-2 max-w-[90%] ${
                         message.isUser ? 'flex-row-reverse space-x-reverse' : ''
                       }`}
                     >
@@ -196,7 +196,7 @@ export function AIAssistant() {
                             : 'bg-gray-100 text-gray-900'
                         }`}
                       >
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-sm break-words whitespace-pre-wrap overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{message.content}</p>
                         <p className="text-xs mt-1 opacity-70">
                           {message.timestamp.toLocaleTimeString([], {
                             hour: '2-digit',

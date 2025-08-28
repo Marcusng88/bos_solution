@@ -290,9 +290,9 @@ export function SocialMediaMonitoring({ monitoringData = [] }: SocialMediaMonito
                         {(post.engagement.share_count || 0).toLocaleString()}
                       </div>
                     </div>
-                    <Button variant="outline" size="sm">
+                    {/* <Button variant="outline" size="sm">
                       Analyze Post
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               ))}

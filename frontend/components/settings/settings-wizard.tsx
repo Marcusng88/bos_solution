@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Settings, ArrowLeft, Save } from "lucide-react"
+import { Settings, ArrowLeft, Save, Edit, X, Check } from "lucide-react"
 import { IndustryStep } from "@/components/onboarding/steps/industry-step"
 import { GoalsStep } from "@/components/onboarding/steps/goals-step"
 import { CompetitorStep } from "@/components/onboarding/steps/competitor-step"
@@ -35,21 +35,23 @@ export function SettingsWizard() {
     connectedAccounts: [],
     budget: "",
   })
+  const [initialData, setInitialData] = useState<OnboardingData | null>(null)
+  const [editingSections, setEditingSections] = useState<Set<number>>(new Set())
+  const [sectionChanges, setSectionChanges] = useState<Set<number>>(new Set())
 
-  // Load existing settings and handle YouTube OAuth return
-  useEffect(() => {
-    // Check if returning from YouTube OAuth
-    const returnStep = sessionStorage.getItem('youtube_return_step')
-    if (returnStep) {
-      const step = parseInt(returnStep, 10)
-      if (step >= 1 && step <= steps.length) {
-        setCurrentStep(step)
-      }
-      // Clear the return step from session storage
-      sessionStorage.removeItem('youtube_return_step')
+  // Simple URL validator for http/https only
+  const isValidHttpUrl = (value?: string) => {
+    if (!value || typeof value !== "string") return false
+    try {
+      const url = new URL(value)
+      return url.protocol === "http:" || url.protocol === "https:"
+    } catch {
+      return false
     }
-    
-    // Load real settings from database
+  }
+
+  // Load existing settings
+  useEffect(() => {
     const loadSettings = async () => {
       if (!user?.id) return
       
@@ -58,9 +60,10 @@ export function SettingsWizard() {
         const apiClient = new ApiClient()
         
         // Load user preferences and competitors in parallel
+        const clerkId = user.externalId || user.id
         const [preferences, competitors] = await Promise.all([
-          apiClient.getUserPreferences(user.id).catch(() => null),
-          apiClient.getUserCompetitors(user.id).catch(() => [])
+          apiClient.getUserPreferences(clerkId).catch(() => null),
+          apiClient.getUserCompetitors(clerkId).catch(() => [])
         ])
         
         // Transform database data to match OnboardingData interface
@@ -92,16 +95,17 @@ export function SettingsWizard() {
           goals: (preferences as any)?.marketing_goals || ["Brand Awareness", "Lead Generation"],
           competitors: (competitors as any[]).map((comp: any) => ({
             id: comp.id, // Include the database ID for updates
-            name: comp.competitor_name,
+            name: comp.name || comp.competitor_name,
             website: comp.website_url || "",
             description: comp.description || "",
-            platforms: comp.active_platforms || []
+            platforms: comp.platforms || comp.active_platforms || []
           })),
-          connectedAccounts: data.connectedAccounts, // Keep existing connected accounts
+          connectedAccounts: [], // Keep existing connected accounts
           budget: transformBudgetFromDB((preferences as any)?.monthly_budget) || "5000-10000"
         }
         
         setData(transformedData)
+        setInitialData(transformedData)
       } catch (error) {
         console.error('Failed to load user settings:', error)
         toast({
@@ -134,7 +138,39 @@ export function SettingsWizard() {
     }
   }
 
-  const handleSave = async () => {
+  // Toggle edit mode for a specific section
+  const toggleEditSection = (stepId: number) => {
+    const newEditingSections = new Set(editingSections)
+    if (newEditingSections.has(stepId)) {
+      newEditingSections.delete(stepId)
+      // Cancel changes for this section
+      if (initialData) {
+        setData(prev => ({
+          ...prev,
+          ...(stepId === 1 ? {
+            industry: initialData.industry,
+            companySize: initialData.companySize
+          } : stepId === 2 ? {
+            goals: initialData.goals,
+            budget: initialData.budget
+          } : stepId === 3 ? {
+            competitors: initialData.competitors
+          } : {})
+        }))
+      }
+    } else {
+      newEditingSections.add(stepId)
+    }
+    setEditingSections(newEditingSections)
+    
+    // Clear section changes when entering edit mode
+    const newSectionChanges = new Set(sectionChanges)
+    newSectionChanges.delete(stepId)
+    setSectionChanges(newSectionChanges)
+  }
+
+  // Save changes for a specific section
+  const saveSection = async (stepId: number) => {
     if (!user?.id) {
       toast({
         title: "Error",
@@ -146,43 +182,103 @@ export function SettingsWizard() {
 
     try {
       const apiClient = new ApiClient()
+      const clerkId = user.externalId || user.id
       
-      // Save user preferences to database
-      await apiClient.saveUserPreferences(user.id, {
-        industry: data.industry,
-        companySize: data.companySize,
-        goals: data.goals,
-        budget: data.budget
-      })
-      
-      // Save competitors to database (one by one)
-      for (const competitor of data.competitors) {
-        if (competitor.id) {
-          // Update existing competitor
-          await apiClient.updateCompetitor(user.externalId || user.id, competitor.id, {
-            name: competitor.name,
-            website: competitor.website,
-            description: competitor.description,
-            platforms: competitor.platforms
-          })
-        } else {
-          // Create new competitor
-          await apiClient.saveCompetitor(user.externalId || user.id, {
-            name: competitor.name,
-            website: competitor.website,
-            description: competitor.description,
-            platforms: competitor.platforms
-          })
+      if (stepId === 1) {
+        // Save business information
+        await apiClient.saveUserPreferences(clerkId, {
+          industry: data.industry,
+          companySize: data.companySize,
+          goals: data.goals,
+          budget: data.budget
+        })
+      } else if (stepId === 2) {
+        // Save goals and budget
+        await apiClient.saveUserPreferences(clerkId, {
+          industry: data.industry,
+          companySize: data.companySize,
+          goals: data.goals,
+          budget: data.budget
+        })
+      } else if (stepId === 3) {
+        // Handle competitors - this is more complex
+        // First, get current competitors from database to compare
+        const currentCompetitors = await apiClient.getUserCompetitors(clerkId)
+        const currentIds = new Set((currentCompetitors as any[]).map((c: any) => c.id).filter(Boolean))
+        
+        // Determine which competitors to delete, update, or create
+        for (const competitor of data.competitors) {
+          if (competitor.website && !isValidHttpUrl(competitor.website)) {
+            toast({
+              title: "Invalid URL",
+              description: `Please use a valid URL for ${competitor.name}. Use http(s)://...`,
+              variant: "destructive",
+            })
+            return
+          }
+          
+          if (competitor.id && currentIds.has(competitor.id)) {
+            // Update existing competitor
+            await apiClient.updateCompetitor(clerkId, competitor.id, {
+              name: competitor.name,
+              website: competitor.website,
+              description: competitor.description,
+              platforms: competitor.platforms
+            })
+          } else if (!competitor.id) {
+            // Create new competitor
+            await apiClient.saveCompetitor(clerkId, {
+              name: competitor.name,
+              website: competitor.website,
+              description: competitor.description,
+              platforms: competitor.platforms
+            })
+          }
+        }
+        
+        // Delete competitors that are no longer in the list
+        for (const currentId of currentIds) {
+          if (!data.competitors.some(c => c.id === currentId)) {
+            await apiClient.deleteCompetitor(currentId, clerkId)
+          }
+        }
+        
+        // Refresh competitors from database to get updated IDs
+        const refreshed = await apiClient.getUserCompetitors(clerkId)
+        const refreshedCompetitors = (refreshed as any[]).map((comp: any) => ({
+          id: comp.id,
+          name: comp.name || comp.competitor_name,
+          website: comp.website_url || "",
+          description: comp.description || "",
+          platforms: comp.platforms || comp.active_platforms || []
+        }))
+        
+        setData(prev => ({ ...prev, competitors: refreshedCompetitors }))
+        if (initialData) {
+          setInitialData(prev => prev ? { ...prev, competitors: refreshedCompetitors } : null)
         }
       }
+
+      // Exit edit mode and mark section as saved
+      const newEditingSections = new Set(editingSections)
+      newEditingSections.delete(stepId)
+      setEditingSections(newEditingSections)
       
-      setHasChanges(false)
+      // Update initial data to reflect saved state
+      if (initialData) {
+        setInitialData(prev => prev ? { ...prev, ...data } : null)
+      }
+      
+      // Check if there are any remaining changes
+      const hasRemainingChanges = JSON.stringify(data) !== JSON.stringify(initialData)
+      setHasChanges(hasRemainingChanges)
+      
       toast({
-        title: "Settings Saved!",
-        description: "Your preferences have been updated successfully.",
+        title: "Section Saved!",
+        description: "Your changes have been saved successfully.",
       })
     } catch (error) {
-      console.error('Failed to save settings:', error)
+      console.error('Failed to save section:', error)
       toast({
         title: "Save Failed",
         description: "Failed to save your changes. Please try again.",
@@ -202,15 +298,140 @@ export function SettingsWizard() {
   const progress = ((currentStep - 1) / (steps.length - 1)) * 100
 
   const renderStep = () => {
+    const isEditing = editingSections.has(currentStep)
+    
     switch (currentStep) {
       case 1:
-        return <IndustryStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} isFromSettings={true} />
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Business Information</h3>
+              <Button
+                variant={isEditing ? "outline" : "default"}
+                size="sm"
+                onClick={() => toggleEditSection(1)}
+              >
+                {isEditing ? (
+                  <>
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            <IndustryStep 
+              data={data} 
+              updateData={updateData} 
+              onNext={nextStep} 
+              onPrev={prevStep} 
+              isFromSettings={true}
+              readOnly={!isEditing}
+            />
+            
+            {isEditing && (
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => saveSection(1)}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </div>
+        )
       case 2:
-        return <GoalsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} isFromSettings={true} />
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Goals & Budget</h3>
+              <Button
+                variant={isEditing ? "outline" : "default"}
+                size="sm"
+                onClick={() => toggleEditSection(2)}
+              >
+                {isEditing ? (
+                  <>
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            <GoalsStep 
+              data={data} 
+              updateData={updateData} 
+              onNext={nextStep} 
+              onPrev={prevStep} 
+              isFromSettings={true}
+              readOnly={!isEditing}
+            />
+            
+            {isEditing && (
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => saveSection(2)}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </div>
+        )
       case 3:
-        return <CompetitorStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} isFromSettings={true} />
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Competitor Management</h3>
+              <Button
+                variant={isEditing ? "outline" : "default"}
+                size="sm"
+                onClick={() => toggleEditSection(3)}
+              >
+                {isEditing ? (
+                  <>
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            <CompetitorStep 
+              data={data} 
+              updateData={updateData} 
+              onNext={nextStep} 
+              onPrev={prevStep} 
+              isFromSettings={true}
+              readOnly={!isEditing}
+            />
+            
+            {isEditing && (
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => saveSection(3)}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </div>
+        )
       default:
-        return <IndustryStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} isFromSettings={true} />
+        return null
     }
   }
 
@@ -219,15 +440,6 @@ export function SettingsWizard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleBackToDashboard}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Button>
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-blue-600 rounded-lg">
@@ -238,14 +450,6 @@ export function SettingsWizard() {
             <p className="text-muted-foreground">Update your onboarding preferences and configuration</p>
           </div>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges}
-          className="flex items-center gap-2"
-        >
-          <Save className="h-4 w-4" />
-          Save Changes
-        </Button>
       </div>
 
       {/* Progress */}
@@ -314,15 +518,9 @@ export function SettingsWizard() {
               <div>
                 <h3 className="font-medium text-orange-900 dark:text-orange-100">Unsaved Changes</h3>
                 <p className="text-sm text-orange-700 dark:text-orange-300">
-                  You have unsaved changes. Don't forget to save your updates.
+                  You have unsaved changes in some sections. Click the Edit button for each section to make changes, then save them individually.
                 </p>
               </div>
-              <Button
-                onClick={handleSave}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                Save Now
-              </Button>
             </div>
           </CardContent>
         </Card>

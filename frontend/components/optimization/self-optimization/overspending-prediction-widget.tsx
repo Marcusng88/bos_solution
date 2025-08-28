@@ -41,7 +41,7 @@ export function OverspendingPredictionWidget() {
 
   const fetchPredictions = async () => {
     try {
-      const predictionsData = await apiClient.getOverspendingPredictions(userId)
+      const predictionsData = await apiClient.getOverspendingPredictions(userId) as OverspendingPrediction[]
       setPredictions(predictionsData)
     } catch (error) {
       console.error('Failed to fetch predictions:', handleApiError(error))
@@ -80,13 +80,13 @@ export function OverspendingPredictionWidget() {
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'critical':
-        return 'bg-red-500 text-white'
+        return 'bg-red-500 dark:bg-red-600 text-white'
       case 'high':
-        return 'bg-orange-500 text-white'
+        return 'bg-orange-500 dark:bg-orange-600 text-white'
       case 'medium':
-        return 'bg-yellow-500 text-black'
+        return 'bg-yellow-500 dark:bg-yellow-600 text-black dark:text-black'
       default:
-        return 'bg-green-500 text-white'
+        return 'bg-green-500 dark:bg-green-600 text-white'
     }
   }
 
@@ -112,7 +112,7 @@ export function OverspendingPredictionWidget() {
       case 'medium':
         return 'shadow-lg shadow-yellow-500/50 border-yellow-500/30'
       default:
-        return 'shadow-md border-gray-200'
+        return 'shadow-md border-border'
     }
   }
 
@@ -160,8 +160,8 @@ export function OverspendingPredictionWidget() {
         <CardContent>
           <div className="text-center py-8">
             <Target className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Overspending Risks Detected</h3>
-            <p className="text-gray-500">All campaigns are currently within budget limits and performing well.</p>
+                            <h3 className="text-lg font-medium text-foreground mb-2">No Overspending Risks Detected</h3>
+                <p className="text-muted-foreground">All campaigns are currently within budget limits and performing well.</p>
           </div>
         </CardContent>
       </Card>
@@ -186,19 +186,19 @@ export function OverspendingPredictionWidget() {
                >
                  <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h4 className="font-medium text-gray-900">{prediction.campaign_name}</h4>
+                    <h4 className="font-medium text-foreground">{prediction.campaign_name}</h4>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge className={getRiskColor(prediction.overspend_risk)}>
                         {getRiskIcon(prediction.overspend_risk)}
                         <span className="ml-1 capitalize">{prediction.overspend_risk} Risk</span>
                       </Badge>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-muted-foreground">
                         {prediction.days_until_overspend} days until overspend
                       </span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-gray-500">Risk Score</div>
+                    <div className="text-sm text-muted-foreground">Risk Score</div>
                     <div className="text-lg font-semibold text-red-600">
                       {(prediction.risk_score * 100).toFixed(0)}%
                     </div>
@@ -207,14 +207,14 @@ export function OverspendingPredictionWidget() {
                 
                 <div className="grid grid-cols-2 gap-4 mb-3">
                   <div>
-                    <div className="text-sm text-gray-500">Current Spend</div>
-                    <div className="text-lg font-semibold text-gray-900">
+                    <div className="text-sm text-muted-foreground">Current Spend</div>
+                    <div className="text-lg font-semibold text-foreground">
                       ${prediction.current_spend.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">Budget</div>
-                    <div className="text-lg font-semibold text-gray-900">
+                    <div className="text-sm text-muted-foreground">Budget</div>
+                    <div className="text-lg font-semibold text-foreground">
                       ${prediction.current_budget.toLocaleString()}
                     </div>
                   </div>
@@ -223,14 +223,14 @@ export function OverspendingPredictionWidget() {
                 {/* Net Profit Section */}
                 <div className="grid grid-cols-2 gap-4 mb-3">
                   <div>
-                    <div className="text-sm text-gray-500">Net Profit</div>
+                    <div className="text-sm text-muted-foreground">Net Profit</div>
                     <div className={`text-lg font-semibold flex items-center gap-1 ${getProfitColor(prediction.profit_margin)}`}>
                       {getProfitIcon(prediction.profit_margin)}
                       ${prediction.net_profit.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">Profit Margin</div>
+                    <div className="text-sm text-muted-foreground">Profit Margin</div>
                     <div className={`text-lg font-semibold ${getProfitColor(prediction.profit_margin)}`}>
                       {prediction.profit_margin.toFixed(1)}%
                     </div>
@@ -238,7 +238,7 @@ export function OverspendingPredictionWidget() {
                 </div>
                 
                 <div className="mb-3">
-                  <div className="flex justify-between text-sm text-gray-500 mb-1">
+                  <div className="flex justify-between text-sm text-muted-foreground mb-1">
                     <span>Budget Utilization</span>
                     <span>{prediction.budget_utilization.toFixed(1)}%</span>
                   </div>
@@ -249,24 +249,24 @@ export function OverspendingPredictionWidget() {
                 </div>
 
                 {/* Performance Metrics */}
-                <div className="grid grid-cols-3 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 mb-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                   <div className="text-center">
-                    <div className="text-xs text-gray-500">CTR</div>
+                    <div className="text-xs text-muted-foreground">CTR</div>
                     <div className="text-sm font-semibold">{prediction.ctr !== null && prediction.ctr !== undefined ? prediction.ctr.toFixed(2) : 'N/A'}%</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xs text-gray-500">CPC</div>
+                    <div className="text-xs text-muted-foreground">CPC</div>
                     <div className="text-sm font-semibold">${prediction.cpc !== null && prediction.cpc !== undefined ? prediction.cpc.toFixed(2) : 'N/A'}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xs text-gray-500">Conv. Rate</div>
-                    <div className="text-sm font-semibold">{prediction.conversion_rate !== null && prediction.conversion_rate !== undefined ? prediction.conversion_rate.toFixed(2) : 'N/A'}%</div>
+                    <div className="text-xs text-muted-foreground">Conv. Rate</div>
+                    <div className="text-sm font-semibold">{prediction.conversions !== null && prediction.conversions !== undefined ? prediction.conversions.toFixed(2) : 'N/A'}%</div>
                   </div>
                 </div>
                 
                 {prediction.risk_factors.length > 0 && (
                   <div>
-                    <div className="text-sm text-gray-500 mb-2">Risk Factors:</div>
+                    <div className="text-sm text-muted-foreground mb-2">Risk Factors:</div>
                     <div className="flex flex-wrap gap-2">
                       {prediction.risk_factors.map((factor, factorIndex) => (
                         <Badge key={factorIndex} variant="outline" className="text-xs">
@@ -278,12 +278,12 @@ export function OverspendingPredictionWidget() {
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex gap-3 mt-4 pt-4 border-t border-gray-200">
+                <div className="flex gap-3 mt-4 pt-4 border-t border-border">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handlePauseCampaign(prediction.campaign_name)}
-                    className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                                         className="flex items-center gap-2 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20"
                   >
                     <Pause className="h-4 w-4" />
                     Pause Campaign
@@ -322,7 +322,7 @@ export function OverspendingPredictionWidget() {
                       variant="outline"
                       size="sm"
                       onClick={() => setReallocatingCampaign(prediction.campaign_name)}
-                      className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                             className="flex items-center gap-2 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/20"
                     >
                       <DollarSignIcon className="h-4 w-4" />
                       Reallocate Budget

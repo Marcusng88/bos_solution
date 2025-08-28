@@ -12,7 +12,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome to MarketingAI Pro!</CardTitle>
+        <CardTitle className="text-2xl">Welcome to Bos Solution!</CardTitle>
         <CardDescription>
           Let's personalize your experience and set up your AI-powered marketing workspace in just a few steps.
         </CardDescription>

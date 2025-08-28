@@ -262,7 +262,7 @@ function AIChatWidgetInner() {
                     className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`flex items-start space-x-3 max-w-[85%] ${
+                      className={`flex items-start space-x-3 max-w-[90%] ${
                         message.isUser ? 'flex-row-reverse space-x-reverse' : ''
                       }`}
                     >
@@ -287,9 +287,10 @@ function AIChatWidgetInner() {
                         }`}
                       >
                         <div 
-                          className={`text-base whitespace-pre-wrap leading-relaxed ${
+                          className={`text-base whitespace-pre-wrap leading-relaxed break-words overflow-hidden word-wrap ${
                             message.isUser ? '' : 'prose prose-base max-w-none'
                           }`}
+                          style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                           dangerouslySetInnerHTML={{
                             __html: message.isUser ? message.content : message.content
                           }}
@@ -350,14 +351,14 @@ function AIChatWidgetInner() {
               </div>
               
               {/* Quick Questions */}
-              <div className="flex flex-wrap gap-2 mt-3">
+              <div className="flex flex-wrap gap-1 mt-3 max-w-full overflow-hidden">
                 {quickQuestions.map((question) => (
                   <Button
                     key={question}
                     variant="outline"
                     size="sm"
                     onClick={() => setInputValue(question)}
-                    className="text-sm h-8 px-3"
+                    className="text-xs h-8 px-3 whitespace-nowrap flex-shrink-0 max-w-full truncate"
                     disabled={isLoading}
                   >
                     {question}

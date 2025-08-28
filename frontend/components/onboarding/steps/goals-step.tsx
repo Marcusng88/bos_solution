@@ -14,6 +14,7 @@ interface GoalsStepProps {
   onNext: () => void
   onPrev: () => void
   isFromSettings?: boolean
+  readOnly?: boolean
 }
 
 const marketingGoals = [
@@ -25,8 +26,9 @@ const marketingGoals = [
   { id: "website-traffic", label: "Drive more website traffic", icon: TrendingUp },
 ]
 
-export function GoalsStep({ data, updateData, onNext, onPrev, isFromSettings = false }: GoalsStepProps) {
+export function GoalsStep({ data, updateData, onNext, onPrev, isFromSettings = false, readOnly = false }: GoalsStepProps) {
   const toggleGoal = (goalId: string) => {
+    if (readOnly) return
     const currentGoals = data.goals || []
     const updatedGoals = currentGoals.includes(goalId)
       ? currentGoals.filter((id) => id !== goalId)
@@ -54,16 +56,20 @@ export function GoalsStep({ data, updateData, onNext, onPrev, isFromSettings = f
               return (
                 <div
                   key={goal.id}
-                  className={`flex items-center space-x-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                  className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors ${
                     isSelected
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
                       : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
-                  }`}
-                  onClick={() => toggleGoal(goal.id)}
+                  } ${!readOnly ? "cursor-pointer" : ""}`}
+                  onClick={() => !readOnly && toggleGoal(goal.id)}
                 >
-                  <Checkbox checked={isSelected} onChange={() => toggleGoal(goal.id)} />
+                  <Checkbox 
+                    checked={isSelected} 
+                    onChange={() => !readOnly && toggleGoal(goal.id)}
+                    disabled={readOnly}
+                  />
                   <Icon className={`h-5 w-5 ${isSelected ? "text-blue-600" : "text-gray-500"}`} />
-                  <Label className="cursor-pointer flex-1">{goal.label}</Label>
+                  <Label className={`flex-1 ${!readOnly ? "cursor-pointer" : ""}`}>{goal.label}</Label>
                 </div>
               )
             })}
@@ -72,7 +78,11 @@ export function GoalsStep({ data, updateData, onNext, onPrev, isFromSettings = f
 
         <div className="space-y-3">
           <Label className="text-base font-medium">What's your monthly marketing budget?</Label>
-          <Select value={data.budget} onValueChange={(value) => updateData({ budget: value })}>
+          <Select 
+            value={data.budget} 
+            onValueChange={(value) => updateData({ budget: value })}
+            disabled={readOnly}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select your budget range" />
             </SelectTrigger>
@@ -87,16 +97,18 @@ export function GoalsStep({ data, updateData, onNext, onPrev, isFromSettings = f
           </Select>
         </div>
 
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onPrev}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          <Button onClick={onNext} disabled={!canProceed}>
-            {isFromSettings ? "Next: Competitors" : "Next"}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+        {!isFromSettings && (
+          <div className="flex justify-between pt-4">
+            <Button variant="outline" onClick={onPrev}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <Button onClick={onNext} disabled={!canProceed}>
+              {isFromSettings ? "Next: Competitors" : "Next"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

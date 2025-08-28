@@ -12,8 +12,6 @@ import json
 import re
 from urllib.parse import urljoin, urlparse
 
-# Import Windows compatibility utilities
-from app.core.windows_compatibility import setup_windows_compatibility
 
 # Import multiprocessing crawler (solves NotImplementedError)
 from app.services.monitoring.agents.sub_agents.multiprocessing_crawler import (

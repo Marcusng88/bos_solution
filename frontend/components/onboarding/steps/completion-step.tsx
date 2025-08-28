@@ -43,7 +43,7 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
       
       toast({
         title: "Welcome to Dashboard!",
-        description: "Your onboarding is complete. Enjoy using MarketingAI Pro!",
+        description: "Your onboarding is complete. Enjoy using Bos Solution!",
       })
 
       // Redirect to dashboard
@@ -68,7 +68,7 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
         </div>
         <CardTitle className="text-2xl">You're all set!</CardTitle>
         <CardDescription>
-          Your MarketingAI Pro workspace is ready. Here's what we've configured for you:
+          Your Bos Solution workspace is ready. Here's what we've configured for you:
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

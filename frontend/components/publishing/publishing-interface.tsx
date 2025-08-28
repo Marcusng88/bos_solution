@@ -8,9 +8,10 @@ import { CreatePostForm } from "./create-post-form"
 import { ScheduledPosts } from "./scheduled-posts"
 import { PostTemplates } from "./post-templates"
 import { YouTubeUpload } from "./youtube-upload"
-import SocialMediaUpload from "../social-media/content-upload"
+import { SocialMediaTab } from "./social-media-tab"
 import { Plus, Calendar, FileText, Clock, Share2, Youtube } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
+import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog"
 
 export function PublishingInterface() {
   const [activeTab, setActiveTab] = useState("create")
@@ -25,14 +26,42 @@ export function PublishingInterface() {
           <p className="text-muted-foreground">Create and schedule content across all your platforms</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setActiveTab("youtube")} variant="outline">
-            <Youtube className="mr-2 h-4 w-4" />
-            Upload to YouTube
-          </Button>
-          <Button onClick={() => setActiveTab("social-media")}>
-            <Share2 className="mr-2 h-4 w-4" />
-            Create Social Media Post
-          </Button>
+          <ComingSoonDialog
+            trigger={
+              <Button variant="outline">
+                <Youtube className="mr-2 h-4 w-4" />
+                Upload to YouTube
+              </Button>
+            }
+            title="YouTube Integration"
+            description="Direct YouTube video uploads and management are coming soon! You'll be able to upload, schedule, and manage your YouTube content directly from our platform."
+            features={[
+              "Video upload and optimization",
+              "Thumbnail generation",
+              "SEO optimization",
+              "Scheduling and publishing",
+              "Analytics and insights"
+            ]}
+            estimatedRelease="Q1 2025"
+          />
+          <ComingSoonDialog
+            trigger={
+              <Button>
+                <Share2 className="mr-2 h-4 w-4" />
+                Create Social Media Post
+              </Button>
+            }
+            title="Social Media Publishing"
+            description="Direct social media publishing is coming soon! You'll be able to create and schedule posts across Instagram, Facebook, Twitter, LinkedIn, and YouTube."
+            features={[
+              "Multi-platform content creation",
+              "Smart scheduling algorithms",
+              "Content templates and optimization",
+              "Analytics and performance tracking",
+              "Team collaboration tools"
+            ]}
+            estimatedRelease="Q1 2025"
+          />
         </div>
       </div>
 
@@ -108,7 +137,7 @@ export function PublishingInterface() {
           <PostTemplates />
         </TabsContent>
         <TabsContent value="social-media" className="space-y-6">
-          <SocialMediaUpload />
+          <SocialMediaTab />
         </TabsContent>
       </Tabs>
     </div>

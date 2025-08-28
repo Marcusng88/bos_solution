@@ -1,9 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Facebook, Instagram, Heart, MessageCircle, Share, Clock } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
 interface PostPreviewProps {
   caption: string
@@ -20,6 +22,31 @@ const platformData = {
 }
 
 export function PostPreview({ caption, media, platforms, scheduledDate, scheduledTime, postType }: PostPreviewProps) {
+  const { user } = useUser()
+  const [fbProfile, setFbProfile] = useState<{ username?: string; name?: string; avatar?: string } | null>(null)
+  const [igProfile, setIgProfile] = useState<{ username?: string; name?: string; avatar?: string } | null>(null)
+
+  useEffect(() => {
+    const loadAccounts = async () => {
+      try {
+        if (!user) return
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        if (!apiBase) return
+        const resp = await fetch(`${apiBase}/social-media/connected-accounts`, {
+          headers: { 'X-User-ID': user.id },
+        })
+        if (!resp.ok) return
+        const data = await resp.json()
+        const accounts: Array<any> = data?.accounts || []
+        const fb = accounts.find(a => a.platform === 'facebook' && a.isConnected)
+        const ig = accounts.find(a => a.platform === 'instagram' && a.isConnected)
+        if (fb) setFbProfile({ username: fb.username, name: fb.accountName, avatar: fb.profilePicture })
+        if (ig) setIgProfile({ username: ig.username, name: ig.accountName, avatar: ig.profilePicture })
+      } catch {}
+    }
+    loadAccounts()
+  }, [user])
+
   const formatScheduleTime = () => {
     if (postType === "now") return "Publishing immediately"
     if (postType === "optimal") return "AI will choose optimal time"
@@ -67,11 +94,11 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                    <AvatarFallback>YB</AvatarFallback>
+                    <AvatarImage src={igProfile?.avatar || "/placeholder.svg?height=32&width=32"} />
+                    <AvatarFallback>{(igProfile?.username || "IG").slice(0,2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold text-sm">your_business</p>
+                    <p className="font-semibold text-sm">{igProfile?.username || "your_business"}</p>
                     <p className="text-xs text-muted-foreground">Sponsored</p>
                   </div>
                 </div>
@@ -107,11 +134,11 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                    <AvatarFallback>YB</AvatarFallback>
+                    <AvatarImage src={fbProfile?.avatar || "/placeholder.svg?height=40&width=40"} />
+                    <AvatarFallback>{(fbProfile?.name || "FB").slice(0,2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold">Your Business</p>
+                    <p className="font-semibold">{fbProfile?.name || "Your Business"}</p>
                     <p className="text-xs text-muted-foreground">2 hours ago • 🌍</p>
                   </div>
                 </div>

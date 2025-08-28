@@ -209,22 +209,10 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Estimated Impact: </span>
-                        <span className="font-medium text-foreground">+{Math.floor(Math.random() * 30 + 10)}% coverage</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate Ideas
-                      </Button>
-                      <Button size="sm">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Plan Content
-                      </Button>
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Estimated Impact: </span>
+                      <span className="font-medium text-foreground">+{Math.floor(Math.random() * 30 + 10)}% coverage</span>
                     </div>
                   </div>
                 </div>
@@ -278,9 +266,7 @@ export function ContentGapAnalysis({ monitoringData = [] }: ContentGapAnalysisPr
                       </span>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    Explore
-                  </Button>
+
                 </div>
               ))}
             </div>

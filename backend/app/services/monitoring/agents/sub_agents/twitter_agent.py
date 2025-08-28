@@ -11,8 +11,6 @@ import hashlib
 import json
 import re
 
-# Import Windows compatibility utilities
-from app.core.windows_compatibility import setup_windows_compatibility
 
 # Import langchain dependencies conditionally
 try:

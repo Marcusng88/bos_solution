@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Loader2, Check, Plus, Save, Home } from "lucide-react"
+import { ArrowLeft, ArrowRight, Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Loader2, Check, Plus, Save, Home, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { initiateOAuth, getAvailablePlatforms, getPlatformConfig } from "@/lib/oauth"
@@ -12,18 +12,14 @@ import { YouTubeConnection } from "../youtube-connection"
 import type { OnboardingData } from "../onboarding-wizard"
 import { useState, useEffect } from "react"
 import React from "react"
-
-// Facebook SDK TypeScript declarations
-declare global {
-  interface Window {
-    FB: {
-      getLoginStatus: (callback: (response: any) => void) => void
-      init: (params: any) => void
-      login: (callback: (response: any) => void, params?: any) => void
-      logout: (callback: (response: any) => void) => void
-    }
-  }
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface ConnectionsStepProps {
   data: OnboardingData
@@ -44,12 +40,11 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
   const { toast } = useToast()
   const router = useRouter()
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
-  const [facebookLoginStatus, setFacebookLoginStatus] = useState<string>('unknown')
   
   // Get available platforms from OAuth config
   const availablePlatforms = getAvailablePlatforms()
 
-  // Check database for connected accounts and Facebook login status
+  // Check database for connected accounts
   useEffect(() => {
     const checkConnectedAccounts = async () => {
       try {
@@ -79,61 +74,14 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
           }))
           
           updateData({ connectedAccounts: connectedPlatforms })
-          
-          // Set Facebook status if connected in database
-          const hasFacebookConnection = dbAccounts.some((acc: any) => acc.platform === 'facebook')
-          if (hasFacebookConnection) {
-            setFacebookLoginStatus('connected')
-          }
         }
       } catch (error) {
         console.error('Error fetching connected accounts:', error)
       }
     }
 
-    // Check both database and Facebook SDK
     checkConnectedAccounts()
-    
-    if (typeof window !== 'undefined' && window.FB) {
-      checkFacebookLoginStatus()
-    }
   }, [])
-
-  const checkFacebookLoginStatus = () => {
-    if (typeof window !== 'undefined' && window.FB) {
-      window.FB.getLoginStatus(function(response: any) {
-        statusChangeCallback(response)
-      })
-    }
-  }
-
-  const statusChangeCallback = (response: any) => {
-    console.log('Facebook login status:', response.status)
-    setFacebookLoginStatus(response.status)
-    
-    if (response.status === 'connected') {
-      // User is logged in and connected to your app
-      console.log('User is logged in:', response.authResponse.userID)
-      toast({
-        title: "Facebook Connected",
-        description: "You're already logged into Facebook!",
-      })
-    } else if (response.status === 'not_authorized') {
-      // User is logged into Facebook but not your app
-      console.log('User needs to authorize your app')
-    } else {
-      // User is not logged into Facebook
-      console.log('User is not logged into Facebook')
-    }
-  }
-
-  const checkLoginState = () => {
-    if (typeof window !== 'undefined' && window.FB) {
-      window.FB.getLoginStatus(function(response: any) {
-        statusChangeCallback(response)
-      })
-    }
-  }
 
   const connectPlatform = async (platformId: string) => {
     try {
@@ -258,98 +206,51 @@ export function ConnectionsStep({ data, updateData, onNext, onPrev, isFromSettin
                       <div>
                         <h3 className="font-medium">{platform.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {connected ? "Connected" : "Not Connected"}
+                          {connected ? "Connected" : "Coming Soon"}
                         </p>
                       </div>
                     </div>
                     
-                    {platform.id === 'facebook' ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (typeof window !== 'undefined' && window.FB) {
-                            window.FB.login(async function(response: any) {
-                              // Persist server-side when connected
-                              if (response?.status === 'connected') {
-                                const apiBase = process.env.NEXT_PUBLIC_API_URL
-                                const accessToken = response.authResponse?.accessToken
-                                const userId = (window as any)?.Clerk?.user?.id
-                                
-                                if (apiBase && accessToken && userId) {
-                                  try {
-                                    const saveResponse = await fetch(`${apiBase}/social-media/connect/facebook`, {
-                                      method: 'POST',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-User-ID': userId,
-                                      },
-                                      body: JSON.stringify({ access_token: accessToken }),
-                                    })
-                                    
-                                    if (saveResponse.ok) {
-                                      // Refresh from database to get accurate connection state
-                                      const accountsResponse = await fetch(`${apiBase}/social-media/connected-accounts`, {
-                                        headers: { 'X-User-ID': userId },
-                                      })
-                                      
-                                      if (accountsResponse.ok) {
-                                        const dbAccounts = (await accountsResponse.json()).accounts || []
-                                        const connectedPlatforms = dbAccounts.map((account: any) => ({
-                                          platform: account.platform,
-                                          accountId: account.account_id,
-                                          accountName: account.account_name,
-                                          username: account.username,
-                                          isConnected: true
-                                        }))
-                                        updateData({ connectedAccounts: connectedPlatforms })
-                                        setFacebookLoginStatus('connected')
-                                        
-                                        toast({
-                                          title: "Connected!",
-                                          description: "Facebook & Instagram connected successfully!",
-                                        })
-                                      }
-                                    }
-                                  } catch (error) {
-                                    console.error('Error saving Facebook connection:', error)
-                                    toast({
-                                      title: "Connection Error",
-                                      description: "Connected to Facebook but failed to save.",
-                                      variant: "destructive",
-                                    })
-                                  }
-                                }
-                              }
-                              checkLoginState()
-                            }, {
-                              scope: 'pages_read_engagement,pages_show_list,pages_manage_metadata,pages_read_user_content,instagram_basic,instagram_content_publish'
-                            })
-                          }
-                        }}
-                        className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 ml-auto"
-                      >
-                        Connect
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => connectPlatform(platform.id)}
-                        disabled={isConnecting}
-                      >
-                        {isConnecting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Connecting...
-                          </>
-                        ) : connected ? (
-                          "Disconnect"
-                        ) : (
-                          "Connect"
-                        )}
-                      </Button>
-                    )}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={true}
+                          className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 ml-auto opacity-60 cursor-not-allowed"
+                        >
+                          <Clock className="mr-2 h-4 w-4" />
+                          Coming Soon
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-blue-600" />
+                            {platform.name} Integration
+                          </DialogTitle>
+                          <DialogDescription>
+                            We're working hard to bring you {platform.name} integration. This feature is currently under development and will be available soon.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                            <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                              What's Coming:
+                            </h4>
+                            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                              <li>• Direct {platform.name} account connection</li>
+                              <li>• Content scheduling and publishing</li>
+                              <li>• Analytics and performance tracking</li>
+                              <li>• AI-powered content optimization</li>
+                            </ul>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Stay tuned for updates! You'll be notified when {platform.name} integration becomes available.
+                          </p>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
               )

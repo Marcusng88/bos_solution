@@ -24,9 +24,9 @@ export function OptimizationDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">AI Optimization Engine</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Campaign & Optimization Dashboard</h1>
           <p className="text-muted-foreground">
-            Self-optimization insights to maximize your campaign performance
+            Manage campaigns and get AI-powered optimization insights to maximize performance
           </p>
         </div>
       </div>
