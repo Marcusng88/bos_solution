@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for FastAPI Backend Deployment on Render
 # Stage 1: Build dependencies
-FROM python:3.11-slim AS builder
+FROM --platform=linux/amd64 python:3.11-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     gcc \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -21,11 +23,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements and install Python dependencies
 WORKDIR /app
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements-prod.txt .
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # Stage 2: Runtime image
-FROM python:3.11-slim AS runtime
+FROM --platform=linux/amd64 python:3.11-slim AS runtime
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
