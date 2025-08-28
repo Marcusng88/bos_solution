@@ -1,5 +1,5 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
-import { PlatformPerformanceTable } from "@/components/roi/platform-performance-table"
+import PlatformPerformanceTable from "@/components/roi/platform-performance-table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState } from "react"
 import { type TimeRange } from "@/lib/api-client"
