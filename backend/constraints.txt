@@ -1,0 +1,30 @@
+# Dependency constraints to resolve conflicts
+# This file helps pip resolve dependency conflicts by pinning specific versions
+
+# Google AI packages - using current unified SDK
+google-genai>=0.3.0
+
+# Core dependencies with specific versions to avoid conflicts
+protobuf==5.29.5
+grpcio==1.74.0
+grpcio-status==1.71.2
+
+# LangChain packages
+langchain-core==0.3.74
+langchain-google-genai>=2.2.0
+langchain-mcp-adapters==0.1.9
+
+# AI/ML packages
+numpy==2.3.2
+scipy==1.16.1
+pillow==11.3.0
+
+# Database and async packages
+asyncpg==0.30.0
+psycopg2==2.9.10
+SQLAlchemy==2.0.43
+
+# Web framework and related
+fastapi==0.116.1
+uvicorn==0.35.0
+starlette==0.47.2

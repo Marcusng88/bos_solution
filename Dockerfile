@@ -21,10 +21,14 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install Python dependencies
+# Copy requirements and constraints files
 WORKDIR /app
 COPY backend/requirements-prod.txt .
-RUN pip install --no-cache-dir -r requirements-prod.txt
+COPY backend/constraints.txt .
+
+# Install Python dependencies with constraints to resolve conflicts
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-prod.txt -c constraints.txt
 
 # Stage 2: Runtime image
 FROM --platform=linux/amd64 python:3.11-slim AS runtime
