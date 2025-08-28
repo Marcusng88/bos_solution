@@ -13,6 +13,8 @@ interface IndustryStepProps {
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
+  readOnly?: boolean
 }
 
 const industries = [
@@ -29,7 +31,7 @@ const industries = [
   "Other",
 ]
 
-export function IndustryStep({ data, updateData, onNext, onPrev }: IndustryStepProps) {
+export function IndustryStep({ data, updateData, onNext, onPrev, isFromSettings = false, readOnly = false }: IndustryStepProps) {
   const canProceed = data.industry && data.companySize
 
   return (
@@ -41,7 +43,11 @@ export function IndustryStep({ data, updateData, onNext, onPrev }: IndustryStepP
       <CardContent className="space-y-6">
         <div className="space-y-3">
           <Label className="text-base font-medium">What industry are you in?</Label>
-          <Select value={data.industry} onValueChange={(value) => updateData({ industry: value })}>
+          <Select 
+            value={data.industry} 
+            onValueChange={(value) => updateData({ industry: value })}
+            disabled={readOnly}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select your industry" />
             </SelectTrigger>
@@ -57,7 +63,11 @@ export function IndustryStep({ data, updateData, onNext, onPrev }: IndustryStepP
 
         <div className="space-y-3">
           <Label className="text-base font-medium">What's your company size?</Label>
-          <RadioGroup value={data.companySize} onValueChange={(value) => updateData({ companySize: value })}>
+          <RadioGroup 
+            value={data.companySize} 
+            onValueChange={(value) => updateData({ companySize: value })}
+            disabled={readOnly}
+          >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="solo" id="solo" />
               <Label htmlFor="solo">Just me (Solo entrepreneur)</Label>
@@ -81,16 +91,18 @@ export function IndustryStep({ data, updateData, onNext, onPrev }: IndustryStepP
           </RadioGroup>
         </div>
 
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onPrev}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          <Button onClick={onNext} disabled={!canProceed}>
-            Next
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+        {!isFromSettings && (
+          <div className="flex justify-between pt-4">
+            <Button variant="outline" onClick={onPrev}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <Button onClick={onNext} disabled={!canProceed}>
+              {isFromSettings ? "Next: Goals" : "Next"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

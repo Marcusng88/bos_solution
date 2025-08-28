@@ -1,54 +1,47 @@
 """
-User settings schemas for API requests and responses
+User monitoring settings schemas for API requests and responses
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
 
-class UserSettingsBase(BaseModel):
-    """Base user settings schema"""
-    global_monitoring_enabled: bool = True
-    default_scan_frequency_minutes: int = Field(60, ge=15, le=1440)
-    alert_preferences: Dict[str, bool] = Field(
-        default={
-            "email_alerts": True,
-            "push_notifications": True,
-            "new_posts": True,
-            "content_changes": True,
-            "engagement_spikes": True,
-            "sentiment_changes": True
-        }
-    )
-    notification_schedule: Dict[str, str] = Field(
-        default={
-            "quiet_hours_start": "22:00",
-            "quiet_hours_end": "08:00",
-            "timezone": "UTC"
-        }
-    )
-
-
-class UserSettingsUpdate(BaseModel):
-    """Schema for updating user settings"""
+class UserMonitoringSettingsBase(BaseModel):
+    """Base user monitoring settings schema"""
     global_monitoring_enabled: Optional[bool] = None
-    default_scan_frequency_minutes: Optional[int] = Field(None, ge=15, le=1440)
-    alert_preferences: Optional[Dict[str, bool]] = None
-    notification_schedule: Optional[Dict[str, str]] = None
+    default_scan_frequency_minutes: Optional[int] = None
+    alert_preferences: Optional[Dict[str, Any]] = None
+    notification_schedule: Optional[Dict[str, Any]] = None
 
 
-class UserSettingsResponse(UserSettingsBase):
-    """Schema for user settings response"""
+class UserMonitoringSettings(UserMonitoringSettingsBase):
+    """Schema for user monitoring settings (matches the database model)"""
+    id: UUID
+    user_id: str
+    user_id_new: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserMonitoringSettingsCreate(UserMonitoringSettingsBase):
+    """Schema for creating user monitoring settings"""
+    user_id: str
+
+
+class UserMonitoringSettingsUpdate(UserMonitoringSettingsBase):
+    """Schema for updating user monitoring settings"""
+    pass
+
+
+class UserMonitoringSettingsResponse(UserMonitoringSettingsBase):
+    """Schema for user monitoring settings response"""
     id: UUID
     user_id: str
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: str
-        }
+
+    model_config = ConfigDict(from_attributes=True)

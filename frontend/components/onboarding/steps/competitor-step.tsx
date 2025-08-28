@@ -7,54 +7,64 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, Search, Globe, Facebook, Instagram, Twitter, Linkedin, Youtube } from "lucide-react"
+import { Plus, X, Search, Globe, Facebook, Instagram, Youtube, Save, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { useUser } from "@clerk/nextjs"
 import type { OnboardingData } from "../onboarding-wizard"
+
+// Import ApiClient
+import { ApiClient } from "@/lib/api-client"
 
 interface CompetitorStepProps {
   data: OnboardingData
   updateData: (updates: Partial<OnboardingData>) => void
   onNext: () => void
   onPrev: () => void
+  isFromSettings?: boolean
+  readOnly?: boolean
 }
 
 const platformIcons = {
   facebook: Facebook,
   instagram: Instagram,
-  twitter: Twitter,
-  linkedin: Linkedin,
   youtube: Youtube,
 }
 
 const platformOptions = [
   { id: "facebook", name: "Facebook", icon: Facebook },
   { id: "instagram", name: "Instagram", icon: Instagram },
-  { id: "twitter", name: "Twitter/X", icon: Twitter },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin },
   { id: "youtube", name: "YouTube", icon: Youtube },
 ]
 
-export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorStepProps) {
+export function CompetitorStep({ data, updateData, onNext, onPrev, isFromSettings = false, readOnly = false }: CompetitorStepProps) {
+  const { toast } = useToast()
+  const { user } = useUser()
+  const [isSaving, setIsSaving] = useState(false)
   const [newCompetitor, setNewCompetitor] = useState({
     name: "",
     website: "",
+    description: "",
     platforms: [] as string[],
   })
 
   const addCompetitor = () => {
+    if (readOnly) return
     if (newCompetitor.name && newCompetitor.website) {
       updateData({
         competitors: [...data.competitors, { ...newCompetitor }],
       })
-      setNewCompetitor({ name: "", website: "", platforms: [] })
+      setNewCompetitor({ name: "", website: "", description: "", platforms: [] })
     }
   }
 
   const removeCompetitor = (index: number) => {
+    if (readOnly) return
     const updatedCompetitors = data.competitors.filter((_, i) => i !== index)
     updateData({ competitors: updatedCompetitors })
   }
 
   const togglePlatform = (platform: string) => {
+    if (readOnly) return
     const updatedPlatforms = newCompetitor.platforms.includes(platform)
       ? newCompetitor.platforms.filter((p) => p !== platform)
       : [...newCompetitor.platforms, platform]
@@ -63,6 +73,81 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
   }
 
   const canProceed = data.competitors.length >= 1
+
+  const handleSaveAndContinue = async () => {
+    if (readOnly) return
+    
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!canProceed) {
+      toast({
+        title: "Validation Error",
+        description: "Please add at least 1 competitor before continuing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const apiClient = new ApiClient()
+      
+      // First, sync user to ensure they exist in the users table
+      await apiClient.syncUserFromClerk(user.id, {
+        id: user.id,
+        email_addresses: user.emailAddresses.map(email => ({
+          id: email.id,
+          email_address: email.emailAddress,
+        })),
+        first_name: user.firstName,
+        last_name: user.lastName,
+        image_url: user.imageUrl,
+        primary_email_address_id: user.primaryEmailAddressId,
+      })
+
+      // Save user preferences to database
+      await apiClient.saveUserPreferences(user.id, {
+        industry: data.industry,
+        companySize: data.companySize,
+        goals: data.goals,
+        budget: data.budget
+      })
+
+      // Save competitors to database (one by one)
+      for (const competitor of data.competitors) {
+        await apiClient.saveCompetitor(user.externalId || user.id, {
+          name: competitor.name,
+          website: competitor.website,
+          description: competitor.description,
+          platforms: competitor.platforms
+        })
+      }
+
+      toast({
+        title: "Preferences Saved!",
+        description: "Your business information has been saved successfully.",
+      })
+
+      // Proceed to next step
+      onNext()
+    } catch (error) {
+      console.error('Failed to save preferences:', error)
+      toast({
+        title: "Save Failed",
+        description: "Failed to save your preferences. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <Card>
@@ -77,57 +162,69 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Add New Competitor */}
-        <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-          <h3 className="font-medium">Add Competitor</h3>
+        {!readOnly && (
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+            <h3 className="font-medium">Add Competitor</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="competitor-name">Company Name</Label>
+                <Input
+                  id="competitor-name"
+                  placeholder="e.g., Nike, Apple, Starbucks"
+                  value={newCompetitor.name}
+                  onChange={(e) => setNewCompetitor({ ...newCompetitor, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="competitor-website">Website</Label>
+                <Input
+                  id="competitor-website"
+                  placeholder="https://competitor.com"
+                  value={newCompetitor.website}
+                  onChange={(e) => setNewCompetitor({ ...newCompetitor, website: e.target.value })}
+                />
+              </div>
+            </div>
+            
             <div>
-              <Label htmlFor="competitor-name">Company Name</Label>
+              <Label htmlFor="competitor-description">Description (Optional)</Label>
               <Input
-                id="competitor-name"
-                placeholder="e.g., Nike, Apple, Starbucks"
-                value={newCompetitor.name}
-                onChange={(e) => setNewCompetitor({ ...newCompetitor, name: e.target.value })}
+                id="competitor-description"
+                placeholder="Brief description of this competitor..."
+                value={newCompetitor.description}
+                onChange={(e) => setNewCompetitor({ ...newCompetitor, description: e.target.value })}
               />
             </div>
+
             <div>
-              <Label htmlFor="competitor-website">Website</Label>
-              <Input
-                id="competitor-website"
-                placeholder="https://competitor.com"
-                value={newCompetitor.website}
-                onChange={(e) => setNewCompetitor({ ...newCompetitor, website: e.target.value })}
-              />
+              <Label>Platforms they're active on</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                {platformOptions.map((platform) => {
+                  const Icon = platform.icon
+                  return (
+                    <div key={platform.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={platform.id}
+                        checked={newCompetitor.platforms.includes(platform.id)}
+                        onCheckedChange={() => togglePlatform(platform.id)}
+                      />
+                      <Label htmlFor={platform.id} className="flex items-center gap-2 cursor-pointer">
+                        <Icon className="h-4 w-4" />
+                        {platform.name}
+                      </Label>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <Label>Platforms they're active on</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
-              {platformOptions.map((platform) => {
-                const Icon = platform.icon
-                return (
-                  <div key={platform.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={platform.id}
-                      checked={newCompetitor.platforms.includes(platform.id)}
-                      onCheckedChange={() => togglePlatform(platform.id)}
-                    />
-                    <Label htmlFor={platform.id} className="flex items-center gap-2 cursor-pointer">
-                      <Icon className="h-4 w-4" />
-                      {platform.name}
-                    </Label>
-                  </div>
-                )
-              })}
-            </div>
+            <Button onClick={addCompetitor} className="w-full" disabled={!newCompetitor.name || !newCompetitor.website}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Competitor
+            </Button>
           </div>
-
-          <Button onClick={addCompetitor} className="w-full" disabled={!newCompetitor.name || !newCompetitor.website}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Competitor
-          </Button>
-        </div>
+        )}
 
         {/* Competitor List */}
         {data.competitors.length > 0 && (
@@ -141,6 +238,9 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">{competitor.website}</span>
                   </div>
+                  {competitor.description && (
+                    <p className="text-sm text-muted-foreground mb-2">{competitor.description}</p>
+                  )}
                   <div className="flex gap-1 flex-wrap">
                     {competitor.platforms.map((platform) => {
                       const Icon = platformIcons[platform as keyof typeof platformIcons]
@@ -153,14 +253,16 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
                     })}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeCompetitor(index)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                {!readOnly && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeCompetitor(index)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -187,15 +289,31 @@ export function CompetitorStep({ data, updateData, onNext, onPrev }: CompetitorS
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onPrev}>
-            Previous
-          </Button>
-          <Button onClick={onNext} disabled={!canProceed}>
-            {canProceed ? "Start AI Analysis" : "Add at least 1 competitor"}
-          </Button>
-        </div>
+        {/* Navigation - only show if not in settings mode */}
+        {!isFromSettings && (
+          <div className="flex justify-between pt-4">
+            <Button variant="outline" onClick={onPrev}>
+              Previous
+            </Button>
+            <Button 
+              onClick={handleSaveAndContinue} 
+              disabled={!canProceed || isSaving}
+              className="min-w-[140px]"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save & Continue
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

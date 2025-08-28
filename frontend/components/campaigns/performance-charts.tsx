@@ -34,10 +34,8 @@ const performanceData = [
 ]
 
 const platformData = [
-  { name: "Facebook", value: 45, color: "#1877F2" },
-  { name: "Instagram", value: 30, color: "#E4405F" },
-  { name: "LinkedIn", value: 15, color: "#0A66C2" },
-  { name: "Twitter", value: 10, color: "#1DA1F2" },
+  { name: "Facebook", value: 60, color: "#1877F2" },
+  { name: "Instagram", value: 40, color: "#E4405F" },
 ]
 
 const conversionFunnelData = [
@@ -51,18 +49,67 @@ const conversionFunnelData = [
 export function PerformanceCharts({ timeRange }: PerformanceChartsProps) {
   const [selectedMetric, setSelectedMetric] = useState("clicks")
 
-  const getMetricData = () => {
-    switch (selectedMetric) {
-      case "clicks":
-        return performanceData.map((d) => ({ ...d, value: d.clicks }))
-      case "conversions":
-        return performanceData.map((d) => ({ ...d, value: d.conversions }))
-      case "spend":
-        return performanceData.map((d) => ({ ...d, value: d.spend }))
+  // Convert time range to number of days for data calculation
+  const getDaysFromTimeRange = (range: string): number => {
+    switch (range) {
+      case "24h":
+        return 1
+      case "7d":
+        return 7
+      case "14d":
+        return 14
+      case "30d":
+        return 30
+      case "1m":
+        return 30
+      case "3m":
+        return 90
+      case "6m":
+        return 180
+      case "ytd":
+        // Calculate days from January 1st of current year
+        const now = new Date()
+        const startOfYear = new Date(now.getFullYear(), 0, 1)
+        return Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24))
       default:
-        return performanceData.map((d) => ({ ...d, value: d.clicks }))
+        return 7
     }
   }
+
+  const getMetricData = () => {
+    // Get the number of days for the selected time range
+    const days = getDaysFromTimeRange(timeRange)
+    
+    // Generate performance data based on the selected time period
+    // This simulates how daily data would be calculated for conversions and spend over the graph:
+    // 1. We create data points for each day in the selected period
+    // 2. Each metric (clicks, conversions, spend) gets realistic daily values
+    // 3. The data shows trends over time while maintaining realistic campaign performance patterns
+    
+    const data = []
+    const today = new Date()
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(today.getDate() - i)
+      
+      // Generate realistic daily values with some variation
+      const baseClicks = 1200 + Math.random() * 800
+      const baseConversions = 45 + Math.random() * 30
+      const baseSpend = 340 + Math.random() * 120
+      
+      data.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        clicks: Math.round(baseClicks),
+        conversions: Math.round(baseConversions),
+        spend: Math.round(baseSpend)
+      })
+    }
+    
+    return data
+  }
+
+  const metricData = getMetricData()
 
   return (
     <div className="space-y-6">
@@ -89,12 +136,18 @@ export function PerformanceCharts({ timeRange }: PerformanceChartsProps) {
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={getMetricData()}>
+              <AreaChart data={metricData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.1} />
+                <Area
+                  type="monotone"
+                  dataKey={selectedMetric}
+                  stroke="#8884d8"
+                  fill="#8884d8"
+                  fillOpacity={0.3}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -9,17 +9,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/hooks/use-toast"
 import { MediaUpload } from "./media-upload"
 import { PostPreview } from "./post-preview"
-import { Facebook, Instagram, Twitter, Linkedin, Youtube, Calendar, Send, Save, Sparkles } from "lucide-react"
+import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog"
+import { Facebook, Instagram, Calendar, Send, Save, Sparkles } from "lucide-react"
 
 const platforms = [
   { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-blue-600", connected: true },
   { id: "instagram", name: "Instagram", icon: Instagram, color: "bg-pink-600", connected: true },
-  { id: "twitter", name: "Twitter/X", icon: Twitter, color: "bg-black", connected: true },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700", connected: true },
-  { id: "youtube", name: "YouTube", icon: Youtube, color: "bg-red-600", connected: false },
 ]
 
 export function CreatePostForm() {
@@ -31,7 +28,9 @@ export function CreatePostForm() {
     postType: "now",
   })
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([])
-  const { toast } = useToast()
+
+  // Use platforms directly since YouTube is handled separately
+  const dynamicPlatforms = platforms
 
   const togglePlatform = (platformId: string) => {
     setSelectedPlatforms((prev) =>
@@ -39,53 +38,11 @@ export function CreatePostForm() {
     )
   }
 
-  const handleAIAssist = () => {
-    const aiSuggestion =
-      "🌟 Exciting news! We're thrilled to announce our latest product launch. This innovative solution will transform how you approach your daily challenges. What do you think? Share your thoughts below! #Innovation #ProductLaunch #Excited"
-    setPostData((prev) => ({ ...prev, caption: aiSuggestion }))
-    toast({
-      title: "AI suggestion added",
-      description: "Your caption has been enhanced with AI-generated content.",
-    })
-  }
+  // Note: AI assistance functionality is coming soon - currently shows coming soon dialog
 
-  const handlePublish = () => {
-    if (!postData.caption.trim()) {
-      toast({
-        title: "Caption required",
-        description: "Please add a caption for your post.",
-        variant: "destructive",
-      })
-      return
-    }
+  // Note: Publishing functionality is coming soon - currently shows coming soon dialog
 
-    if (selectedPlatforms.length === 0) {
-      toast({
-        title: "Platform required",
-        description: "Please select at least one platform to publish to.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const action = postData.postType === "now" ? "published" : "scheduled"
-    toast({
-      title: `Post ${action}!`,
-      description: `Your content has been ${action} to ${selectedPlatforms.length} platform(s).`,
-    })
-
-    // Reset form
-    setPostData({ caption: "", scheduledDate: "", scheduledTime: "", postType: "now" })
-    setSelectedPlatforms(["facebook", "instagram"])
-    setUploadedMedia([])
-  }
-
-  const handleSaveDraft = () => {
-    toast({
-      title: "Draft saved",
-      description: "Your post has been saved as a draft.",
-    })
-  }
+  // Note: Draft saving functionality is coming soon - currently shows coming soon dialog
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -101,7 +58,7 @@ export function CreatePostForm() {
             <div className="space-y-3">
               <Label className="text-base font-medium">Select Platforms</Label>
               <div className="grid grid-cols-2 gap-3">
-                {platforms.map((platform) => {
+                {dynamicPlatforms.map((platform) => {
                   const Icon = platform.icon
                   const isSelected = selectedPlatforms.includes(platform.id)
                   const isConnected = platform.connected
@@ -141,10 +98,24 @@ export function CreatePostForm() {
                 <Label htmlFor="caption" className="text-base font-medium">
                   Caption
                 </Label>
-                <Button variant="outline" size="sm" onClick={handleAIAssist}>
-                  <Sparkles className="mr-2 h-3 w-3" />
-                  AI Assist
-                </Button>
+                <ComingSoonDialog
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      <Sparkles className="mr-2 h-3 w-3" />
+                      AI Assist
+                    </Button>
+                  }
+                  title="AI Content Assistant"
+                  description="AI-powered content creation and optimization tools are coming soon!"
+                  features={[
+                    "Smart caption generation",
+                    "Content optimization suggestions",
+                    "Hashtag recommendations",
+                    "Engagement predictions",
+                    "Brand voice consistency"
+                  ]}
+                  estimatedRelease="Q1 2025"
+                />
               </div>
               <Textarea
                 id="caption"
@@ -216,23 +187,51 @@ export function CreatePostForm() {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
-              <Button onClick={handlePublish} className="flex-1">
-                {postData.postType === "now" ? (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Publish Now
-                  </>
-                ) : (
-                  <>
-                    <Calendar className="mr-2 h-4 w-4" />
-                    Schedule Post
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" onClick={handleSaveDraft}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Draft
-              </Button>
+              <ComingSoonDialog
+                trigger={
+                  <Button className="flex-1">
+                    {postData.postType === "now" ? (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Publish Now
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Schedule Post
+                      </>
+                    )}
+                  </Button>
+                }
+                title="Social Media Publishing"
+                description="Direct publishing to social media platforms is coming soon! You'll be able to post directly to Facebook, Instagram, and other platforms."
+                features={[
+                  "Multi-platform content publishing",
+                  "Smart scheduling algorithms",
+                  "Content optimization",
+                  "Analytics and performance tracking",
+                  "Team collaboration tools"
+                ]}
+                estimatedRelease="Q1 2025"
+              />
+              <ComingSoonDialog
+                trigger={
+                  <Button variant="outline">
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Draft
+                  </Button>
+                }
+                title="Draft Management"
+                description="Save and manage your social media post drafts with advanced features coming soon!"
+                features={[
+                  "Auto-save functionality",
+                  "Draft templates",
+                  "Version history",
+                  "Collaborative editing",
+                  "Draft scheduling"
+                ]}
+                estimatedRelease="Q1 2025"
+              />
             </div>
           </CardContent>
         </Card>

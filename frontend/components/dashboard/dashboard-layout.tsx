@@ -5,7 +5,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { ThemeToggle } from "@/components/optimization/theme-toggle"
 import { UserButton } from "@clerk/nextjs"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
@@ -21,6 +21,7 @@ import {
   X,
   Search,
   Eye,
+  Settings,
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -31,48 +32,128 @@ const navigation = [
   { name: "Competitor Intelligence", href: "/dashboard/competitors", icon: Search },
   { name: "Content Planning", href: "/dashboard", icon: Calendar },
   { name: "Publishing", href: "/dashboard/publishing", icon: Send },
-  { name: "Campaign Tracking", href: "/dashboard/campaigns", icon: BarChart3 },
-  { name: "Optimization", href: "/dashboard/optimization", icon: Lightbulb },
+  { name: "Campaign & Optimization", href: "/dashboard/optimization", icon: Lightbulb },
   { name: "ROI Dashboard", href: "/dashboard/roi", icon: DollarSign },
   { name: "Continuous Monitoring", href: "/dashboard/monitoring", icon: Eye },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true)
   const pathname = usePathname()
 
   useEffect(() => {
-    if (!isLoaded) return
-    // If user hasn't completed onboarding and no temporary override, send to onboarding
-    const skipGuard = typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
-    const onboardingComplete = (
-      (user?.publicMetadata as any)?.onboardingComplete === true ||
-      (user?.unsafeMetadata as any)?.onboardingComplete === true
-    )
-    if (user && !onboardingComplete && !skipGuard) {
+    if (!isLoaded || !user) return
+
+    const checkOnboardingStatus = async () => {
+      try {
+        console.log('🔍 Dashboard: Checking onboarding status...');
+        setIsCheckingOnboarding(true)
+        
+        // Check multiple sources for onboarding completion
+        const sources = {
+          // 1. Clerk metadata (existing)
+          clerkMetadata: (user?.publicMetadata as any)?.onboardingComplete === true || 
+                        (user?.unsafeMetadata as any)?.onboardingComplete === true,
+          
+          // 2. Local storage (more persistent)
+          localStorage: typeof window !== "undefined" && localStorage.getItem("onboardingComplete") === "true",
+          
+          // 3. Session storage (temporary override)
+          sessionStorage: typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
+        }
+
+        console.log('🔍 Dashboard: Onboarding sources:', sources);
+
+        // If any source indicates completion, consider it complete
+        const isComplete = Object.values(sources).some(Boolean)
+        
+        if (isComplete) {
+          console.log('✅ Dashboard: Onboarding complete from local sources');
+          setOnboardingComplete(true)
+          return
+        }
+
+        // 4. Check database status (most reliable)
+        try {
+          console.log('🔍 Dashboard: Checking database onboarding status...');
+          const apiClient = new (await import('@/lib/api-client')).ApiClient()
+          const dbStatus = await apiClient.getUserOnboardingStatus(user.id)
+          console.log('✅ Dashboard: Database status response:', dbStatus);
+          
+          if (dbStatus?.onboarding_complete) {
+            console.log('✅ Dashboard: Onboarding complete from database');
+            setOnboardingComplete(true)
+            // Update local storage for future checks
+            if (typeof window !== "undefined") {
+              localStorage.setItem("onboardingComplete", "true")
+            }
+            return
+          }
+        } catch (dbError) {
+          console.warn('⚠️ Dashboard: Failed to check database onboarding status:', dbError)
+          // Continue with other checks
+        }
+
+        // If we get here, onboarding is not complete
+        console.log('❌ Dashboard: Onboarding not complete');
+        setOnboardingComplete(false)
+        
+      } catch (error) {
+        console.error('❌ Dashboard: Error checking onboarding status:', error)
+        setOnboardingComplete(false)
+      } finally {
+        setIsCheckingOnboarding(false)
+      }
+    }
+
+    checkOnboardingStatus()
+  }, [isLoaded, user])
+
+  useEffect(() => {
+    if (!isLoaded || onboardingComplete === null || isCheckingOnboarding) return
+    
+    // Only redirect if we're not already on the onboarding page and onboarding is not complete
+    if (!onboardingComplete && pathname !== "/onboarding") {
       router.replace("/onboarding")
     }
-  }, [isLoaded, user, router])
+  }, [isLoaded, onboardingComplete, isCheckingOnboarding, router, pathname])
 
-  if (!isLoaded) {
+  // If we're already on the onboarding page, don't show loading or redirect
+  if (pathname === "/onboarding") {
+    return null
+  }
+
+  if (!isLoaded || isCheckingOnboarding) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-lg text-muted-foreground">
+            {!isLoaded ? 'Loading...' : 'Checking your setup...'}
+          </p>
+          {/* Debug button for development */}
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={() => {
+                localStorage.setItem("onboardingComplete", "true")
+                setOnboardingComplete(true)
+              }}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+            </button>
+          )}
         </div>
       </div>
     )
   }
 
-  const skipGuard = typeof window !== "undefined" && sessionStorage.getItem("skipOnboardingGuard") === "true"
-  const onboardingComplete = (
-    (user?.publicMetadata as any)?.onboardingComplete === true ||
-    (user?.unsafeMetadata as any)?.onboardingComplete === true
-  )
-  if (user && !onboardingComplete && !skipGuard) {
+  // If onboarding is not complete, don't render the dashboard
+  if (!onboardingComplete) {
     return null
   }
 
@@ -87,7 +168,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">CompetitorAI</span>
+              <span className="text-xl font-bold">Bos Solution</span>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
               <X className="h-6 w-6" />
@@ -125,7 +206,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">CompetitorAI</span>
+              <span className="text-xl font-bold">Bos Solution</span>
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
@@ -178,8 +259,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
 
         {/* Page content */}
-        <main className="py-6">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
+        <main className="py-6 overflow-hidden relative">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 overflow-hidden relative">{children}</div>
         </main>
       </div>
     </div>

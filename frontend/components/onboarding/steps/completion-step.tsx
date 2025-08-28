@@ -1,32 +1,62 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Sparkles, ArrowRight } from "lucide-react"
+import { CheckCircle, Sparkles, ArrowRight, Loader2 } from "lucide-react"
 import type { OnboardingData } from "../onboarding-wizard"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 interface CompletionStepProps {
   data: OnboardingData
+  goToStep: (step: number) => void
 }
 
-export function CompletionStep({ data }: CompletionStepProps) {
+export function CompletionStep({ data, goToStep }: CompletionStepProps) {
   const { user } = useUser()
   const router = useRouter()
-  const handleGetStarted = async () => {
+  const { toast } = useToast()
+  const [isRedirecting, setIsRedirecting] = useState(false)
+  
+  const handleGoToDashboard = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsRedirecting(true)
     try {
+      // Update Clerk metadata to mark onboarding as complete
       await user?.update({ unsafeMetadata: { onboardingComplete: true } as any })
-    } catch (e) {
-      // ignore
+      
+      // Also update local storage for immediate effect
+      if (typeof window !== "undefined") {
+        localStorage.setItem("onboardingComplete", "true")
+      }
+      
+      toast({
+        title: "Welcome to Dashboard!",
+        description: "Your onboarding is complete. Enjoy using Bos Solution!",
+      })
+
+      // Redirect to dashboard
+      router.push("/dashboard")
+    } catch (error) {
+      console.error('Failed to update onboarding status:', error)
+      // Still mark as complete in local storage and redirect
+      if (typeof window !== "undefined") {
+        localStorage.setItem("onboardingComplete", "true")
+      }
+      router.push("/dashboard")
     } finally {
-      try {
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("skipOnboardingGuard", "true")
-        }
-      } catch {}
-      router.replace("/dashboard")
+      setIsRedirecting(false)
     }
   }
 
@@ -38,7 +68,7 @@ export function CompletionStep({ data }: CompletionStepProps) {
         </div>
         <CardTitle className="text-2xl">You're all set!</CardTitle>
         <CardDescription>
-          Your MarketingAI Pro workspace is ready. Here's what we've configured for you:
+          Your Bos Solution workspace is ready. Here's what we've configured for you:
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -67,6 +97,10 @@ export function CompletionStep({ data }: CompletionStepProps) {
             </div>
           </div>
           <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <span className="font-medium">Competitors</span>
+            <Badge variant="secondary">{data.competitors.length} added</Badge>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
             <span className="font-medium">Connected Accounts</span>
             <Badge variant="secondary">{data.connectedAccounts.length} connected</Badge>
           </div>
@@ -86,9 +120,18 @@ export function CompletionStep({ data }: CompletionStepProps) {
         </div>
 
         <div className="text-center pt-4">
-          <Button onClick={handleGetStarted} size="lg" className="px-8">
-            Go to Dashboard
-            <ArrowRight className="ml-2 h-4 w-4" />
+          <Button onClick={handleGoToDashboard} size="lg" className="px-8" disabled={isRedirecting}>
+            {isRedirecting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Redirecting...
+              </>
+            ) : (
+              <>
+                Go to Dashboard
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
           </Button>
           <p className="text-sm text-muted-foreground mt-3">
             You can always update these settings later in your account preferences.

@@ -9,56 +9,9 @@ from uuid import UUID
 from decimal import Decimal
 
 
-class UserMonitoringSettingsBase(BaseModel):
-    """Base user monitoring settings schema"""
-    global_monitoring_enabled: bool = True
-    default_scan_frequency_minutes: int = Field(60, ge=15)
-    alert_preferences: Dict[str, Any] = Field(default={
-        "email_alerts": True,
-        "push_notifications": True,
-        "new_posts": True,
-        "content_changes": True,
-        "engagement_spikes": True,
-        "sentiment_changes": True
-    })
-    notification_schedule: Dict[str, Any] = Field(default={
-        "quiet_hours_start": "22:00",
-        "quiet_hours_end": "08:00",
-        "timezone": "UTC"
-    })
-
-
-class UserMonitoringSettingsCreate(UserMonitoringSettingsBase):
-    """Schema for creating user monitoring settings"""
-    user_id: str
-
-
-class UserMonitoringSettingsUpdate(BaseModel):
-    """Schema for updating user monitoring settings"""
-    global_monitoring_enabled: Optional[bool] = None
-    default_scan_frequency_minutes: Optional[int] = Field(None, ge=15)
-    alert_preferences: Optional[Dict[str, Any]] = None
-    notification_schedule: Optional[Dict[str, Any]] = None
-
-
-class UserMonitoringSettingsResponse(UserMonitoringSettingsBase):
-    """Schema for user monitoring settings response"""
-    id: UUID
-    user_id: str
-    created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: str
-        }
-
-
 class MonitoringDataBase(BaseModel):
     """Base monitoring data schema"""
-    platform: str = Field(..., pattern="^(instagram|facebook|twitter|linkedin|tiktok|youtube|other)$")
+    platform: str = Field(..., pattern="^(instagram|facebook|twitter|linkedin|tiktok|youtube|website|browser|other)$")
     post_id: Optional[str] = Field(None, max_length=255)
     post_url: Optional[HttpUrl] = None
     content_text: Optional[str] = None
@@ -107,16 +60,51 @@ class MonitoringAlertBase(BaseModel):
 
 
 class MonitoringAlertCreate(MonitoringAlertBase):
-    """Schema for creating monitoring alert"""
-    user_id: str
-    competitor_id: Optional[UUID] = None
-    monitoring_data_id: Optional[UUID] = None
+    """Schema for creating monitoring alerts"""
+    pass
+
+
+class PlatformScanRequest(BaseModel):
+    """Schema for platform-specific scan requests"""
+    competitor_id: UUID = Field(..., description="ID of the competitor to scan")
+    platforms: Optional[List[str]] = Field(None, description="Specific platforms to scan (optional)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "competitor_id": "123e4567-e89b-12d3-a456-426614174000",
+                "platforms": ["youtube", "website"]
+            }
+        }
+
+
+class PlatformScanResponse(BaseModel):
+    """Schema for platform scan responses"""
+    success: bool
+    platform: str
+    competitor_id: UUID
+    result: Dict[str, Any]
+    message: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "platform": "youtube",
+                "competitor_id": "123e4567-e89b-12d3-a456-426614174000",
+                "result": {
+                    "status": "completed",
+                    "content": []
+                },
+                "message": "Scan completed successfully"
+            }
+        }
 
 
 class MonitoringAlertResponse(MonitoringAlertBase):
     """Schema for monitoring alert response"""
     id: UUID
-    user_id: str
+    user_id: str  # Changed from UUID to str to match Clerk user IDs
     competitor_id: Optional[UUID] = None
     monitoring_data_id: Optional[UUID] = None
     is_read: bool

@@ -16,7 +16,7 @@ const templates = [
     description: "Perfect for announcing new products or features",
     content:
       "🚀 Exciting news! We're thrilled to introduce [Product Name] - a game-changing solution that will [benefit]. \n\n✨ Key features:\n• [Feature 1]\n• [Feature 2]\n• [Feature 3]\n\nReady to transform your [industry/workflow]? Learn more: [link]\n\n#ProductLaunch #Innovation #[YourBrand]",
-    platforms: ["facebook", "instagram", "linkedin"],
+    platforms: ["facebook", "instagram"],
     engagement: "High",
   },
   {
@@ -36,7 +36,7 @@ const templates = [
     description: "Highlight customer achievements and testimonials",
     content:
       '🌟 Customer Spotlight: [Customer Name]\n\n"[Customer testimonial quote]" - [Customer Name], [Title] at [Company]\n\n[Customer Name] achieved [specific result/improvement] using our [product/service]. Their success story shows how [benefit/value proposition].\n\n👏 Congratulations [Customer Name]! We\'re proud to be part of your journey.\n\n#CustomerSuccess #Testimonial #Results',
-    platforms: ["linkedin", "facebook"],
+    platforms: ["facebook"],
     engagement: "Medium",
   },
   {
@@ -46,7 +46,7 @@ const templates = [
     description: "Share tips, insights, and industry knowledge",
     content:
       "📚 [Topic] 101: Everything You Need to Know\n\nHere are [number] essential tips for [topic]:\n\n1️⃣ [Tip 1 with brief explanation]\n2️⃣ [Tip 2 with brief explanation]\n3️⃣ [Tip 3 with brief explanation]\n\n💡 Pro tip: [Additional valuable insight]\n\nWhich tip will you try first? Share your thoughts below! 👇\n\n#Education #Tips #[Industry] #KnowledgeSharing",
-    platforms: ["linkedin", "twitter"],
+    platforms: ["facebook"],
     engagement: "Medium",
   },
   {
@@ -66,7 +66,7 @@ const templates = [
     description: "Engage your audience with questions and polls",
     content:
       "🤔 We want to hear from you!\n\n[Engaging question related to your industry/product]?\n\nA) [Option 1]\nB) [Option 2]\nC) [Option 3]\nD) [Other - tell us in comments!]\n\nYour feedback helps us [how it helps]. Can't wait to see your responses! 👇\n\n#Community #Feedback #YourVoiceMatters #[Topic]",
-    platforms: ["facebook", "instagram", "twitter"],
+    platforms: ["facebook", "instagram"],
     engagement: "High",
   },
 ]

@@ -134,12 +134,12 @@ export function ContentStrategyInsights() {
                     </Badge>
                   </div>
                 </div>
-                <div className="relative">
+                <div className="relative overflow-hidden">
                   <Progress value={(gap.yourPerformance / gap.leader) * 100} className="h-3" />
-                  <div className="absolute top-0 left-0 w-full h-3 flex items-center">
+                  <div className="absolute top-0 left-0 w-full h-3 flex items-center pointer-events-none">
                     <div
                       className="w-1 h-4 bg-gray-400 -mt-0.5"
-                      style={{ marginLeft: `${(gap.competitorAvg / gap.leader) * 100}%` }}
+                      style={{ marginLeft: `${Math.min((gap.competitorAvg / gap.leader) * 100, 95)}%` }}
                     />
                   </div>
                 </div>

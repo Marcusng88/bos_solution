@@ -1,9 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Facebook, Instagram, Twitter, Linkedin, Heart, MessageCircle, Share, Clock } from "lucide-react"
+import { Facebook, Instagram, Heart, MessageCircle, Share, Clock } from "lucide-react"
+import { useUser } from "@clerk/nextjs"
 
 interface PostPreviewProps {
   caption: string
@@ -17,11 +19,34 @@ interface PostPreviewProps {
 const platformData = {
   facebook: { name: "Facebook", icon: Facebook, color: "bg-blue-600" },
   instagram: { name: "Instagram", icon: Instagram, color: "bg-pink-600" },
-  twitter: { name: "Twitter/X", icon: Twitter, color: "bg-black" },
-  linkedin: { name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
 }
 
 export function PostPreview({ caption, media, platforms, scheduledDate, scheduledTime, postType }: PostPreviewProps) {
+  const { user } = useUser()
+  const [fbProfile, setFbProfile] = useState<{ username?: string; name?: string; avatar?: string } | null>(null)
+  const [igProfile, setIgProfile] = useState<{ username?: string; name?: string; avatar?: string } | null>(null)
+
+  useEffect(() => {
+    const loadAccounts = async () => {
+      try {
+        if (!user) return
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+        if (!apiBase) return
+        const resp = await fetch(`${apiBase}/social-media/connected-accounts`, {
+          headers: { 'X-User-ID': user.id },
+        })
+        if (!resp.ok) return
+        const data = await resp.json()
+        const accounts: Array<any> = data?.accounts || []
+        const fb = accounts.find(a => a.platform === 'facebook' && a.isConnected)
+        const ig = accounts.find(a => a.platform === 'instagram' && a.isConnected)
+        if (fb) setFbProfile({ username: fb.username, name: fb.accountName, avatar: fb.profilePicture })
+        if (ig) setIgProfile({ username: ig.username, name: ig.accountName, avatar: ig.profilePicture })
+      } catch {}
+    }
+    loadAccounts()
+  }, [user])
+
   const formatScheduleTime = () => {
     if (postType === "now") return "Publishing immediately"
     if (postType === "optimal") return "AI will choose optimal time"
@@ -69,11 +94,11 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                    <AvatarFallback>YB</AvatarFallback>
+                    <AvatarImage src={igProfile?.avatar || "/placeholder.svg?height=32&width=32"} />
+                    <AvatarFallback>{(igProfile?.username || "IG").slice(0,2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold text-sm">your_business</p>
+                    <p className="font-semibold text-sm">{igProfile?.username || "your_business"}</p>
                     <p className="text-xs text-muted-foreground">Sponsored</p>
                   </div>
                 </div>
@@ -109,11 +134,11 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                    <AvatarFallback>YB</AvatarFallback>
+                    <AvatarImage src={fbProfile?.avatar || "/placeholder.svg?height=40&width=40"} />
+                    <AvatarFallback>{(fbProfile?.name || "FB").slice(0,2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold">Your Business</p>
+                    <p className="font-semibold">{fbProfile?.name || "Your Business"}</p>
                     <p className="text-xs text-muted-foreground">2 hours ago • 🌍</p>
                   </div>
                 </div>
@@ -138,42 +163,6 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
                     <span>8 comments</span>
                     <span>3 shares</span>
                   </div>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {platforms.includes("linkedin") && (
-            <Card className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src="/placeholder.svg?height=48&width=48" />
-                    <AvatarFallback>YB</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-semibold">Your Business</p>
-                    <p className="text-xs text-muted-foreground">Company • 1st</p>
-                    <p className="text-xs text-muted-foreground">2h • 🌍</p>
-                  </div>
-                </div>
-
-                <p className="text-sm">{caption || "Your caption will appear here..."}</p>
-
-                {media.length > 0 && media[0].type.startsWith("image/") && (
-                  <div className="aspect-video bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                    <img
-                      src={URL.createObjectURL(media[0]) || "/placeholder.svg"}
-                      alt="Post media"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center gap-6 pt-2 border-t text-sm text-muted-foreground">
-                  <span>👍 15</span>
-                  <span>💬 3 comments</span>
-                  <span>🔄 2 reposts</span>
                 </div>
               </div>
             </Card>

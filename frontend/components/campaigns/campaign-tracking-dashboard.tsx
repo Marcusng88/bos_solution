@@ -33,8 +33,12 @@ export function CampaignTrackingDashboard() {
             <SelectContent>
               <SelectItem value="24h">Last 24h</SelectItem>
               <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="14d">Last 14 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="1m">1 month</SelectItem>
+              <SelectItem value="3m">3 months</SelectItem>
+              <SelectItem value="6m">6 months</SelectItem>
+              <SelectItem value="ytd">Year to date</SelectItem>
             </SelectContent>
           </Select>
           <Button>
