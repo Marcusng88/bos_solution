@@ -15,7 +15,7 @@ import {
   type SupportedOptions,
   type ContentGenerationRequest,
   type ContentGenerationResponse 
-} from '@/lib/content-planning-api'
+} from '../lib/content-planning-api'
 
 export interface UseContentPlanningOptions {
   autoLoad?: boolean // Only loads basic dashboard data, doesn't invoke AI agent
