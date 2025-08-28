@@ -1,0 +1,87 @@
+# Frontend files (not needed for backend)
+frontend/
+*.tsx
+*.ts
+*.js
+*.jsx
+next.config.*
+tsconfig.json
+package*.json
+tailwind.config.*
+postcss.config.*
+
+# Git and version control
+.git/
+.gitignore
+README.md
+
+# Environment files
+.env
+.env.local
+.env.production
+env.example
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Documentation
+*.md
+docs/
+
+# Test files
+tests/
+test_*
+*_test.py
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Render specific
+render.yaml
+render.yml

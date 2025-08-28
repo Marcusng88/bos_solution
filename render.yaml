@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: bos-solution-backend
+    env: docker
+    region: us-east-1  # Change this to your preferred region
+    plan: starter  # Change this based on your needs (starter, standard, pro)
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      # Add your other environment variables here
+      # - key: DATABASE_URL
+      #   value: your_database_url
+      # - key: SUPABASE_URL
+      #   value: your_supabase_url
+      # - key: SUPABASE_KEY
+      #   value: your_supabase_key
+      # - key: ANTHROPIC_API_KEY
+      #   value: your_anthropic_key
+      # - key: GOOGLE_API_KEY
+      #   value: your_google_key
+      # - key: OPENAI_API_KEY
+      #   value: your_openai_key
+      # - key: GROQ_API_KEY
+      #   value: your_groq_key
+    autoDeploy: true
+    buildCommand: ""  # Docker handles the build
+    startCommand: ""  # Docker handles the start command
