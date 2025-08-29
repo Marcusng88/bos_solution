@@ -121,7 +121,8 @@ develop-eggs/
 downloads/
 eggs/
 .eggs/
-lib/
+# Only ignore Python lib directories, not frontend lib directories
+backend/lib/
 lib64/
 parts/
 sdist/
@@ -146,3 +147,6 @@ MANIFEST
 # Temporary files
 *.tmp
 *.temp
+
+# Explicitly track frontend library files
+!frontend/lib/
