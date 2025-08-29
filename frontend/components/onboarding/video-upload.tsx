@@ -18,7 +18,7 @@ interface VideoUploadProps {
 
 export function VideoUpload({ onClose }: VideoUploadProps) {
   const { toast } = useToast()
-  const { isConnected, uploadVideo } = useYouTubeStore()
+  const { isConnected, uploadVideoFile } = useYouTubeStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [videoFile, setVideoFile] = useState<File | null>(null)
@@ -117,12 +117,17 @@ export function VideoUpload({ onClose }: VideoUploadProps) {
         .map(tag => tag.trim())
         .filter(tag => tag.length > 0)
 
-      const result = await uploadVideo({
+      // For demo purposes, use a placeholder userId
+      // In production, this would come from user authentication
+      const userId = 'demo-user-id'
+
+      const result = await uploadVideoFile({
+        videoFile: videoFile,
         title: formData.title,
         description: formData.description,
         tags,
         privacy_status: formData.privacy_status
-      })
+      }, userId)
 
       clearInterval(progressInterval)
       setUploadProgress(100)

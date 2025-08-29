@@ -29,6 +29,7 @@ interface YouTubeState {
   connectionStatus: 'idle' | 'connecting' | 'connected' | 'error'
   tokens: YouTubeTokens | null
   error: string | null
+  channel: any | null // Added channel property
   
   // Actions
   connect: () => Promise<void>
@@ -40,6 +41,7 @@ interface YouTubeState {
   getRecentActivity: (hoursBack?: number) => Promise<any>
   getVideoComments: (videoId: string, maxResults?: number, hoursBack?: number) => Promise<any>
   getROIAnalytics: (daysBack?: number, includeRevenue?: boolean) => Promise<any>
+  getChannelInfo: () => Promise<void> // Added getChannelInfo action
 }
 
 const STORAGE_KEY = 'youtube_tokens'
@@ -51,6 +53,7 @@ export const useYouTubeStore = create<YouTubeState>()(
       connectionStatus: 'idle',
       tokens: null,
       error: null,
+      channel: null, // Initialize channel
 
       connect: async () => {
         set({ connectionStatus: 'connecting', error: null })
@@ -152,11 +155,42 @@ export const useYouTubeStore = create<YouTubeState>()(
             },
             error: null
           })
+
+          // Fetch channel info after successful authentication
+          await get().getChannelInfo()
         } catch (error) {
           set({
             connectionStatus: 'error',
             error: error instanceof Error ? error.message : 'Authentication failed'
           })
+        }
+      },
+
+      getChannelInfo: async () => {
+        const { tokens } = get()
+        if (!tokens) {
+          throw new Error('Not authenticated with YouTube')
+        }
+
+        // Check if token needs refresh
+        if (Date.now() >= tokens.expires_at) {
+          await get().refreshToken()
+        }
+
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/youtube/channel?access_token=${get().tokens?.access_token}`
+          )
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch channel info')
+          }
+
+          const channelData = await response.json()
+          set({ channel: channelData })
+        } catch (error) {
+          console.error('Fetch channel info error:', error)
+          throw error
         }
       },
 
