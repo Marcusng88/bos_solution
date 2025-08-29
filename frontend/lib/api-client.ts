@@ -1,6 +1,6 @@
 export type TimeRange = '7d' | '14d' | '30d' | '90d'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://bos-solution.onrender.com/api/v1'
 
 async function get<T = any>(path: string, params: Record<string, any> = {}): Promise<T> {
   const url = new URL(`${API_BASE}${path}`)
@@ -79,7 +79,7 @@ import { Competitor, CompetitorCreate, CompetitorUpdate, CompetitorStats } from 
 import { useMemo } from 'react';
 
 // API base URL - adjust based on your backend configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bos-solution.onrender.com/api/v1';
 
 /**
  * Create API headers with user authentication

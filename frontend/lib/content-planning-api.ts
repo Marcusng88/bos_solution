@@ -136,7 +136,7 @@ export interface ContentCalendarRequest {
 }
 
 // API Base URL - adjust based on your backend configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bos-solution.onrender.com/api/v1'
 
 // Helper function for API calls
 async function apiCall<T>(

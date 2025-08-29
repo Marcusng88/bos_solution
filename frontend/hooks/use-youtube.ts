@@ -335,7 +335,7 @@ export const useYouTubeStore = create<YouTubeState>()(
         }
 
         try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://bos-solution.onrender.com/api/v1'
           let url = `${apiUrl}/youtube/analytics/roi-dashboard?access_token=${get().tokens?.access_token}&days_back=${daysBack}&include_estimated_revenue=${includeRevenue}`
 
           console.log('🔍 YouTube ROI Analytics Request:', {

@@ -38,7 +38,7 @@ class TokenRefreshRequest(BaseModel):
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "326775019777-v43jhcbs891rtv00p5vevif0ss57gc0r.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyAYn7IgfCjD8kHE70Sc_or2HS1zKIl6so8")
-REDIRECT_URI = "http://localhost:3000/auth/callback/youtube"
+REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI", "https://bos-solution.vercel.app/auth/callback/youtube")
 
 # OAuth scopes for YouTube
 YOUTUBE_SCOPES = [
