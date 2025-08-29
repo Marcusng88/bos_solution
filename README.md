@@ -325,7 +325,7 @@ We welcome contributions! Please see our contributing guidelines for:
 
 ## 📄 License
 
-This project is proprietary software. All rights reserved.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 📞 Support
 
@@ -336,6 +336,6 @@ For support and questions:
 
 ---
 
-**Built with ❤️ by the BOSSolution Team**
+**Built with ❤️ by Team hokkien mee is black not red**
 
 *Transforming business operations through AI-powered intelligence*
