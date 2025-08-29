@@ -4,8 +4,8 @@ services:
     env: docker
     region: us-east-1  # Change this to your preferred region
     plan: starter  # Change this based on your needs (starter, standard, pro)
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
