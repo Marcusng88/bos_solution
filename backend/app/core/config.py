@@ -29,7 +29,8 @@ class Settings(BaseSettings):
             "http://localhost:3001", 
             "http://127.0.0.1:3000", 
             "http://127.0.0.1:3001",
-            "https://5d7a587ce8ba.ngrok-free.app"
+            "https://5d7a587ce8ba.ngrok-free.app",
+            "https://bos-solution.onrender.com"
         ],
         env="ALLOWED_HOSTS"
     )
