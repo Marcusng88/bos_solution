@@ -23,12 +23,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements and constraints files
 WORKDIR /app
-COPY backend/requirements-prod.txt .
-COPY backend/constraints.txt .
+COPY backend/requirements.txt .
 
 # Install Python dependencies with constraints to resolve conflicts
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-prod.txt -c constraints.txt
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime image
 FROM --platform=linux/amd64 python:3.11-slim AS runtime
