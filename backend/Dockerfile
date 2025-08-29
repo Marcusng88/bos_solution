@@ -21,11 +21,11 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and constraints files
+# Copy requirements file
 WORKDIR /app
-COPY backend/requirements.txt .
+COPY requirements.txt .
 
-# Install Python dependencies with constraints to resolve conflicts
+# Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -47,20 +47,27 @@ RUN apt-get update && apt-get install -y \
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user and necessary directories
+RUN groupadd -r appuser && useradd -r -g appuser appuser && \
+    mkdir -p /home/appuser /app/data /app/logs && \
+    chown -R appuser:appuser /home/appuser /app
 
 # Set working directory
 WORKDIR /app
 
 # Copy application code
-COPY backend/ .
+COPY . .
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
+
+# Set environment variables for data directories
+ENV CRAWL4AI_DB_PATH=/app/data
+ENV CRAWL4AI_CACHE_PATH=/app/data/cache
+ENV CRAWL4AI_LOG_PATH=/app/logs
 
 # Expose port (Render will set PORT environment variable)
 EXPOSE 8000
