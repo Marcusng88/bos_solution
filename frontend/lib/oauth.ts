@@ -7,9 +7,9 @@ import { generateRandomString } from './utils';
 
 // OAuth configuration
 const OAUTH_CONFIG = {
-  redirectBaseUrl: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_BASE_URL || 'http://localhost:3000/auth/callback',
-  successUrl: process.env.NEXT_PUBLIC_OAUTH_SUCCESS_URL || 'http://localhost:3000/dashboard',
-  errorUrl: process.env.NEXT_PUBLIC_OAUTH_ERROR_URL || 'http://localhost:3000/auth/error',
+  redirectBaseUrl: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_BASE_URL || 'https://bos-solution.vercel.app/auth/callback',
+  successUrl: process.env.NEXT_PUBLIC_OAUTH_SUCCESS_URL || 'https://bos-solution.vercel.app/dashboard',
+  errorUrl: process.env.NEXT_PUBLIC_OAUTH_ERROR_URL || 'https://bos-solution.vercel.app/auth/error',
 };
 
 // Platform-specific OAuth configurations

@@ -30,7 +30,8 @@ class Settings(BaseSettings):
             "http://127.0.0.1:3000", 
             "http://127.0.0.1:3001",
             "https://5d7a587ce8ba.ngrok-free.app",
-            "https://bos-solution.onrender.com"
+            "https://bos-solution.onrender.com",
+            "https://bos-solution.vercel.app"
         ],
         env="ALLOWED_HOSTS"
     )
@@ -46,7 +47,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Additional CORS origins (backward compatibility)
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "https://bos-solution.vercel.app"
+    ]
     
     # Social Media API Keys
     INSTAGRAM_ACCESS_TOKEN: str = os.getenv("INSTAGRAM_ACCESS_TOKEN", "your_instagram_access_token_here")

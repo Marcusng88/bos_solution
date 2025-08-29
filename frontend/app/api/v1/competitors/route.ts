@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Forward the request to the backend
-    const response = await fetch('http://localhost:8000/api/v1/competitors', {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://bos-solution.onrender.com/api/v1'}/competitors`, {
       headers: {
         'Content-Type': 'application/json',
         'X-User-ID': userId,
