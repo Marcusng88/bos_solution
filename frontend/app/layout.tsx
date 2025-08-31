@@ -9,7 +9,7 @@ import { AIChatWidget } from "@/components/optimization/ai-chat-widget"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Bos Solution",
+  title: "BOSSolution",
   description: "AI-powered marketing and content strategy platform",
   generator: "v0.app",
 }
