@@ -5,7 +5,7 @@ export default function LoginPage() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to your Bos Solution account"
+      subtitle="Sign in to your BOSSolution account"
       footerText="Don't have an account?"
       footerLinkText="Sign up"
       footerLinkHref="/signup"

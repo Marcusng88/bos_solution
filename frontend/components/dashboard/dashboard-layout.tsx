@@ -168,7 +168,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">Bos Solution</span>
+              <span className="text-xl font-bold">BOSSolution</span>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
               <X className="h-6 w-6" />
@@ -206,7 +206,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Brain className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">Bos Solution</span>
+              <span className="text-xl font-bold">BOSSolution</span>
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
