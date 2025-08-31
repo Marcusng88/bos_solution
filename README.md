@@ -2,7 +2,7 @@
 
 **Business Operations System - AI-Powered Marketing Intelligence Platform**
 
-[![Demo Video](https://img.shields.io/badge/Demo-Video%20Coming%20Soon-blue?style=for-the-badge&logo=youtube)](https://example.com/demo)
+[![Demo Video](https://img.shields.io/badge/Demo-Video-blue?style=for-the-badge&logo=youtube)](https://youtu.be/doauCv2cxRo)
 
 
 ## 🎯 Problem & Solution
