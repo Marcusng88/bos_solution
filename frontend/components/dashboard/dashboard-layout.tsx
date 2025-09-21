@@ -1,15 +1,27 @@
+/**
+ * Enhanced Dashboard Layout with Flexible Sidebar
+ * 
+ * Features:
+ * - Auto-expanding sidebar on hover near left edge (4px trigger zone)
+ * - Collapsible sidebar that shows only icons when collapsed
+ * - Pin/unpin functionality for manual control
+ * - Smooth animations and transitions
+ * - Auto-hide after 300ms delay when mouse leaves sidebar area
+ * - Responsive design for mobile and desktop
+ */
+
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/optimization/theme-toggle"
 import { UserButton } from "@clerk/nextjs"
 import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { LoadingScreen } from "@/components/ui/loading-screen"
 import {
   Brain,
   Calendar,
@@ -22,6 +34,9 @@ import {
   Search,
   Eye,
   Settings,
+  Home,
+  Pin,
+  PinOff,
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -29,6 +44,7 @@ interface DashboardLayoutProps {
 }
 
 const navigation = [
+  { name: "Welcome", href: "/welcome", icon: Home },
   { name: "Competitor Intelligence", href: "/dashboard/competitors", icon: Search },
   { name: "Content Planning", href: "/dashboard", icon: Calendar },
   { name: "Publishing", href: "/dashboard/publishing", icon: Send },
@@ -42,9 +58,55 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [sidebarPinned, setSidebarPinned] = useState(false)
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true)
   const pathname = usePathname()
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+
+  // Handle sidebar hover interactions
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+    if (!sidebarPinned) {
+      setSidebarExpanded(true)
+    }
+  }, [sidebarPinned])
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    if (!sidebarPinned && hoverTimeoutRef.current === null) {
+      hoverTimeoutRef.current = setTimeout(() => {
+        setSidebarExpanded(false)
+        hoverTimeoutRef.current = null
+      }, 300) // 300ms delay before hiding
+    }
+  }, [sidebarPinned])
+
+  const handleHoverZoneEnter = useCallback(() => {
+    if (!sidebarPinned) {
+      setSidebarExpanded(true)
+    }
+  }, [sidebarPinned])
+
+  const toggleSidebarPin = useCallback(() => {
+    setSidebarPinned(!sidebarPinned)
+    if (!sidebarPinned) {
+      setSidebarExpanded(true)
+    }
+  }, [sidebarPinned])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!isLoaded || !user) return
@@ -130,25 +192,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   if (!isLoaded || isCheckingOnboarding) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg text-muted-foreground">
-            {!isLoaded ? 'Loading...' : 'Checking your setup...'}
-          </p>
-          {/* Debug button for development */}
-          {process.env.NODE_ENV === 'development' && (
-            <button
-              onClick={() => {
-                localStorage.setItem("onboardingComplete", "true")
-                setOnboardingComplete(true)
-              }}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-            </button>
-          )}
-        </div>
-      </div>
+      <LoadingScreen 
+        message={!isLoaded ? 'Loading...' : 'Checking your setup...'}
+        submessage={!isLoaded ? 'Please wait while we load your dashboard' : 'Verifying your account settings'}
+      />
     )
   }
 
@@ -158,109 +205,240 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? "block" : "hidden"}`}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white dark:bg-gray-800">
-          <div className="flex h-16 items-center justify-between px-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Brain className="h-6 w-6 text-white" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-y-0 left-0 flex w-72 flex-col">
+          <div className="glass-card border-r border-white/10 shadow-floating">
+            <div className="flex h-16 items-center justify-between px-6">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-sm opacity-75"></div>
+                  <div className="relative p-2.5 bg-gradient-primary rounded-xl shadow-lg">
+                    <Brain className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xl font-bold bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
+                    BOSSolution
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">AI Marketing Hub</span>
+                </div>
               </div>
-              <span className="text-xl font-bold">BOSSolution</span>
+              <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="hover-lift">
+                <X className="h-5 w-5" />
+              </Button>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
-              <X className="h-6 w-6" />
-            </Button>
+            <nav className="flex-1 space-y-2 px-4 py-6">
+              {navigation.map((item, index) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-300 animate-slide-in-right ${
+                      isActive
+                        ? "bg-gradient-primary text-white shadow-soft hover-glow"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white hover:shadow-soft hover-lift"
+                    }`}
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <Icon className={`mr-3 h-5 w-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : ''}`} />
+                    <span className="font-medium">{item.name}</span>
+                    {isActive && (
+                      <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    )}
+                  </Link>
+                )
+              })}
+            </nav>
           </div>
-          <nav className="flex-1 space-y-1 px-2 py-4">
-            {navigation.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    isActive
-                      ? "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
         </div>
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-          <div className="flex items-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Brain className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xl font-bold">BOSSolution</span>
-            </div>
-          </div>
-          <nav className="flex-1 space-y-1 px-2 py-4">
-            {navigation.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    isActive
-                      ? "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
-                  }`}
+      <div className="hidden lg:block">
+        {/* Hover zone for sidebar activation */}
+        <div 
+          className="fixed inset-y-0 left-0 w-4 z-30"
+          onMouseEnter={handleHoverZoneEnter}
+        />
+        
+        {/* Collapsible sidebar */}
+        <div 
+          ref={sidebarRef}
+          className={`fixed inset-y-0 left-0 z-40 flex flex-col transition-all duration-300 ease-in-out ${
+            sidebarExpanded || sidebarPinned ? 'w-72' : 'w-16'
+          }`}
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
+        >
+          <div className="flex flex-col flex-grow glass-nav border-r border-white/10 shadow-elevated">
+            {/* Header section */}
+            <div className={`flex items-center h-20 px-4 border-b border-white/10 transition-all duration-300 ${
+              sidebarExpanded || sidebarPinned ? 'justify-between' : 'justify-center'
+            }`}>
+              {(sidebarExpanded || sidebarPinned) ? (
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-sm opacity-75 animate-pulse-glow"></div>
+                    <div className="relative p-2.5 bg-gradient-primary rounded-xl shadow-lg hover-lift">
+                      <Brain className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xl font-bold bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
+                      BOSSolution
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">AI Marketing Hub</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-sm opacity-75 animate-pulse-glow"></div>
+                  <div className="relative p-2.5 bg-gradient-primary rounded-xl shadow-lg hover-lift">
+                    <Brain className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              )}
+              
+              {/* Pin/Unpin button */}
+              {(sidebarExpanded || sidebarPinned) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebarPin}
+                  className={`h-8 w-8 hover-lift ${sidebarPinned ? 'text-blue-400' : 'text-slate-400'}`}
+                  title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
                 >
-                  <Icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
+                  {sidebarPinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+            
+            {/* Navigation */}
+            <nav className={`flex-1 space-y-2 px-2 py-6 transition-all duration-300 ${
+              sidebarExpanded || sidebarPinned ? 'px-4' : 'px-2'
+            }`}>
+              {navigation.map((item, index) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`group flex items-center text-sm font-medium rounded-xl transition-all duration-300 hover-lift animate-slide-in-right ${
+                      sidebarExpanded || sidebarPinned ? 'px-4 py-3.5' : 'px-3 py-3 justify-center'
+                    } ${
+                      isActive
+                        ? "bg-gradient-primary text-white shadow-soft hover-glow"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white hover:shadow-soft"
+                    }`}
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                    title={!(sidebarExpanded || sidebarPinned) ? item.name : undefined}
+                  >
+                    <Icon className={`transition-all duration-300 group-hover:scale-110 ${
+                      sidebarExpanded || sidebarPinned ? 'mr-3 h-5 w-5' : 'h-5 w-5'
+                    } ${isActive ? 'text-white' : ''}`} />
+                    {(sidebarExpanded || sidebarPinned) && (
+                      <>
+                        <span className="font-medium">{item.name}</span>
+                        {isActive && (
+                          <div className="ml-auto flex items-center gap-2">
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </Link>
+                )
+              })}
+            </nav>
+            
+            {/* Sidebar footer with user info */}
+            {(sidebarExpanded || sidebarPinned) && (
+              <div className="p-4 border-t border-white/10">
+                <div className="glass-card p-4 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
+                      <span className="text-xs font-bold text-white">
+                        {user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U'}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {user?.firstName || 'User'}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        Premium Plan
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:gap-x-6 sm:px-6 lg:px-8">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-6 w-6" />
+      <div className={`transition-all duration-300 ease-in-out ${
+        sidebarExpanded || sidebarPinned ? 'lg:pl-72' : 'lg:pl-16'
+      }`}>
+      {/* Enhanced top bar */}
+      <div className="sticky top-0 z-40 glass-nav backdrop-blur-xl border-b border-white/10 shadow-soft">
+        <div className="flex h-16 items-center gap-x-4 px-4 sm:gap-x-6 sm:px-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="lg:hidden hover-lift glass-card" 
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+          <div className="flex flex-1 gap-x-4 self-stretch sm:gap-x-6">
+            {/* Breadcrumb or page title */}
+            <div className="flex items-center">
+              <h2 className="text-base sm:text-lg font-semibold text-white truncate">
+                {navigation.find(item => item.href === pathname)?.name || 'Dashboard'}
+              </h2>
+            </div>
+            
             <div className="flex flex-1" />
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <ThemeToggle />
-              <UserButton 
-                appearance={{
-                  elements: {
-                    userButtonAvatarBox: "h-8 w-8",
-                    userButtonPopoverCard: "shadow-lg border border-gray-200 dark:border-gray-700",
-                    userButtonPopoverActionButton: "hover:bg-gray-50 dark:hover:bg-gray-700",
-                  }
-                }}
-                afterSignOutUrl="/login"
-              />
+            
+            <div className="flex items-center gap-x-2 sm:gap-x-4">
+              {/* Search button */}
+              <Button variant="ghost" size="icon" className="hover-lift glass-card hidden sm:flex">
+                <Search className="h-4 w-4" />
+              </Button>
+              
+              {/* User button with enhanced styling */}
+              <div className="glass-card rounded-lg p-1">
+                <UserButton 
+                  appearance={{
+                    elements: {
+                      userButtonAvatarBox: "h-8 w-8 shadow-soft",
+                      userButtonPopoverCard: "glass-card shadow-floating border border-white/10",
+                      userButtonPopoverActionButton: "hover:bg-white/10 transition-all duration-200",
+                    }
+                  }}
+                  afterSignOutUrl="/login"
+                />
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Page content */}
-        <main className="py-6 overflow-hidden relative">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 overflow-hidden relative">{children}</div>
+      </div>        {/* Page content with enhanced spacing and animations */}
+        <main className="py-6 sm:py-8 animate-fade-in-scale">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="animate-slide-in-up">
+              {children}
+            </div>
+          </div>
         </main>
       </div>
     </div>

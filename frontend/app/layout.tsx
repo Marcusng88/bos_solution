@@ -58,7 +58,7 @@ html {
         />
       </head>
       <body suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <ClerkProviderWrapper>
             {children}
             <AIChatWidget />

@@ -1,0 +1,28 @@
+.shiny-text {
+  color: #ffffff; /* Changed to white for better base visibility */
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 1) 50%, /* Increased opacity for more shine */
+    rgba(255, 255, 255, 0) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  display: inline-block;
+  animation: shine 5s linear infinite;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5); /* Added glow effect */
+}
+
+@keyframes shine {
+  0% {
+    background-position: 100%;
+  }
+  100% {
+    background-position: -100%;
+  }
+}
+
+.shiny-text.disabled {
+  animation: none;
+}
