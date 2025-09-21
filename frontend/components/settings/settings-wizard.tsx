@@ -13,6 +13,8 @@ import { OnboardingData } from "@/components/onboarding/onboarding-wizard"
 import { useUser } from "@clerk/nextjs"
 import { ApiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
+import GradientText from "@/components/effects/GradientText"
+import ShinyText from "@/components/effects/ShinyText"
 
 const steps = [
   { id: 1, title: "Business", description: "Update your company information" },
@@ -304,12 +306,17 @@ export function SettingsWizard() {
       case 1:
         return (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Business Information</h3>
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-lg border border-white/20 backdrop-blur-sm">
+              <h3 className="text-lg font-semibold">
+                <GradientText colors={['#4f46e5', '#7c3aed']}>
+                  Business Information
+                </GradientText>
+              </h3>
               <Button
                 variant={isEditing ? "outline" : "default"}
                 size="sm"
                 onClick={() => toggleEditSection(1)}
+                className={isEditing ? "" : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white border-none"}
               >
                 {isEditing ? (
                   <>
@@ -336,7 +343,10 @@ export function SettingsWizard() {
             
             {isEditing && (
               <div className="flex justify-end pt-4">
-                <Button onClick={() => saveSection(1)}>
+                <Button 
+                  onClick={() => saveSection(1)}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white border-none"
+                >
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
                 </Button>
@@ -347,12 +357,17 @@ export function SettingsWizard() {
       case 2:
         return (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Goals & Budget</h3>
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50/50 to-cyan-50/50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-lg border border-white/20 backdrop-blur-sm">
+              <h3 className="text-lg font-semibold">
+                <GradientText colors={['#3b82f6', '#06b6d4']}>
+                  Goals & Budget
+                </GradientText>
+              </h3>
               <Button
                 variant={isEditing ? "outline" : "default"}
                 size="sm"
                 onClick={() => toggleEditSection(2)}
+                className={isEditing ? "" : "bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white border-none"}
               >
                 {isEditing ? (
                   <>
@@ -379,7 +394,10 @@ export function SettingsWizard() {
             
             {isEditing && (
               <div className="flex justify-end pt-4">
-                <Button onClick={() => saveSection(2)}>
+                <Button 
+                  onClick={() => saveSection(2)}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white border-none"
+                >
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
                 </Button>
@@ -390,12 +408,17 @@ export function SettingsWizard() {
       case 3:
         return (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Competitor Management</h3>
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-pink-50/50 to-rose-50/50 dark:from-pink-950/30 dark:to-rose-950/30 rounded-lg border border-white/20 backdrop-blur-sm">
+              <h3 className="text-lg font-semibold">
+                <GradientText colors={['#ec4899', '#f43f5e']}>
+                  Competitor Management
+                </GradientText>
+              </h3>
               <Button
                 variant={isEditing ? "outline" : "default"}
                 size="sm"
                 onClick={() => toggleEditSection(3)}
+                className={isEditing ? "" : "bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white border-none"}
               >
                 {isEditing ? (
                   <>
@@ -422,7 +445,10 @@ export function SettingsWizard() {
             
             {isEditing && (
               <div className="flex justify-end pt-4">
-                <Button onClick={() => saveSection(3)}>
+                <Button 
+                  onClick={() => saveSection(3)}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white border-none"
+                >
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
                 </Button>
@@ -436,24 +462,41 @@ export function SettingsWizard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Animated Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute inset-0">
+          <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-500/8 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
+          <div className="absolute top-0 -right-4 w-72 h-72 bg-blue-500/8 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-8 left-20 w-72 h-72 bg-indigo-500/8 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
+        </div>
+      </div>
+      
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between relative z-10">
         <div className="flex items-center gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-600 rounded-lg">
+              <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg">
                 <Settings className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+              <h1 className="text-3xl font-bold tracking-tight">
+                <GradientText
+                  colors={['#667eea', '#764ba2', '#f093fb', '#764ba2', '#667eea']}
+                >
+                  Account Settings
+                </GradientText>
+              </h1>
             </div>
-            <p className="text-muted-foreground">Update your onboarding preferences and configuration</p>
+            <p className="text-muted-foreground">
+              <ShinyText text="Update your onboarding preferences and configuration" />
+            </p>
           </div>
         </div>
       </div>
 
       {/* Progress */}
-      <Card>
+      <Card className="relative backdrop-blur-sm bg-white/70 dark:bg-gray-900/70 border border-white/20 shadow-xl animate-slideUp">
         <CardHeader>
           <CardTitle>Settings Navigation</CardTitle>
           <CardDescription>Navigate through different sections to update your preferences</CardDescription>
@@ -465,18 +508,18 @@ export function SettingsWizard() {
                 <div key={step.id} className="flex items-center">
                   <button
                     onClick={() => setCurrentStep(step.id)}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
                       currentStep >= step.id
-                        ? "bg-blue-600 text-white hover:bg-blue-700"
-                        : "bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+                        ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg transform hover:scale-105"
+                        : "bg-gray-200/70 text-gray-600 hover:bg-gray-300/70 dark:bg-gray-700/70 dark:text-gray-400 dark:hover:bg-gray-600/70 backdrop-blur-sm"
                     }`}
                   >
                     {step.id}
                   </button>
                   {index < steps.length - 1 && (
                     <div
-                      className={`w-12 h-0.5 mx-2 ${
-                        currentStep > step.id ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"
+                      className={`w-12 h-0.5 mx-2 transition-all duration-300 ${
+                        currentStep > step.id ? "bg-gradient-to-r from-indigo-500 to-purple-600" : "bg-gray-200/70 dark:bg-gray-700/70"
                       }`}
                     />
                   )}
@@ -495,12 +538,12 @@ export function SettingsWizard() {
       </Card>
 
       {/* Step Content */}
-      <Card>
+      <Card className="relative backdrop-blur-sm bg-white/70 dark:bg-gray-900/70 border border-white/20 shadow-xl animate-slideUp animation-delay-200">
         <CardContent className="pt-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gradient-to-r from-indigo-500 to-purple-600 mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading your settings...</p>
               </div>
             </div>
@@ -512,7 +555,7 @@ export function SettingsWizard() {
 
       {/* Save Notice */}
       {hasChanges && (
-        <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20">
+        <Card className="border-orange-200/50 bg-orange-50/70 dark:border-orange-800/50 dark:bg-orange-950/30 backdrop-blur-sm shadow-xl animate-slideUp animation-delay-400">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>

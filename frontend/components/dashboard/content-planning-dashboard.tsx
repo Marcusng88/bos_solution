@@ -15,9 +15,14 @@ import { ContentStrategyInsights } from "./content-strategy-insights"
 import { AIContentGenerator } from "./ai-content-generator"
 import { Plus, Calendar, Sparkles, Search, Target, AlertTriangle, Settings, RefreshCw, BarChart3 } from "lucide-react"
 import { useContentPlanning } from "@/hooks/use-content-planning"
+import GradientText from "@/components/effects/GradientText"
+import ShinyText from "@/components/effects/ShinyText"
+import "../../styles/competitor-animations.css"
 
 export function ContentPlanningDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [isVisible, setIsVisible] = useState(false)
+  
   const {
     dashboardData,
     supportedOptions,
@@ -31,19 +36,34 @@ export function ContentPlanningDashboard() {
     autoLoad: true // This only loads basic dashboard data, not AI agent
   })
 
+  useEffect(() => {
+    setIsVisible(true)
+  }, [])
+
   return (
-    <div className="space-y-8 overflow-hidden w-full max-w-full content-container">
+    <div className="relative">
+      {/* Subtle background overlay for depth */}
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-blue-950/3 to-purple-950/3 pointer-events-none"></div>
+      
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/4 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/4 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-blue-500/2 to-purple-500/2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      </div>
+
+      <div className={`relative z-10 space-y-8 overflow-hidden w-full max-w-full content-container transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
       {/* Enhanced Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 animate-slide-in-up">
+      <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
         <div className="space-y-2">
-          <h1 className="text-3xl lg:text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
-            AI Content Planning
+          <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">
+            <GradientText>AI Content Planning</GradientText>
           </h1>
-          <p className="text-base lg:text-lg text-slate-400 font-medium">
-            Competitor-driven content strategy with AI assistance
-          </p>
+          <div className="text-base lg:text-lg text-slate-400 font-medium">
+            <ShinyText text="Competitor-driven content strategy with AI assistance" />
+          </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 animate-slide-in-right">
+        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           {/* Industry Selector */}
           {supportedOptions && (
             <div className="glass-card p-1 rounded-xl shadow-soft w-full sm:w-auto">
@@ -95,7 +115,7 @@ export function ContentPlanningDashboard() {
       </div>
 
       {/* Enhanced Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         {[
           {
             title: "Scheduled Posts",
@@ -130,27 +150,28 @@ export function ContentPlanningDashboard() {
             bgColor: "bg-orange-950/20"
           }
         ].map((card, index) => (
-          <Card key={card.title} className={`glass-card hover-lift shadow-soft animate-fade-in-scale stagger-${index + 1} ${card.bgColor} border-white/10`}>
+          <Card key={card.title} className={`glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl ${card.bgColor} border-white/10 animate-fade-in-up`} style={{ animationDelay: `${(index + 1) * 100}ms` }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-sm font-semibold text-slate-300">
                 {card.title}
               </CardTitle>
-              <div className={`p-2.5 rounded-xl bg-gradient-to-r ${card.color} shadow-soft`}>
-                <card.icon className="h-4 w-4 text-white" />
+              <div className={`relative p-2.5 rounded-xl bg-gradient-to-r ${card.color} shadow-lg overflow-hidden`}>
+                <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+                <card.icon className="relative h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent>
               {loading || !dashboardData ? (
                 <div className="space-y-3">
-                  <Skeleton className="h-8 w-16 rounded-lg" />
-                  <Skeleton className="h-4 w-32 rounded" />
+                  <Skeleton className="h-8 w-16 rounded-lg bg-slate-700/50" />
+                  <Skeleton className="h-4 w-32 rounded bg-slate-700/30" />
                 </div>
               ) : (
                 <>
-                  <div className="text-3xl font-bold text-white mb-1">
+                  <div className="text-3xl font-bold text-white mb-1 bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
                     {card.value}
                   </div>
-                  <p className="text-xs text-slate-400 font-medium">
+                  <p className="text-xs text-slate-400 font-medium leading-relaxed">
                     {card.subtitle}
                   </p>
                 </>
@@ -164,7 +185,7 @@ export function ContentPlanningDashboard() {
       {dashboardData?.competitive_intelligence?.new_opportunities && 
        Array.isArray(dashboardData.competitive_intelligence.new_opportunities) &&
        dashboardData.competitive_intelligence.new_opportunities.length > 0 && (
-        <Card className="glass-card border border-blue-200/30 bg-gradient-to-r from-blue-950/30 via-indigo-950/20 to-blue-950/30 hover-lift animate-slide-in-up shadow-soft">
+        <Card className={`glass-card border border-blue-200/20 bg-gradient-to-r from-blue-950/20 via-indigo-950/10 to-blue-950/20 transition-all duration-300 hover:scale-105 hover:shadow-xl animate-fade-in-up delay-800 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-soft">
@@ -191,9 +212,9 @@ export function ContentPlanningDashboard() {
       )}
 
       {/* Enhanced Main Content Tabs */}
-      <Tabs defaultValue="calendar" className="space-y-8">
-        <TabsList className="glass-card p-1 bg-slate-800/60 border border-white/10 shadow-soft">
-          <TabsTrigger value="calendar" className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-soft font-semibold text-slate-300">
+      <Tabs defaultValue="calendar" className={`space-y-8 transition-all duration-1000 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+        <TabsList className="glass-card p-1 bg-slate-800/40 border border-white/20 backdrop-blur-md">
+          <TabsTrigger value="calendar" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">
             Content Calendar
           </TabsTrigger>
           {/* <TabsTrigger value="gaps">Competitor Gaps</TabsTrigger>
@@ -203,13 +224,13 @@ export function ContentPlanningDashboard() {
         <TabsContent value="calendar" className="space-y-8">
           <div className="space-y-8 w-full max-w-full overflow-hidden">
             {/* AI Suggestions Panel - Now above the calendar */}
-            <div className="w-full animate-slide-in-up stagger-1">
+            <div className={`w-full transition-all duration-700 delay-1200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
               <AISuggestionsPanel selectedDate={selectedDate} />
             </div>
 
             {/* Calendar Section - Now below the suggestions */}
-            <div className="w-full animate-slide-in-up stagger-2">
-              <Card className="glass-card w-full max-w-full hover-lift shadow-soft border border-white/10">
+            <div className={`w-full transition-all duration-700 delay-1400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
+              <Card className="glass-card w-full max-w-full transition-all duration-300 hover:scale-105 hover:shadow-xl border border-white/20">
                 <CardHeader className="border-b border-white/10">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
@@ -239,7 +260,7 @@ export function ContentPlanningDashboard() {
       </Tabs>
 
       {/* Enhanced Recent Activity */}
-      <Card className="glass-card hover-lift shadow-soft border border-white/10 animate-slide-in-up">
+      <Card className={`glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border border-white/20 animate-fade-in-up delay-1600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         <CardHeader className="border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg">
@@ -266,24 +287,24 @@ export function ContentPlanningDashboard() {
               ))
             ) : (
               dashboardData.recent_activity?.map((activity, index) => (
-                <div key={index} className="flex items-center justify-between py-3 hover:bg-white/5 rounded-lg px-4 transition-all duration-200 hover-lift">
+                <div key={index} className="flex items-center justify-between py-4 hover:bg-white/5 rounded-xl px-4 transition-all duration-300 hover:scale-[1.02] group animate-fade-in-up" style={{ animationDelay: `${(index + 1) * 100}ms` }}>
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-3 h-3 rounded-full shadow-soft ${
+                      className={`w-3 h-3 rounded-full shadow-lg transition-all duration-300 group-hover:scale-110 ${
                         activity.status === "success"
-                          ? "bg-gradient-to-r from-emerald-500 to-green-600"
+                          ? "bg-gradient-to-r from-emerald-500 to-green-600 animate-pulse"
                           : activity.status === "opportunity"
-                            ? "bg-gradient-to-r from-blue-500 to-indigo-600"
+                            ? "bg-gradient-to-r from-blue-500 to-indigo-600 animate-pulse"
                             : activity.status === "alert"
-                              ? "bg-gradient-to-r from-orange-500 to-red-600"
+                              ? "bg-gradient-to-r from-orange-500 to-red-600 animate-pulse"
                               : "bg-gradient-to-r from-slate-400 to-slate-500"
                       }`}
                     />
                     <div>
-                      <p className="text-sm font-semibold text-white">
-                        {activity.action} <span className="text-slate-400 font-normal">{activity.content}</span>
+                      <p className="text-sm font-semibold text-white group-hover:text-blue-200 transition-colors duration-300">
+                        {activity.action} <span className="text-slate-400 font-normal group-hover:text-slate-300 transition-colors duration-300">{activity.content}</span>
                       </p>
-                      <p className="text-xs text-slate-400 font-medium">{activity.time}</p>
+                      <p className="text-xs text-slate-400 font-medium group-hover:text-slate-300 transition-colors duration-300">{activity.time}</p>
                     </div>
                   </div>
                   <Badge
@@ -296,7 +317,7 @@ export function ContentPlanningDashboard() {
                             ? "destructive"
                             : "outline"
                     }
-                    className="font-semibold"
+                    className="font-semibold transition-all duration-300 group-hover:scale-105 shadow-md"
                   >
                     {activity.status}
                   </Badge>
@@ -306,6 +327,7 @@ export function ContentPlanningDashboard() {
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   )
 }
