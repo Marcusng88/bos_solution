@@ -9,10 +9,13 @@ from app.schemas.social_media import (
 )
 from app.core.auth_utils import get_user_id_from_header
 from app.core.social_media_config import social_media_config
+from app.core.config import settings
 import json
 import os
 import httpx
 import time
+import base64
+import io
 from pydantic import BaseModel
 from app.core.social_media_config import SocialMediaConfig
 from app.services.youtube_service import youtube_service
@@ -81,49 +84,108 @@ async def _get_facebook_permissions(access_token: str) -> dict:
 async def post_to_facebook(upload_data: dict, account_data: dict) -> dict:
     """Post to Facebook using Graph API"""
     try:
-        access_token = account_data.get("access_token")
-        page_id = account_data.get("account_id")
-        
-        # Check if we have real credentials
-        if access_token and page_id:
-            # Real Facebook Graph API endpoint
-            url = f"https://graph.facebook.com/v18.0/{page_id}/feed"
-            
-            post_data = {
-                "message": upload_data.get("content_text", ""),
-                "access_token": access_token
-            }
-            
-            # Add title if present
-            if upload_data.get("title"):
-                post_data["name"] = upload_data["title"]
-            
-            # Add media if present
-            if upload_data.get("media_files"):
-                # For now, just add media URLs as links
-                # TODO: Implement actual media upload to Facebook
-                media_links = [f"Media: {media.get('url', '')}" for media in upload_data["media_files"]]
-                post_data["message"] += "\n\n" + "\n".join(media_links)
-            
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, data=post_data)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    return {
-                        "post_id": result.get("id"),
-                        "post_url": f"https://facebook.com/{result.get('id')}"
-                    }
-                else:
-                    raise Exception(f"Facebook API error: {response.text}")
-        else:
+        # Prefer account-specific tokens, fall back to global settings
+        access_token = account_data.get("access_token") or settings.META_PAGE_ACCESS_TOKEN
+        page_id = account_data.get("account_id") or settings.META_PAGE_ID
+
+        # Validate page id and token availability
+        if not page_id:
+            raise Exception("Missing Facebook Page ID (account or META_PAGE_ID not provided)")
+
+        if not access_token:
             # Test mode - simulate successful posting
-            print(f"🧪 TEST MODE: Would post to Facebook: {upload_data.get('content_text', '')[:50]}...")
+            print(f"🧪 TEST MODE: No access token found. Would post to Facebook Page {page_id}: {upload_data.get('content_text', '')[:50]}...")
             return {
                 "post_id": f"test_fb_{int(time.time())}",
                 "post_url": "https://facebook.com/test_post",
                 "test_mode": True
             }
+
+        # First, validate the access token by checking its status
+        async with httpx.AsyncClient() as client:
+            token_check = await client.get(
+                "https://graph.facebook.com/me",
+                params={"access_token": access_token}
+            )
+            
+            if token_check.status_code != 200:
+                token_error = token_check.json() if token_check.content else {"error": {"message": "Token validation failed"}}
+                error_msg = token_error.get("error", {}).get("message", "Invalid access token")
+                print(f"🚨 Facebook access token error: {error_msg}")
+                
+                # Return test mode response with error info
+                return {
+                    "post_id": f"test_fb_{int(time.time())}",
+                    "post_url": "https://facebook.com/test_post",
+                    "test_mode": True,
+                    "error": f"Access token issue: {error_msg}"
+                }
+
+        # Real Facebook Graph API endpoint
+        # If media exists, try to upload images properly
+        media_files = upload_data.get("media_files") or []
+        image_files = [m for m in media_files if m.get("type", "").startswith("image") and m.get("url")]
+
+        # Handle single-image posts via /{page_id}/photos (published=true)
+        if len(image_files) == 1:
+            photo_url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{page_id}/photos"
+            photo_data = {
+                "url": image_files[0]["url"],
+                "caption": upload_data.get("content_text", ""),
+                "access_token": access_token
+            }
+            resp = await client.post(photo_url, data=photo_data)
+            if resp.status_code in (200, 201):
+                r = resp.json()
+                # Facebook may return 'post_id' or 'id'
+                post_id = r.get("post_id") or r.get("id")
+                return {"post_id": post_id, "post_url": f"https://facebook.com/{post_id}"}
+            else:
+                raise Exception(f"Facebook photo upload error: {resp.status_code} - {resp.text}")
+
+        # Handle multi-image posts by uploading photos unpublished then creating feed with attached_media
+        if len(image_files) > 1:
+            photo_url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{page_id}/photos"
+            media_fbid_list = []
+            for img in image_files:
+                resp = await client.post(photo_url, data={"url": img["url"], "published": "false", "access_token": access_token})
+                if resp.status_code in (200, 201):
+                    fbid = resp.json().get("id")
+                    if fbid:
+                        media_fbid_list.append({"media_fbid": fbid})
+            if media_fbid_list:
+                feed_url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{page_id}/feed"
+                post_data = {
+                    "message": upload_data.get("content_text", ""),
+                    "access_token": access_token,
+                    "attached_media": json.dumps(media_fbid_list)
+                }
+                resp2 = await client.post(feed_url, data=post_data)
+                if resp2.status_code in (200, 201):
+                    r = resp2.json()
+                    return {"post_id": r.get("id"), "post_url": f"https://facebook.com/{r.get('id')}"}
+                else:
+                    raise Exception(f"Facebook feed creation error: {resp2.status_code} - {resp2.text}")
+
+        # Fallback: create a simple feed post (text + links)
+        feed_url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{page_id}/feed"
+        post_data = {"message": upload_data.get("content_text", ""), "access_token": access_token}
+        # Add title if present
+        if upload_data.get("title"):
+            post_data["name"] = upload_data["title"]
+
+        # Append media links for non-image media or if image upload failed
+        if media_files:
+            media_links = [m.get("url", "") for m in media_files if m.get("url")]
+            if media_links:
+                post_data["message"] += "\n\n" + "\n".join(media_links)
+
+        response = await client.post(feed_url, data=post_data)
+        if response.status_code in (200, 201):
+            result = response.json()
+            return {"post_id": result.get("id"), "post_url": f"https://facebook.com/{result.get('id')}"}
+        else:
+            raise Exception(f"Facebook API error: {response.status_code} - {response.text}")
                 
     except Exception as e:
         raise Exception(f"Failed to post to Facebook: {str(e)}")
@@ -410,7 +472,202 @@ async def delete_social_media_account(
 # CONTENT UPLOAD MANAGEMENT
 # ============================================================================
 
-@router.post("/uploads", response_model=dict)
+@router.post("/publish-direct", response_model=dict)
+async def publish_direct(
+    content_text: str = Form(...),
+    platform: str = Form(default="facebook"),
+    title: Optional[str] = Form(None),
+    media_files: List[UploadFile] = File(default=[]),
+    current_user_id: str = Depends(get_user_id_from_header)
+):
+    """Publish content directly to social media with media support"""
+    try:
+        # Create account data using global settings as fallback
+        account_data = {
+            "platform": platform,
+            "account_id": settings.META_PAGE_ID,
+            "access_token": settings.META_PAGE_ACCESS_TOKEN
+        }
+        
+        # Validate credentials first
+        if not account_data["account_id"] or not account_data["access_token"]:
+            return {
+                "success": False,
+                "message": "Missing Facebook credentials",
+                "has_token": bool(account_data["access_token"]),
+                "has_page_id": bool(account_data["account_id"])
+            }
+        
+        # Handle media files if present
+        if media_files and len(media_files) > 0:
+            # Remove empty files
+            media_files = [f for f in media_files if f.filename != ""]
+            
+            if len(media_files) == 1:
+                # Single media post
+                media_file = media_files[0]
+                file_content = await media_file.read()
+                
+                # Check if it's a video
+                if media_file.content_type and media_file.content_type.startswith('video/'):
+                    # For videos, use the /videos endpoint
+                    url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/videos"
+                    
+                    # Create multipart form data for video upload
+                    files = {
+                        'source': (media_file.filename, file_content, media_file.content_type)
+                    }
+                    data = {
+                        'description': content_text,
+                        'access_token': account_data['access_token']
+                    }
+                    
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        response = await client.post(url, files=files, data=data)
+                        
+                        if response.status_code in (200, 201):
+                            result = response.json()
+                            return {
+                                "success": True,
+                                "message": "Video uploaded to Facebook!",
+                                "post_id": result.get("id"),
+                                "post_url": f"https://facebook.com/{result.get('id')}",
+                                "media_type": "video"
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "message": f"Facebook video upload error: {response.status_code}",
+                                "error": response.text[:200],
+                                "error_type": "facebook_video_error"
+                            }
+                
+                else:
+                    # For images, use the /photos endpoint
+                    url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/photos"
+                    
+                    files = {
+                        'source': (media_file.filename, file_content, media_file.content_type)
+                    }
+                    data = {
+                        'caption': content_text,
+                        'access_token': account_data['access_token']
+                    }
+                    
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        response = await client.post(url, files=files, data=data)
+                        
+                        if response.status_code in (200, 201):
+                            result = response.json()
+                            return {
+                                "success": True,
+                                "message": "Photo uploaded to Facebook!",
+                                "post_id": result.get("id"),
+                                "post_url": f"https://facebook.com/{result.get('id')}",
+                                "media_type": "photo"
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "message": f"Facebook photo upload error: {response.status_code}",
+                                "error": response.text[:200],
+                                "error_type": "facebook_photo_error"
+                            }
+            
+            elif len(media_files) > 1:
+                # Multiple media files - create album
+                # First upload all photos as unpublished
+                media_fbids = []
+                
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    for media_file in media_files:
+                        file_content = await media_file.read()
+                        
+                        if media_file.content_type and media_file.content_type.startswith('image/'):
+                            # Upload photo unpublished
+                            url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/photos"
+                            files = {
+                                'source': (media_file.filename, file_content, media_file.content_type)
+                            }
+                            data = {
+                                'published': 'false',
+                                'access_token': account_data['access_token']
+                            }
+                            
+                            response = await client.post(url, files=files, data=data)
+                            if response.status_code in (200, 201):
+                                result = response.json()
+                                media_fbids.append({"media_fbid": result.get("id")})
+                    
+                    if media_fbids:
+                        # Create feed post with attached media
+                        url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/feed"
+                        data = {
+                            'message': content_text,
+                            'attached_media': json.dumps(media_fbids),
+                            'access_token': account_data['access_token']
+                        }
+                        
+                        response = await client.post(url, data=data)
+                        if response.status_code in (200, 201):
+                            result = response.json()
+                            return {
+                                "success": True,
+                                "message": f"Album with {len(media_fbids)} photos posted to Facebook!",
+                                "post_id": result.get("id"),
+                                "post_url": f"https://facebook.com/{result.get('id')}",
+                                "media_type": "album",
+                                "media_count": len(media_fbids)
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "message": f"Facebook album creation error: {response.status_code}",
+                                "error": response.text[:200],
+                                "error_type": "facebook_album_error"
+                            }
+                    else:
+                        return {
+                            "success": False,
+                            "message": "No valid images found for album",
+                            "error_type": "no_valid_media"
+                        }
+        
+        else:
+            # Text-only post
+            url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/feed"
+            data = {
+                "message": content_text,
+                "access_token": account_data["access_token"]
+            }
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, data=data)
+                
+                if response.status_code in (200, 201):
+                    result = response.json()
+                    return {
+                        "success": True,
+                        "message": "Text post published to Facebook!",
+                        "post_id": result.get("id"),
+                        "post_url": f"https://facebook.com/{result.get('id')}",
+                        "media_type": "text"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Facebook API error: {response.status_code}",
+                        "error": response.text[:200],
+                        "error_type": "facebook_api_error"
+                    }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to publish: {str(e)}",
+            "error": str(e),
+            "error_type": "general"
+        }@router.post("/uploads", response_model=dict)
 async def create_content_upload(
     upload_data: ContentUploadCreate,
     current_user_id: str = Depends(get_user_id_from_header)
@@ -507,8 +764,28 @@ async def post_content_now(
         
         # Get account details for posting
         accounts = await supabase_client.get_user_social_accounts(current_user_id)
-        account = next((acc for acc in accounts if acc["id"] == upload["account_id"]), None)
-        
+        account = None
+
+        # Prefer explicit account_id on the upload
+        if upload.get("account_id"):
+            account = next((acc for acc in accounts if acc.get("id") == upload.get("account_id")), None)
+
+        # Fallback: try to find an account matching the upload platform
+        if not account:
+            upload_platform = upload.get("platform") or None
+            if upload_platform:
+                account = next((acc for acc in accounts if acc.get("platform") == upload_platform), None)
+
+        # Final fallback: if still no account and the platform is facebook, use global META_PAGE credentials
+        if not account:
+            if (upload.get("platform") == "facebook") or (not upload.get("platform") and settings.META_PAGE_ID):
+                if settings.META_PAGE_ID and settings.META_PAGE_ACCESS_TOKEN:
+                    account = {
+                        "platform": "facebook",
+                        "account_id": settings.META_PAGE_ID,
+                        "access_token": settings.META_PAGE_ACCESS_TOKEN
+                    }
+
         if not account:
             raise HTTPException(status_code=400, detail="Account not found")
         

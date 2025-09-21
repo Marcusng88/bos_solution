@@ -456,6 +456,91 @@ class SupabaseClient:
             logger.error(f"Error executing raw SQL: {e}")
             return []
 
+    # Content Upload methods
+    async def get_user_content_uploads(self, user_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all content uploads for a user"""
+        try:
+            endpoint = f"content_uploads?user_id=eq.{user_id}"
+            if status:
+                endpoint += f"&status=eq.{status}"
+            
+            response = await self._make_request("GET", endpoint)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            raise Exception(f"Failed to get user content uploads: {str(e)}")
+
+    async def create_content_upload(self, upload_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new content upload"""
+        try:
+            response = await self._make_request("POST", "content_uploads", upload_data)
+            if response.status_code in [200, 201, 204]:
+                return {"success": True, "data": response.json()}
+            else:
+                raise Exception(f"Failed to create content upload: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to create content upload: {str(e)}")
+
+    async def update_content_upload(self, upload_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a content upload"""
+        try:
+            response = await self._make_request("PATCH", f"content_uploads", update_data, {"id": f"eq.{upload_id}"})
+            if response.status_code in [200, 204]:
+                return {"success": True}
+            else:
+                raise Exception(f"Failed to update content upload: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to update content upload: {str(e)}")
+
+    async def delete_content_upload(self, upload_id: str) -> Dict[str, Any]:
+        """Delete a content upload"""
+        try:
+            response = await self._make_request("DELETE", f"content_uploads", params={"id": f"eq.{upload_id}"})
+            if response.status_code in [200, 204]:
+                return {"success": True}
+            else:
+                raise Exception(f"Failed to delete content upload: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to delete content upload: {str(e)}")
+
+    # Social Media Account methods
+    async def get_user_social_accounts(self, user_id: str, platform: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all social media accounts for a user"""
+        try:
+            endpoint = f"social_media_accounts?user_id=eq.{user_id}"
+            if platform:
+                endpoint += f"&platform=eq.{platform}"
+            
+            response = await self._make_request("GET", endpoint)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            raise Exception(f"Failed to get user social accounts: {str(e)}")
+
+    async def create_social_media_account(self, account_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new social media account"""
+        try:
+            response = await self._make_request("POST", "social_media_accounts", account_data)
+            if response.status_code in [200, 201, 204]:
+                return {"success": True, "data": response.json()}
+            else:
+                raise Exception(f"Failed to create social media account: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to create social media account: {str(e)}")
+
+    async def update_social_media_account(self, account_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a social media account"""
+        try:
+            response = await self._make_request("PATCH", f"social_media_accounts", update_data, {"id": f"eq.{account_id}"})
+            if response.status_code in [200, 204]:
+                return {"success": True}
+            else:
+                raise Exception(f"Failed to update social media account: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to update social media account: {str(e)}")
+
 # Global instance
 supabase_client = SupabaseClient()
 

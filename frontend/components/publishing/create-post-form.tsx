@@ -28,7 +28,91 @@ export function CreatePostForm() {
     postType: "now",
   })
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([])
+  const [isPublishing, setIsPublishing] = useState(false)
 
+  const handlePublish = async () => {
+    if (!postData.caption.trim()) {
+      alert("Please enter a caption for your post")
+      return
+    }
+
+    setIsPublishing(true)
+    try {
+      // Use FormData for media file support
+      const formData = new FormData()
+      formData.append('content_text', postData.caption)
+      formData.append('platform', 'facebook')
+      
+      // Add media files if any
+      uploadedMedia.forEach((file) => {
+        formData.append('media_files', file)
+      })
+
+      const response = await fetch('http://localhost:8000/api/v1/social-media/publish-direct', {
+        method: 'POST',
+        headers: {
+          'X-User-ID': 'user_31KT7lnRSm5G57HC4gfDUb2F9Ci'
+          // Don't set Content-Type header - let the browser set it automatically for FormData
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      
+      if (result.success) {
+        let message = `✅ Published successfully!`
+        if (result.media_type === 'video') {
+          message += `\n📹 Video uploaded to Facebook`
+        } else if (result.media_type === 'photo') {
+          message += `\n📷 Photo uploaded to Facebook`
+        } else if (result.media_type === 'album') {
+          message += `\n📸 Album with ${result.media_count || uploadedMedia.length} photos uploaded`
+        } else if (result.media_type === 'text') {
+          message += `\n📝 Text post published`
+        }
+        message += `\n🔗 Post ID: ${result.post_id}`
+        
+        alert(message)
+        
+        // Reset form
+        setPostData({ caption: "", scheduledDate: "", scheduledTime: "", postType: "now" })
+        setUploadedMedia([])
+      } else {
+        // Handle different error types
+        if (result.error_type === 'expired_token') {
+          const instructions = result.instructions?.join('\n') || ''
+          alert(`❌ ${result.message}\n\n${result.error}\n\nTo fix this:\n${instructions}`)
+        } else {
+          alert(result.message || 'Publish failed')
+        }
+      }
+
+    } catch (error) {
+      console.error('Publish error:', error)
+      
+      // Try to parse error from response
+      try {
+        const errorText = error instanceof Error ? error.message : String(error)
+        if (errorText.includes('Session has expired') || errorText.includes('access token')) {
+          alert('❌ Facebook Access Token Expired\n\nYour Facebook access token has expired.\n\nTo fix this:\n1. Go to Facebook Developer Console\n2. Generate a new Page Access Token\n3. Update your backend configuration\n4. Restart the server')
+        } else {
+          alert(`Failed to publish: ${errorText}`)
+        }
+      } catch {
+        alert(`Failed to publish: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  const handleSaveDraft = () => {
+    alert('Draft saved! (This would save to your drafts)')
+  }
   // Use platforms directly since YouTube is handled separately
   const dynamicPlatforms = platforms
 
@@ -187,51 +271,35 @@ export function CreatePostForm() {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
-              <ComingSoonDialog
-                trigger={
-                  <Button className="flex-1">
-                    {postData.postType === "now" ? (
-                      <>
-                        <Send className="mr-2 h-4 w-4" />
-                        Publish Now
-                      </>
-                    ) : (
-                      <>
-                        <Calendar className="mr-2 h-4 w-4" />
-                        Schedule Post
-                      </>
-                    )}
-                  </Button>
-                }
-                title="Social Media Publishing"
-                description="Direct publishing to social media platforms is coming soon! You'll be able to post directly to Facebook, Instagram, and other platforms."
-                features={[
-                  "Multi-platform content publishing",
-                  "Smart scheduling algorithms",
-                  "Content optimization",
-                  "Analytics and performance tracking",
-                  "Team collaboration tools"
-                ]}
-                estimatedRelease="Q1 2025"
-              />
-              <ComingSoonDialog
-                trigger={
-                  <Button variant="outline">
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Draft
-                  </Button>
-                }
-                title="Draft Management"
-                description="Save and manage your social media post drafts with advanced features coming soon!"
-                features={[
-                  "Auto-save functionality",
-                  "Draft templates",
-                  "Version history",
-                  "Collaborative editing",
-                  "Draft scheduling"
-                ]}
-                estimatedRelease="Q1 2025"
-              />
+              <Button 
+                className="flex-1"
+                onClick={handlePublish}
+                disabled={isPublishing}
+              >
+                {isPublishing ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
+                    Publishing...
+                  </>
+                ) : postData.postType === "now" ? (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Publish Now
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Schedule Post
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={handleSaveDraft}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save Draft
+              </Button>
             </div>
           </CardContent>
         </Card>
