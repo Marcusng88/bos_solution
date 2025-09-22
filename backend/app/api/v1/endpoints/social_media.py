@@ -477,11 +477,27 @@ async def publish_direct(
     content_text: str = Form(...),
     platform: str = Form(default="facebook"),
     title: Optional[str] = Form(None),
+    hashtags: Optional[str] = Form(None),  # Add hashtags parameter
     media_files: List[UploadFile] = File(default=[]),
     current_user_id: str = Depends(get_user_id_from_header)
 ):
     """Publish content directly to social media with media support"""
     try:
+        # Process hashtags and combine with content
+        final_content = content_text
+        if hashtags:
+            try:
+                # Parse hashtags JSON string sent from frontend
+                import json
+                hashtags_list = json.loads(hashtags) if isinstance(hashtags, str) and hashtags.startswith('[') else []
+                if hashtags_list and isinstance(hashtags_list, list):
+                    # Format hashtags and add to content
+                    formatted_hashtags = ' '.join(f"#{tag}" if not tag.startswith('#') else tag for tag in hashtags_list)
+                    final_content = f"{content_text}\n\n{formatted_hashtags}"
+            except (json.JSONDecodeError, TypeError):
+                # Fallback: treat as plain text
+                if hashtags.strip():
+                    final_content = f"{content_text}\n\n{hashtags}"
         # Create account data using global settings as fallback
         account_data = {
             "platform": platform,
@@ -518,7 +534,7 @@ async def publish_direct(
                         'source': (media_file.filename, file_content, media_file.content_type)
                     }
                     data = {
-                        'description': content_text,
+                        'description': final_content,
                         'access_token': account_data['access_token']
                     }
                     
@@ -550,7 +566,7 @@ async def publish_direct(
                         'source': (media_file.filename, file_content, media_file.content_type)
                     }
                     data = {
-                        'caption': content_text,
+                        'caption': final_content,
                         'access_token': account_data['access_token']
                     }
                     
@@ -603,7 +619,7 @@ async def publish_direct(
                         # Create feed post with attached media
                         url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/feed"
                         data = {
-                            'message': content_text,
+                            'message': final_content,
                             'attached_media': json.dumps(media_fbids),
                             'access_token': account_data['access_token']
                         }
@@ -637,7 +653,7 @@ async def publish_direct(
             # Text-only post
             url = f"https://graph.facebook.com/{settings.META_APP_VERSION}/{account_data['account_id']}/feed"
             data = {
-                "message": content_text,
+                "message": final_content,
                 "access_token": account_data["access_token"]
             }
             

@@ -1,6 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
+import { useUser } from '@clerk/nextjs'
+import { draftService, CreateDraftData } from '@/lib/draft-service'
+import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,13 +23,18 @@ const platforms = [
 ]
 
 export function CreatePostForm() {
+  const { user } = useUser()
+  const { toast } = useToast()
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["facebook", "instagram"])
   const [postData, setPostData] = useState({
+    title: "",
     caption: "",
+    hashtags: [] as string[],
     scheduledDate: "",
     scheduledTime: "",
     postType: "now",
   })
+  const [hashtagsInput, setHashtagsInput] = useState("") // Raw input string
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([])
   const [isPublishing, setIsPublishing] = useState(false)
 
@@ -40,7 +48,15 @@ export function CreatePostForm() {
     try {
       // Use FormData for media file support
       const formData = new FormData()
+      
+      // Send caption and hashtags separately (don't combine them here)
       formData.append('content_text', postData.caption)
+      
+      // Send hashtags as separate field if backend supports it
+      if (postData.hashtags.length > 0) {
+        formData.append('hashtags', JSON.stringify(postData.hashtags))
+      }
+      
       formData.append('platform', 'facebook')
       
       // Add media files if any
@@ -79,7 +95,8 @@ export function CreatePostForm() {
         alert(message)
         
         // Reset form
-        setPostData({ caption: "", scheduledDate: "", scheduledTime: "", postType: "now" })
+        setPostData({ title: "", caption: "", hashtags: [], scheduledDate: "", scheduledTime: "", postType: "now" })
+        setHashtagsInput("")
         setUploadedMedia([])
       } else {
         // Handle different error types
@@ -110,8 +127,84 @@ export function CreatePostForm() {
     }
   }
 
-  const handleSaveDraft = () => {
-    alert('Draft saved! (This would save to your drafts)')
+  const handleSaveDraft = async () => {
+    if (!user?.id) {
+      toast({
+        title: 'Error',
+        description: 'Please sign in to save drafts',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    if (!postData.title.trim()) {
+      toast({
+        title: 'Error', 
+        description: 'Please enter a title for your draft',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    if (!postData.caption.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter content for your draft',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      // Convert uploaded media files to URLs for storage
+      const mediaUrls = uploadedMedia.map(file => {
+        return URL.createObjectURL(file)
+      })
+
+      // Ensure hashtags are processed from input
+      const processedHashtags = hashtagsInput
+        .split(',')
+        .map(tag => tag.trim().replace(/^#+/, ''))
+        .filter(tag => tag.length > 0)
+
+      const draftData: CreateDraftData = {
+        title: postData.title,
+        content: postData.caption,
+        platform: selectedPlatforms[0] || 'facebook', // Use first selected platform
+        content_type: 'post',
+        status: 'draft',
+        hashtags: processedHashtags,
+        media_urls: mediaUrls,
+        scheduling_options: {
+          postType: postData.postType,
+          scheduledDate: postData.scheduledDate,
+          scheduledTime: postData.scheduledTime
+        },
+        metadata: {
+          platforms: selectedPlatforms
+        }
+      }
+
+      await draftService.createDraft(draftData, user.id)
+      
+      toast({
+        title: 'Success',
+        description: 'Draft saved successfully!',
+      })
+
+      // Reset form after successful save
+      setPostData({ title: "", caption: "", hashtags: [], scheduledDate: "", scheduledTime: "", postType: "now" })
+      setHashtagsInput("")
+      setUploadedMedia([])
+      
+    } catch (error) {
+      console.error('Error saving draft:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to save draft',
+        variant: 'destructive'
+      })
+    }
   }
   // Use platforms directly since YouTube is handled separately
   const dynamicPlatforms = platforms
@@ -176,6 +269,19 @@ export function CreatePostForm() {
               </div>
             </div>
 
+            {/* Title */}
+            <div className="space-y-3">
+              <Label htmlFor="title" className="text-base font-medium">
+                Draft Title
+              </Label>
+              <Input
+                id="title"
+                placeholder="Enter a title for your post/draft"
+                value={postData.title}
+                onChange={(e) => setPostData(prev => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+
             {/* Caption */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -218,6 +324,23 @@ export function CreatePostForm() {
             <div className="space-y-3">
               <Label className="text-base font-medium">Media</Label>
               <MediaUpload onMediaUpload={setUploadedMedia} uploadedMedia={uploadedMedia} />
+            </div>
+
+            {/* Hashtags */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Hashtags (comma separated)</Label>
+              <Input
+                placeholder="#example, #content, #marketing"
+                value={hashtagsInput}
+                onChange={(e) => setHashtagsInput(e.target.value)}
+                onBlur={() => {
+                  const hashtags = hashtagsInput
+                    .split(',')
+                    .map(tag => tag.trim().replace(/^#+/, '')) // Remove # prefix if present
+                    .filter(tag => tag.length > 0)
+                  setPostData((prev) => ({ ...prev, hashtags }))
+                }}
+              />
             </div>
 
             {/* Scheduling */}
@@ -295,6 +418,7 @@ export function CreatePostForm() {
               </Button>
               <Button 
                 variant="outline"
+                className="flex-1"
                 onClick={handleSaveDraft}
               >
                 <Save className="mr-2 h-4 w-4" />
@@ -309,6 +433,7 @@ export function CreatePostForm() {
       <div>
         <PostPreview
           caption={postData.caption}
+          hashtags={postData.hashtags}
           media={uploadedMedia}
           platforms={selectedPlatforms}
           scheduledDate={postData.scheduledDate}

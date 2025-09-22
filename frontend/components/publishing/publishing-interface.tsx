@@ -9,6 +9,7 @@ import { ScheduledPosts } from "./scheduled-posts"
 import { PostTemplates } from "./post-templates"
 import { YouTubeUpload } from "./youtube-upload"
 import { SocialMediaTab } from "./social-media-tab"
+import { DraftTab } from "./draft-tab"
 import { Plus, Calendar, FileText, Clock, Share2, Youtube } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
 import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog"
@@ -113,8 +114,9 @@ export function PublishingInterface() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="create">Create Post</TabsTrigger>
+          <TabsTrigger value="drafts">Drafts</TabsTrigger>
           <TabsTrigger value="youtube">YouTube Upload</TabsTrigger>
           <TabsTrigger value="scheduled">Scheduled Posts</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
@@ -123,6 +125,10 @@ export function PublishingInterface() {
 
         <TabsContent value="create" className="space-y-6">
           <CreatePostForm />
+        </TabsContent>
+
+        <TabsContent value="drafts" className="space-y-6">
+          <DraftTab />
         </TabsContent>
 
         <TabsContent value="youtube" className="space-y-6">

@@ -3,7 +3,7 @@ Main API router - includes all endpoint routers
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import competitors, monitoring, users, auth, youtube, user_preferences, social_media, content_planning, self_optimization, ai_insights, roi, roi_updates, pdf_conversion
+from app.api.v1.endpoints import competitors, monitoring, users, auth, youtube, user_preferences, social_media, content_planning, self_optimization, ai_insights, roi, roi_updates, pdf_conversion, drafts
 
 api_router = APIRouter()
 
@@ -27,3 +27,4 @@ api_router.include_router(ai_insights.router, prefix="/ai-insights", tags=["ai-i
 api_router.include_router(roi.router, prefix="/roi", tags=["roi"])
 api_router.include_router(roi_updates.router, prefix="/roi-updates", tags=["roi-updates"])
 api_router.include_router(pdf_conversion.router, prefix="/pdf", tags=["pdf"])
+api_router.include_router(drafts.router, prefix="/drafts", tags=["drafts"])
