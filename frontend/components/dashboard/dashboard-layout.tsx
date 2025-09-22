@@ -22,6 +22,7 @@ import { useUser } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { LoadingScreen } from "@/components/ui/loading-screen"
+import { EnhancedSidebarAnimations } from "./enhanced-sidebar-animations"
 import {
   Brain,
   Calendar,
@@ -259,8 +260,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar with enhanced animations */}
       <div className="hidden lg:block">
+        {/* Enhanced Sidebar Animations */}
+        <EnhancedSidebarAnimations 
+          isExpanded={sidebarExpanded}
+          isPinned={sidebarPinned}
+          navigationItems={navigation}
+        />
+        
         {/* Hover zone for sidebar activation */}
         <div 
           className="fixed inset-y-0 left-0 w-4 z-30"
@@ -270,19 +278,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Collapsible sidebar */}
         <div 
           ref={sidebarRef}
+          data-sidebar-main
           className={`fixed inset-y-0 left-0 z-40 flex flex-col transition-all duration-300 ease-in-out ${
             sidebarExpanded || sidebarPinned ? 'w-72' : 'w-16'
           }`}
           onMouseEnter={handleSidebarMouseEnter}
           onMouseLeave={handleSidebarMouseLeave}
         >
-          <div className="flex flex-col flex-grow glass-nav border-r border-white/10 shadow-elevated">
+          <div className="flex flex-col flex-grow glass-nav border-r border-white/10 shadow-elevated relative overflow-hidden">
             {/* Header section */}
             <div className={`flex items-center h-20 px-4 border-b border-white/10 transition-all duration-300 ${
               sidebarExpanded || sidebarPinned ? 'justify-between' : 'justify-center'
             }`}>
               {(sidebarExpanded || sidebarPinned) ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3" data-sidebar-logo>
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-sm opacity-75 animate-pulse-glow"></div>
                     <div className="relative p-2.5 bg-gradient-primary rounded-xl shadow-lg hover-lift">
@@ -330,6 +339,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <Link
                     key={item.name}
                     href={item.href}
+                    data-nav-item
                     className={`group flex items-center text-sm font-medium rounded-xl transition-all duration-300 hover-lift animate-slide-in-right ${
                       sidebarExpanded || sidebarPinned ? 'px-4 py-3.5' : 'px-3 py-3 justify-center'
                     } ${
@@ -340,12 +350,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     style={{ animationDelay: `${index * 0.1}s` }}
                     title={!(sidebarExpanded || sidebarPinned) ? item.name : undefined}
                   >
-                    <Icon className={`transition-all duration-300 group-hover:scale-110 ${
-                      sidebarExpanded || sidebarPinned ? 'mr-3 h-5 w-5' : 'h-5 w-5'
-                    } ${isActive ? 'text-white' : ''}`} />
+                    <Icon 
+                      data-nav-icon
+                      className={`transition-all duration-300 group-hover:scale-110 ${
+                        sidebarExpanded || sidebarPinned ? 'mr-3 h-5 w-5' : 'h-5 w-5'
+                      } ${isActive ? 'text-white' : ''}`} 
+                    />
                     {(sidebarExpanded || sidebarPinned) && (
                       <>
-                        <span className="font-medium">{item.name}</span>
+                        <span className="font-medium" data-nav-text>{item.name}</span>
                         {isActive && (
                           <div className="ml-auto flex items-center gap-2">
                             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
@@ -360,7 +373,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             
             {/* Sidebar footer with user info */}
             {(sidebarExpanded || sidebarPinned) && (
-              <div className="p-4 border-t border-white/10">
+              <div className="p-4 border-t border-white/10" data-user-section>
                 <div className="glass-card p-4 rounded-xl">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
