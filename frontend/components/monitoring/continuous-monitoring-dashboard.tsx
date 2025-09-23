@@ -13,6 +13,9 @@ import { AnalysisResults } from "./analysis-results"
 import { MonitoringDataDetailsModal } from "./monitoring-data-details-modal"
 import { useApiClient, handleApiError, monitoringAPI } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
+import GradientText from "@/components/effects/GradientText"
+import ShinyText from "@/components/effects/ShinyText"
+import "../../styles/competitor-animations.css"
 
 interface MonitoringStats {
   total_competitors: number
@@ -61,6 +64,7 @@ export function ContinuousMonitoringDashboard() {
   const [selectedDataForQuickView, setSelectedDataForQuickView] = useState<MonitoringData | null>(null)
   const [isQuickViewModalOpen, setIsQuickViewModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isVisible, setIsVisible] = useState(false)
   const { apiClient, userId } = useApiClient()
   const { toast } = useToast()
 
@@ -172,6 +176,8 @@ export function ContinuousMonitoringDashboard() {
       console.log('🔄 Fetching monitoring data for user:', userId);
       fetchAllData();
     }
+    
+    setIsVisible(true);
     
     // Cleanup function to prevent memory leaks
     return () => {
@@ -333,14 +339,29 @@ export function ContinuousMonitoringDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="relative">
+      {/* Subtle background overlay for depth */}
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-blue-950/3 to-purple-950/3 pointer-events-none"></div>
+      
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/4 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/4 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-blue-500/2 to-purple-500/2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      </div>
+
+      <div className={`relative z-10 space-y-6 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
         <div>
-          <h1 className="text-3xl font-bold">Continuous Monitoring</h1>
-          <p className="text-muted-foreground">Daily competitor surveillance and alerts</p>
+          <h1 className="text-3xl font-bold">
+            <GradientText>Continuous Monitoring</GradientText>
+          </h1>
+          <div className="text-muted-foreground">
+            <ShinyText text="Daily competitor surveillance and alerts" />
+          </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-4 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Monitoring</span>
             <Switch 
@@ -398,53 +419,65 @@ export function ContinuousMonitoringDashboard() {
       </div>
 
       {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Eye className="h-5 w-5 text-blue-500" />
+              <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg overflow-hidden">
+                <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+                <Eye className="relative h-5 w-5 text-white" />
+              </div>
               <div>
-                <p className="text-sm font-medium">Competitors Monitored</p>
-                <p className="text-2xl font-bold">
+                <p className="text-sm font-medium text-slate-300">Competitors Monitored</p>
+                <p className="text-2xl font-bold text-white bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
                   {monitoringStats?.total_competitors ?? 0}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-orange-500" />
+              <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 shadow-lg overflow-hidden">
+                <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+                <Bell className="relative h-5 w-5 text-white" />
+              </div>
               <div>
-                <p className="text-sm font-medium">Unread Alerts</p>
-                <p className="text-2xl font-bold">
+                <p className="text-sm font-medium text-slate-300">Unread Alerts</p>
+                <p className="text-2xl font-bold text-orange-600 bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
                   {monitoringStats?.unread_alerts ?? 0}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-500" />
+              <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg overflow-hidden">
+                <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+                <TrendingUp className="relative h-5 w-5 text-white" />
+              </div>
               <div>
-                <p className="text-sm font-medium">Activity (24h)</p>
-                <p className="text-2xl font-bold">
+                <p className="text-sm font-medium text-slate-300">Activity (24h)</p>
+                <p className="text-2xl font-bold text-green-600 bg-gradient-to-r from-green-400 to-green-600 bg-clip-text text-transparent">
                   {monitoringStats?.recent_activity_24h ?? 0}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '400ms' }}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-purple-500" />
+              <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 shadow-lg overflow-hidden">
+                <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+                <Clock className="relative h-5 w-5 text-white" />
+              </div>
               <div>
-                <p className="text-sm font-medium">Last Scan</p>
-                <p className="text-2xl font-bold">
+                <p className="text-sm font-medium text-slate-300">Last Scan</p>
+                <p className="text-2xl font-bold text-purple-600 bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
                   {getLastScanTime()}
                 </p>
               </div>
@@ -457,7 +490,7 @@ export function ContinuousMonitoringDashboard() {
 
       {/* Data Summary */}
       {monitoringData.length > 0 && (
-        <Card>
+        <Card className={`glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up delay-800 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold">Recent Activity Summary</h3>
@@ -508,15 +541,14 @@ export function ContinuousMonitoringDashboard() {
       )}
 
       {/* Main Content */}
-      <Tabs defaultValue="analysis-results" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="analysis-results">Analysis Results</TabsTrigger>
-          <TabsTrigger value="alerts">Recent Alerts</TabsTrigger>
-          {/* <TabsTrigger value="scanning">Scanning Status</TabsTrigger> */}
+      <Tabs defaultValue="analysis-results" className={`space-y-4 transition-all duration-1000 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+        <TabsList className="glass-card p-1 bg-slate-800/40 border border-white/20 backdrop-blur-md">
+          <TabsTrigger value="analysis-results" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Analysis Results</TabsTrigger>
+          <TabsTrigger value="alerts" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Recent Alerts</TabsTrigger>
         </TabsList>
 
         {/* Search and Filter */}
-        <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-4 transition-all duration-700 delay-1200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -556,7 +588,7 @@ export function ContinuousMonitoringDashboard() {
         </div>
 
         <TabsContent value="analysis-results">
-          <div className="space-y-4">
+          <div className={`space-y-4 transition-all duration-700 delay-1400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 {monitoringData.length} results loaded
@@ -570,11 +602,15 @@ export function ContinuousMonitoringDashboard() {
         </TabsContent>
 
         <TabsContent value="alerts">
-          <MonitoringAlerts userId={userId} />
+          <div className={`transition-all duration-700 delay-1400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
+            <MonitoringAlerts userId={userId} />
+          </div>
         </TabsContent>
 
         <TabsContent value="scanning">
-          <ScanningStatus userId={userId} />
+          <div className={`transition-all duration-700 delay-1400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
+            <ScanningStatus userId={userId} />
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -586,6 +622,7 @@ export function ContinuousMonitoringDashboard() {
           data={selectedDataForQuickView}
         />
       )}
+    </div>
     </div>
   )
 }

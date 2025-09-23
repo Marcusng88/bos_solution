@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -9,23 +9,47 @@ import { ScheduledPosts } from "./scheduled-posts"
 import { PostTemplates } from "./post-templates"
 import { YouTubeUpload } from "./youtube-upload"
 import { SocialMediaTab } from "./social-media-tab"
+import { DraftTab } from "./draft-tab"
 import { Plus, Calendar, FileText, Clock, Share2, Youtube } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
 import { ComingSoonDialog } from "@/components/ui/coming-soon-dialog"
+import GradientText from "@/components/effects/GradientText"
+import ShinyText from "@/components/effects/ShinyText"
+import "../../styles/competitor-animations.css"
 
 export function PublishingInterface() {
   const [activeTab, setActiveTab] = useState("create")
+  const [isVisible, setIsVisible] = useState(false)
   const { user } = useUser()
 
+  useEffect(() => {
+    setIsVisible(true)
+  }, [])
+
   return (
-    <div className="space-y-6">
+    <div className="relative">
+      {/* Subtle background overlay for depth */}
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-blue-950/3 to-purple-950/3 pointer-events-none"></div>
+      
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/4 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/4 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-blue-500/2 to-purple-500/2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      </div>
+
+      <div className={`relative z-10 space-y-6 transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Publishing & Scheduling</h1>
-          <p className="text-muted-foreground">Create and schedule content across all your platforms</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            <GradientText>Publishing & Scheduling</GradientText>
+          </h1>
+          <div className="text-muted-foreground">
+            <ShinyText text="Create and schedule content across all your platforms" />
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className={`flex gap-2 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <ComingSoonDialog
             trigger={
               <Button variant="outline">
@@ -68,78 +92,100 @@ export function PublishingInterface() {
                    
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Posts Today</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-slate-300">Posts Today</CardTitle>
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg overflow-hidden">
+              <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+              <Calendar className="relative h-4 w-4 text-white" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
-            <p className="text-xs text-muted-foreground">+2 from yesterday</p>
+            <div className="text-2xl font-bold text-white bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">8</div>
+            <p className="text-xs text-slate-400 font-medium leading-relaxed">+2 from yesterday</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-slate-300">Scheduled</CardTitle>
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg overflow-hidden">
+              <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+              <Clock className="relative h-4 w-4 text-white" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24</div>
-            <p className="text-xs text-muted-foreground">Next 7 days</p>
+            <div className="text-2xl font-bold text-white bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">24</div>
+            <p className="text-xs text-slate-400 font-medium leading-relaxed">Next 7 days</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Drafts</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-slate-300">Drafts</CardTitle>
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 shadow-lg overflow-hidden">
+              <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+              <FileText className="relative h-4 w-4 text-white" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">6</div>
-            <p className="text-xs text-muted-foreground">Ready to publish</p>
+            <div className="text-2xl font-bold text-white bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">6</div>
+            <p className="text-xs text-slate-400 font-medium leading-relaxed">Ready to publish</p>
           </CardContent>
         </Card>
-                 <Card>
+        <Card className="glass-card transition-all duration-300 hover:scale-105 hover:shadow-xl border-white/20 animate-fade-in-up" style={{ animationDelay: '400ms' }}>
            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Platforms</CardTitle>
-             <Plus className="h-4 w-4 text-muted-foreground" />
+             <CardTitle className="text-sm font-medium text-slate-300">Platforms</CardTitle>
+             <div className="relative p-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 shadow-lg overflow-hidden">
+               <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+               <Plus className="relative h-4 w-4 text-white" />
+             </div>
            </CardHeader>
            <CardContent>
-             <div className="text-2xl font-bold">0</div>
-             <p className="text-xs text-muted-foreground">Connected accounts</p>
+             <div className="text-2xl font-bold text-white bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">0</div>
+             <p className="text-xs text-slate-400 font-medium leading-relaxed">Connected accounts</p>
            </CardContent>
          </Card>
       </div>
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="create">Create Post</TabsTrigger>
-          <TabsTrigger value="youtube">YouTube Upload</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled Posts</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="social-media">Social Media</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={`transition-all duration-1000 delay-800 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+        <TabsList className="glass-card grid w-full grid-cols-5 p-1 bg-slate-800/40 border border-white/20 backdrop-blur-md">
+          <TabsTrigger value="create" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Create Post</TabsTrigger>
+          <TabsTrigger value="drafts" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Drafts</TabsTrigger>
+          <TabsTrigger value="youtube" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">YouTube Upload</TabsTrigger>
+          <TabsTrigger value="scheduled" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Scheduled Posts</TabsTrigger>
+          <TabsTrigger value="templates" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Templates</TabsTrigger>
+          <TabsTrigger value="social-media" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Social Media</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="create" className="space-y-6">
+        <TabsContent value="create" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <CreatePostForm />
         </TabsContent>
 
-        <TabsContent value="youtube" className="space-y-6">
+        <TabsContent value="drafts" className="space-y-6">
+          <DraftTab />
+        </TabsContent>
+
+        <TabsContent value="drafts" className="space-y-6">
+          <DraftTab />
+        </TabsContent>
+
+        <TabsContent value="youtube" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <YouTubeUpload />
         </TabsContent>
 
-        <TabsContent value="scheduled" className="space-y-6">
+        <TabsContent value="scheduled" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <ScheduledPosts />
         </TabsContent>
 
-        <TabsContent value="templates" className="space-y-6">
+        <TabsContent value="templates" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <PostTemplates />
         </TabsContent>
-        <TabsContent value="social-media" className="space-y-6">
+        <TabsContent value="social-media" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <SocialMediaTab />
         </TabsContent>
       </Tabs>
+    </div>
     </div>
   )
 }

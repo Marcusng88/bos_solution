@@ -68,8 +68,8 @@ export function useUserSync() {
             redirectPath: 'dashboard',
           });
           
-          // Only redirect if not already on dashboard or a dashboard sub-route
-          if (!window.location.pathname.startsWith('/dashboard')) {
+          // Only redirect if not already on dashboard, dashboard sub-route, or welcome page
+          if (!window.location.pathname.startsWith('/dashboard') && !window.location.pathname.startsWith('/welcome')) {
             console.log('🔄 Redirecting to dashboard...');
             router.push('/dashboard');
           }
@@ -84,8 +84,8 @@ export function useUserSync() {
             redirectPath: 'onboarding',
           });
           
-          // Only redirect if not already on onboarding or an onboarding sub-route
-          if (!window.location.pathname.startsWith('/onboarding')) {
+          // Only redirect if not already on onboarding, onboarding sub-route, or welcome page
+          if (!window.location.pathname.startsWith('/onboarding') && !window.location.pathname.startsWith('/welcome')) {
             console.log('🔄 Redirecting to onboarding...');
             router.push('/onboarding');
           }
@@ -101,8 +101,8 @@ export function useUserSync() {
           redirectPath: statusData.redirect_to,
         });
         
-        // Only redirect if not already on onboarding or an onboarding sub-route
-        if (!window.location.pathname.startsWith('/onboarding')) {
+        // Only redirect if not already on onboarding, onboarding sub-route, or welcome page
+        if (!window.location.pathname.startsWith('/onboarding') && !window.location.pathname.startsWith('/welcome')) {
           console.log('🔄 Redirecting to onboarding...');
           router.push('/onboarding');
         }
@@ -150,8 +150,8 @@ export function useUserSync() {
         redirectPath: 'onboarding',
       });
       
-      // Only redirect to onboarding if not already there
-      if (!window.location.pathname.startsWith('/onboarding')) {
+      // Only redirect to onboarding if not already there or on welcome page
+      if (!window.location.pathname.startsWith('/onboarding') && !window.location.pathname.startsWith('/welcome')) {
         router.push('/onboarding');
       }
     } catch (error) {

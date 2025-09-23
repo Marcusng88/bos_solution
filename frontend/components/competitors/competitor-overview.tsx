@@ -1,5 +1,6 @@
 "use client"
 
+import '../../styles/competitor-animations.css'
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +9,8 @@ import { Progress } from "@/components/ui/progress"
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Target, FileText, Globe, BarChart3, Brain, AlertCircle } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
 import { AIInsightsDetailsDialog } from "./ai-insights-details-dialog"
+import GradientText from "@/components/effects/GradientText"
+import ShinyText from "@/components/effects/ShinyText"
 
 interface CompetitorOverviewProps {
   timeRange: string
@@ -33,6 +36,12 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
   const { user } = useUser()
   const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [loading, setLoading] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+
+  // Set visibility for animations
+  useEffect(() => {
+    setIsVisible(true)
+  }, [])
 
   // Fetch competitor names when component mounts
   useEffect(() => {
@@ -218,38 +227,70 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
   const competitorMetrics = calculateCompetitorMetrics()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Real Data Summary */}
-      <Card>
+      <Card className={`glass-card hover-glow transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         <CardHeader>
-          <CardTitle>Data Overview</CardTitle>
-          <CardDescription>Summary of monitored competitor activity</CardDescription>
+          <CardTitle className="text-white text-xl">
+            <GradientText
+              colors={["#60a5fa", "#a78bfa", "#34d399"]}
+              animationSpeed={4}
+              showBorder={false}
+              className="text-xl font-bold"
+            >
+              Intelligence Data Overview
+            </GradientText>
+          </CardTitle>
+          <CardDescription className="text-slate-300">
+            <ShinyText 
+              text="Real-time summary of monitored competitor activity" 
+              disabled={false} 
+              speed={3} 
+              className="text-slate-300"
+            />
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg">
-              <FileText className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-              <div className="text-2xl font-bold text-foreground">{monitoringData.length}</div>
-              <p className="text-sm text-muted-foreground">Total Posts Monitored</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="text-center p-6 border border-white/20 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm hover:scale-105 transition-all duration-300 group animate-bounce-in">
+              <div className="relative">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-blue-400 group-hover:scale-110 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <div className="text-3xl font-bold text-white mb-1 animate-counter-up">
+                {monitoringData.length}
+              </div>
+              <p className="text-sm text-blue-200">Total Posts Monitored</p>
             </div>
-            <div className="text-center p-4 border rounded-lg">
-              <Globe className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold text-foreground">
+            <div className="text-center p-6 border border-white/20 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/20 backdrop-blur-sm hover:scale-105 transition-all duration-300 group animate-bounce-in" style={{ animationDelay: '0.1s' }}>
+              <div className="relative">
+                <Globe className="h-12 w-12 mx-auto mb-4 text-green-400 group-hover:scale-110 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-green-400/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <div className="text-3xl font-bold text-white mb-1 animate-counter-up">
                 {new Set(monitoringData.map(post => post.platform)).size}
               </div>
-              <p className="text-sm text-muted-foreground">Platforms Monitored</p>
+              <p className="text-sm text-green-200">Platforms Monitored</p>
             </div>
-            <div className="text-center p-4 border rounded-lg">
-              <BarChart3 className="h-8 w-8 mx-auto mb-2 text-purple-500" />
-              <div className="text-2xl font-bold text-foreground">
+            <div className="text-center p-6 border border-white/20 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/20 backdrop-blur-sm hover:scale-105 transition-all duration-300 group animate-bounce-in" style={{ animationDelay: '0.2s' }}>
+              <div className="relative">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 text-purple-400 group-hover:scale-110 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-purple-400/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <div className="text-3xl font-bold text-white mb-1 animate-counter-up">
                 {new Set(monitoringData.map(post => post.competitor_id)).size}
               </div>
-              <p className="text-sm text-muted-foreground">Competitors Tracked</p>
+              <p className="text-sm text-purple-200">Competitors Tracked</p>
             </div>
-            <div className="text-center p-4 border rounded-lg">
-              <Brain className="h-8 w-8 mx-auto mb-2 text-orange-500" />
-              <div className="text-2xl font-bold text-foreground">{insights.length}</div>
-              <p className="text-sm text-muted-foreground">AI Insights Generated</p>
+            <div className="text-center p-6 border border-white/20 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-600/20 backdrop-blur-sm hover:scale-105 transition-all duration-300 group animate-bounce-in" style={{ animationDelay: '0.3s' }}>
+              <div className="relative">
+                <Brain className="h-12 w-12 mx-auto mb-4 text-orange-400 group-hover:scale-110 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-orange-400/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <div className="text-3xl font-bold text-white mb-1 animate-counter-up">
+                {insights.length}
+              </div>
+              <p className="text-sm text-orange-200">AI Insights Generated</p>
             </div>
           </div>
         </CardContent>
@@ -257,65 +298,124 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
 
       {/* AI Insights - Based on real data */}
       {insights.length > 0 ? (
-        <Card>
+        <Card className={`glass-card hover-glow transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-blue-600" />
-              AI Competitive Insights
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Brain className="h-6 w-6 text-blue-400 animate-pulse" />
+              <GradientText
+                colors={["#3b82f6", "#8b5cf6", "#06b6d4"]}
+                animationSpeed={5}
+                showBorder={false}
+                className="text-xl font-bold"
+              >
+                AI Competitive Intelligence
+              </GradientText>
             </CardTitle>
-            <CardDescription>Key findings from actual competitor analysis</CardDescription>
+            <CardDescription className="text-slate-300">
+              Key findings from actual competitor analysis powered by advanced AI
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {insights.map((insight, index) => (
-                <div key={index} className="flex items-start gap-4 p-4 border rounded-lg">
-                  <div className="mt-1">
-                    {insight.type === "opportunity" && <CheckCircle className="h-5 w-5 text-green-500" />}
-                    {insight.type === "threat" && <AlertTriangle className="h-5 w-5 text-orange-500" />}
-                    {insight.type === "trend" && <TrendingUp className="h-5 w-5 text-blue-500" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium text-foreground">{insight.title}</h3>
-                      <Badge variant={insight.impact === "High" ? "destructive" : "secondary"}>
-                        {insight.impact} Impact
-                      </Badge>
+                <div 
+                  key={index} 
+                  className={`group relative overflow-hidden p-6 border border-white/20 rounded-xl bg-gradient-to-r from-slate-800/50 to-slate-700/50 backdrop-blur-sm hover:from-blue-900/30 hover:to-purple-900/30 transition-all duration-500 hover:scale-105 animate-fade-in-up`}
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  {/* Animated background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
+                  
+                  <div className="relative z-10 flex items-start gap-4">
+                    <div className="mt-1 p-2 rounded-lg bg-white/10 backdrop-blur-sm">
+                      {insight.type === "opportunity" && <CheckCircle className="h-6 w-6 text-green-400" />}
+                      {insight.type === "threat" && <AlertTriangle className="h-6 w-6 text-orange-400" />}
+                      {insight.type === "trend" && <TrendingUp className="h-6 w-6 text-blue-400" />}
                     </div>
-                    <p className="text-sm text-muted-foreground mb-2">{insight.description}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Confidence:</span>
-                      <Progress value={insight.confidence} className="w-20 h-2" />
-                      <span className="text-xs font-medium text-foreground">{insight.confidence}%</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="font-bold text-lg text-white group-hover:text-blue-200 transition-colors duration-300">
+                          {insight.title}
+                        </h3>
+                        <Badge 
+                          variant={insight.impact === "High" ? "destructive" : "secondary"}
+                          className={
+                            insight.impact === "High" 
+                              ? "bg-red-500/20 text-red-300 border-red-400/30" 
+                              : insight.impact === "Medium"
+                                ? "bg-yellow-500/20 text-yellow-300 border-yellow-400/30"
+                                : "bg-green-500/20 text-green-300 border-green-400/30"
+                          }
+                        >
+                          {insight.impact} Impact
+                        </Badge>
+                      </div>
+                      <p className="text-slate-300 mb-4 group-hover:text-white transition-colors duration-300">
+                        {insight.description}
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-slate-400">Confidence:</span>
+                        <div className="flex-1 max-w-32 relative">
+                          <Progress 
+                            value={insight.confidence} 
+                            className="h-3 bg-white/10 border border-white/20" 
+                          />
+                          <div 
+                            className="absolute top-0 left-0 h-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-1000 ease-out"
+                            style={{ width: `${insight.confidence}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-bold text-white">{insight.confidence}%</span>
+                      </div>
                     </div>
+                    <AIInsightsDetailsDialog 
+                      insight={insight}
+                      trigger={
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30 hover:scale-105 transition-all duration-300 backdrop-blur-sm"
+                        >
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          View Details
+                        </Button>
+                      }
+                    />
                   </div>
-                  <AIInsightsDetailsDialog 
-                    insight={insight}
-                    trigger={
-                      <Button variant="outline" size="sm">
-                        <AlertCircle className="h-4 w-4 mr-1" />
-                        View Details
-                      </Button>
-                    }
-                  />
+                  
+                  {/* Animated border on hover */}
+                  <div className="absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-blue-400/30 transition-all duration-500"></div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className={`glass-card transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-blue-600" />
-              AI Competitive Insights
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Brain className="h-6 w-6 text-blue-400 animate-pulse" />
+              <GradientText
+                colors={["#3b82f6", "#8b5cf6", "#06b6d4"]}
+                animationSpeed={5}
+                showBorder={false}
+                className="text-xl font-bold"
+              >
+                AI Competitive Intelligence
+              </GradientText>
             </CardTitle>
-            <CardDescription>Key findings from competitor analysis</CardDescription>
+            <CardDescription className="text-slate-300">
+              Key findings from competitor analysis
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No insights available yet</p>
-              <p className="text-sm">Start monitoring competitors to generate AI-powered insights</p>
+            <div className="text-center py-12 text-slate-300">
+              <div className="relative mb-6">
+                <BarChart3 className="h-20 w-20 mx-auto opacity-50" />
+                <div className="absolute inset-0 h-20 w-20 mx-auto bg-blue-500/20 rounded-full animate-ping"></div>
+              </div>
+              <p className="text-xl font-medium mb-2">No insights available yet</p>
+              <p className="text-sm text-slate-400">Start monitoring competitors to generate AI-powered insights</p>
             </div>
           </CardContent>
         </Card>
@@ -323,69 +423,123 @@ export function CompetitorOverview({ timeRange, monitoringData = [] }: Competito
 
       {/* Competitor Performance Matrix - Based on real data */}
       {competitorMetrics.length > 0 ? (
-        <Card>
+        <Card className={`glass-card hover-glow transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <CardHeader>
-            <CardTitle>Competitor Performance Matrix</CardTitle>
-            <CardDescription>Comparative analysis based on monitored data</CardDescription>
+            <CardTitle className="text-white text-xl">
+              <GradientText
+                colors={["#f59e0b", "#ef4444", "#8b5cf6"]}
+                animationSpeed={4}
+                showBorder={false}
+                className="text-xl font-bold"
+              >
+                Competitor Performance Matrix
+              </GradientText>
+            </CardTitle>
+            <CardDescription className="text-slate-300">
+              Comparative analysis based on monitored data
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {competitorMetrics.map((competitor, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                      <span className="font-semibold text-xs text-foreground">{competitor.name.charAt(0).toUpperCase()}</span>
+                <div 
+                  key={index} 
+                  className={`group relative overflow-hidden grid grid-cols-1 md:grid-cols-6 gap-6 p-6 border border-white/20 rounded-xl bg-gradient-to-r from-slate-800/50 to-slate-700/50 backdrop-blur-sm hover:from-indigo-900/30 hover:to-purple-900/30 transition-all duration-500 hover:scale-105 animate-fade-in-up`}
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  {/* Animated background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
+                  
+                  <div className="relative z-10 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500/30 to-purple-500/30 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20 group-hover:scale-110 transition-all duration-300">
+                      <span className="font-bold text-white text-sm">
+                        {competitor.name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
                     <div>
-                      <h3 className="font-medium text-foreground">{competitor.name}</h3>
-                      <div className="flex items-center gap-1">
+                      <h3 className="font-bold text-white text-lg group-hover:text-blue-200 transition-colors duration-300">
+                        {competitor.name}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
                         {competitor.trend === "up" ? (
-                          <TrendingUp className="h-3 w-3 text-green-500" />
+                          <TrendingUp className="h-4 w-4 text-green-400" />
                         ) : (
-                          <TrendingDown className="h-3 w-3 text-red-500" />
+                          <TrendingDown className="h-4 w-4 text-red-400" />
                         )}
-                        <span className="text-xs text-muted-foreground">
-                          {competitor.trend === "up" ? "Active" : "Stable"}
+                        <span className="text-sm text-slate-300">
+                          {competitor.trend === "up" ? "Active Growth" : "Stable Activity"}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Posts</div>
-                    <div className="text-lg font-bold text-foreground">{competitor.posts}</div>
+                  
+                  <div className="relative z-10 text-center">
+                    <div className="text-sm font-medium text-slate-300 mb-1">Posts</div>
+                    <div className="text-2xl font-bold text-white animate-counter-up">
+                      {competitor.posts}
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Platforms</div>
-                    <div className="text-lg font-bold text-foreground">{competitor.platforms}</div>
+                  
+                  <div className="relative z-10 text-center">
+                    <div className="text-sm font-medium text-slate-300 mb-1">Platforms</div>
+                    <div className="text-2xl font-bold text-blue-400 animate-counter-up">
+                      {competitor.platforms}
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Content Types</div>
-                    <div className="text-lg font-bold text-foreground">{competitor.contentTypes}</div>
+                  
+                  <div className="relative z-10 text-center">
+                    <div className="text-sm font-medium text-slate-300 mb-1">Content Types</div>
+                    <div className="text-2xl font-bold text-purple-400 animate-counter-up">
+                      {competitor.contentTypes}
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Avg. Sentiment</div>
-                    <div className="text-lg font-bold text-foreground">{competitor.avgSentiment}</div>
+                  
+                  <div className="relative z-10 text-center">
+                    <div className="text-sm font-medium text-slate-300 mb-1">Avg. Sentiment</div>
+                    <div className="text-2xl font-bold text-green-400 animate-counter-up">
+                      {competitor.avgSentiment}
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">New Posts</div>
-                    <div className="text-lg font-bold text-foreground">{competitor.newPosts}</div>
+                  
+                  <div className="relative z-10 text-center">
+                    <div className="text-sm font-medium text-slate-300 mb-1">New Posts</div>
+                    <div className="text-2xl font-bold text-orange-400 animate-counter-up">
+                      {competitor.newPosts}
+                    </div>
                   </div>
+                  
+                  {/* Animated border on hover */}
+                  <div className="absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-indigo-400/30 transition-all duration-500"></div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className={`glass-card transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <CardHeader>
-            <CardTitle>Competitor Performance Matrix</CardTitle>
-            <CardDescription>Comparative analysis across key metrics</CardDescription>
+            <CardTitle className="text-white text-xl">
+              <GradientText
+                colors={["#f59e0b", "#ef4444", "#8b5cf6"]}
+                animationSpeed={4}
+                showBorder={false}
+                className="text-xl font-bold"
+              >
+                Competitor Performance Matrix
+              </GradientText>
+            </CardTitle>
+            <CardDescription className="text-slate-300">
+              Comparative analysis across key metrics
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No performance data available</p>
-              <p className="text-sm">Start monitoring competitors to see performance comparisons</p>
+            <div className="text-center py-12 text-slate-300">
+              <div className="relative mb-6">
+                <BarChart3 className="h-20 w-20 mx-auto opacity-50" />
+                <div className="absolute inset-0 h-20 w-20 mx-auto bg-purple-500/20 rounded-full animate-ping"></div>
+              </div>
+              <p className="text-xl font-medium mb-2">No performance data available</p>
+              <p className="text-sm text-slate-400">Start monitoring competitors to see performance comparisons</p>
             </div>
           </CardContent>
         </Card>

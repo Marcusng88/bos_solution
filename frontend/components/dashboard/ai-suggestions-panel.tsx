@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useContentPlanning } from "@/hooks/use-content-planning"
 import { useUser } from "@clerk/nextjs"
+import contentPlanningAPI, { approveContentToDraft } from "@/lib/content-planning-api"
 import { Sparkles, ThumbsUp, Edit3, X, RefreshCw, Target, Upload, Image as ImageIcon, Video, Trash2, Plus } from "lucide-react"
 
 interface AISuggestionsPanelProps {
@@ -26,6 +27,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [loadingCreate, setLoadingCreate] = useState(false)
   const [loadingSave, setLoadingSave] = useState<string | null>(null) // Track which suggestion is being saved
+  const [loadingApprove, setLoadingApprove] = useState<string | null>(null) // Track which suggestion is being approved
   const [showPromotionDialog, setShowPromotionDialog] = useState(false)
   const [promotionDescription, setPromotionDescription] = useState("")
   const { toast } = useToast()
@@ -288,11 +290,47 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     }
   }
 
-  const handleApprove = (suggestion: any) => {
-    toast({
-      title: "Content approved",
-      description: `${suggestion.title} has been scheduled for ${suggestion.platform}.`,
-    })
+  const handleApprove = async (suggestion: any) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User not authenticated. Please log in again.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setLoadingApprove(suggestion.id)
+      
+      // Generate a more descriptive title based on the content and platform
+      const contentPreview = suggestion.content.substring(0, 50).replace(/[^\w\s]/gi, '').trim()
+      const title = `${suggestion.platform} - ${contentPreview}${contentPreview.length >= 50 ? '...' : ''}`
+      
+      const response = await approveContentToDraft(
+        suggestion.id,
+        title,
+        user.id
+      )
+
+      if (response.success) {
+        toast({
+          title: "Content approved! 🎉",
+          description: `${suggestion.title} has been saved to your drafts and can now be edited or published.`,
+        })
+      } else {
+        throw new Error(response.error || "Failed to approve content")
+      }
+    } catch (error) {
+      console.error('Failed to approve content:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save content to drafts. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingApprove(null)
+    }
   }
 
   const handleMediaUpload = (suggestionId: string, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -649,9 +687,16 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-1">
-                      <Button size="sm" onClick={() => handleApprove(suggestion)} className="flex-1 text-xs px-2 py-1 h-7">
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleApprove(suggestion)} 
+                        className="flex-1 text-xs px-2 py-1 h-7"
+                        disabled={loadingApprove === suggestion.id}
+                      >
                         <ThumbsUp className="h-3 w-3 mr-1" />
-                        <span className="truncate">Approve</span>
+                        <span className="truncate">
+                          {loadingApprove === suggestion.id ? 'Saving...' : 'Approve'}
+                        </span>
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => handleEdit(suggestion)} className="flex-shrink-0 text-xs px-2 py-1 h-7">
                         <Edit3 className="h-3 w-3 mr-1" />

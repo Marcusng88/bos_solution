@@ -578,3 +578,118 @@ async def get_supported_options() -> SupportedOptionsResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get supported options: {str(e)}"
         )
+
+
+@router.post("/approve-to-draft")
+async def approve_content_to_draft(
+    suggestion_id: str = Query(..., description="The ID of the content suggestion to approve"),
+    title: str = Query("", description="Title for the draft (optional - will generate random title if not provided)"),
+    user_id: str = Query(..., description="Clerk user ID")
+):
+    """
+    Approve a content suggestion and save it as a draft
+    """
+    try:
+        logger.info(f"📋 Approving content suggestion {suggestion_id} to draft for user {user_id}")
+        
+        # Fetch the actual content suggestion from database
+        supabase = supabase_client
+        
+        # Get the content suggestion details from ai_content_suggestions table
+        response = await supabase._make_request(
+            "GET",
+            "ai_content_suggestions",
+            params={
+                "id": f"eq.{suggestion_id}",
+                "user_id": f"eq.{user_id}",
+                "limit": "1"
+            }
+        )
+        
+        if response.status_code != 200 or not response.json():
+            logger.error(f"❌ Content suggestion {suggestion_id} not found for user {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Content suggestion not found"
+            )
+        
+        suggestion_data = response.json()[0]
+        
+        # Import the draft service and schema
+        from app.schemas.draft import DraftCreate
+        from datetime import datetime
+        import random
+        import uuid
+        
+        # Extract suggestion data from database record FIRST
+        platform = suggestion_data.get("platform", "facebook")
+        content = suggestion_data.get("suggested_content", "AI generated content")
+        hashtags = suggestion_data.get("suggested_hashtags", [])
+        content_type = suggestion_data.get("content_type", "post")
+        tone = suggestion_data.get("tone", "professional")
+        
+        # Generate a random title if not provided or if user wants random titles
+        content_types = ["Promotional", "Educational", "Entertaining", "Informative", "Engaging"]
+        platforms_formatted = {
+            "facebook": "Facebook",
+            "instagram": "Instagram", 
+            "twitter": "Twitter",
+            "linkedin": "LinkedIn"
+        }
+        
+        # Create a more descriptive random title
+        random_title = f"AI {random.choice(content_types)} - {platforms_formatted.get(platform, platform.title())} Content"
+        final_title = title if title and title.strip() else random_title
+        
+        # Create draft data structure
+        draft_request = DraftCreate(
+            title=final_title,
+            content=content,
+            platform=platform,
+            content_type=content_type,
+            status="draft",
+            hashtags=hashtags,
+            media_urls=[],
+            scheduling_options={"postType": "now"},
+            metadata={
+                "source": "content_planning",
+                "suggestion_id": suggestion_id,
+                "tone": tone,
+                "approved_at": str(datetime.utcnow())
+            }
+        )
+        
+        # Use existing draft creation logic
+        draft_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "title": draft_request.title,
+            "content": draft_request.content,
+            "platform": draft_request.platform,
+            "content_type": draft_request.content_type,
+            "status": draft_request.status,
+            "hashtags": draft_request.hashtags,
+            "media_urls": draft_request.media_urls,
+            "scheduling_options": draft_request.scheduling_options,
+            "metadata": draft_request.metadata,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        result = await supabase_client.create_draft(draft_data)
+        
+        logger.info(f"✅ Successfully created draft from content suggestion {suggestion_id}")
+        
+        return {
+            "success": True,
+            "message": "Content approved and saved to drafts",
+            "draft_id": result.get("id"),
+            "draft": result
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error approving content to draft: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve content to draft: {str(e)}"
+        )

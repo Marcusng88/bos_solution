@@ -456,6 +456,212 @@ class SupabaseClient:
             logger.error(f"Error executing raw SQL: {e}")
             return []
 
+    # Content Upload methods
+    async def get_user_content_uploads(self, user_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all content uploads for a user"""
+        try:
+            endpoint = f"content_uploads?user_id=eq.{user_id}"
+            if status:
+                endpoint += f"&status=eq.{status}"
+            
+            response = await self._make_request("GET", endpoint)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            raise Exception(f"Failed to get user content uploads: {str(e)}")
+
+    async def create_content_upload(self, upload_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new content upload"""
+        try:
+            response = await self._make_request("POST", "content_uploads", upload_data)
+            if response.status_code in [200, 201, 204]:
+                return {"success": True, "data": response.json()}
+            else:
+                raise Exception(f"Failed to create content upload: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to create content upload: {str(e)}")
+
+    async def update_content_upload(self, upload_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a content upload"""
+        try:
+            response = await self._make_request("PATCH", f"content_uploads", update_data, {"id": f"eq.{upload_id}"})
+            if response.status_code in [200, 204]:
+                return {"success": True}
+            else:
+                raise Exception(f"Failed to update content upload: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to update content upload: {str(e)}")
+
+    async def delete_content_upload(self, upload_id: str) -> Dict[str, Any]:
+        """Delete a content upload"""
+        try:
+            response = await self._make_request("DELETE", f"content_uploads", params={"id": f"eq.{upload_id}"})
+            if response.status_code in [200, 204]:
+                return {"success": True}
+            else:
+                raise Exception(f"Failed to delete content upload: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to delete content upload: {str(e)}")
+
+    # Social Media Account methods
+    async def get_user_social_accounts(self, user_id: str, platform: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all social media accounts for a user"""
+        try:
+            endpoint = f"social_media_accounts?user_id=eq.{user_id}"
+            if platform:
+                endpoint += f"&platform=eq.{platform}"
+            
+            response = await self._make_request("GET", endpoint)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            raise Exception(f"Failed to get user social accounts: {str(e)}")
+
+    async def create_social_media_account(self, account_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new social media account"""
+        try:
+            response = await self._make_request("POST", "social_media_accounts", account_data)
+            if response.status_code in [200, 201, 204]:
+                return {"success": True, "data": response.json()}
+            else:
+                raise Exception(f"Failed to create social media account: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to create social media account: {str(e)}")
+
+    async def update_social_media_account(self, account_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a social media account"""
+        try:
+            response = await self._make_request("PATCH", f"social_media_accounts", update_data, {"id": f"eq.{account_id}"})
+            if response.status_code in [200, 204]:
+                return {"success": True}
+            else:
+                raise Exception(f"Failed to update social media account: {response.status_code}")
+        except Exception as e:
+            raise Exception(f"Failed to update social media account: {str(e)}")
+
+    # Draft Operations
+    async def create_draft(self, draft_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create a new draft"""
+        try:
+            response = await self._make_request("POST", "content_drafts", data=draft_data)
+            if response.status_code == 201 and response.json():
+                return response.json()[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error creating draft: {e}")
+            return None
+
+    async def get_user_drafts(self, user_id: str, status: Optional[str] = None, page: int = 1, per_page: int = 20) -> Dict[str, Any]:
+        """Get all drafts for a user with pagination"""
+        try:
+            params = {
+                "user_id": f"eq.{user_id}",
+                "order": "updated_at.desc"
+            }
+            
+            if status:
+                params["status"] = f"eq.{status}"
+            
+            # Calculate offset for pagination
+            offset = (page - 1) * per_page
+            params["offset"] = str(offset)
+            params["limit"] = str(per_page)
+            
+            # Get drafts
+            response = await self._make_request("GET", "content_drafts", params=params)
+            
+            if response.status_code != 200:
+                return {"drafts": [], "total": 0}
+            
+            drafts = response.json()
+            
+            # Get total count for pagination
+            count_params = {"user_id": f"eq.{user_id}", "select": "count"}
+            if status:
+                count_params["status"] = f"eq.{status}"
+            
+            count_response = await self._make_request("GET", "content_drafts", params=count_params)
+            total = 0
+            if count_response.status_code == 200:
+                count_data = count_response.json()
+                if count_data and isinstance(count_data, list) and len(count_data) > 0:
+                    total = count_data[0].get("count", len(drafts))
+                else:
+                    total = len(drafts)
+            
+            return {"drafts": drafts, "total": total}
+        except Exception as e:
+            logger.error(f"Error getting user drafts: {e}")
+            return {"drafts": [], "total": 0}
+
+    async def get_draft_by_id(self, draft_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific draft by ID"""
+        try:
+            response = await self._make_request(
+                "GET", 
+                "content_drafts", 
+                params={
+                    "id": f"eq.{draft_id}",
+                    "user_id": f"eq.{user_id}"
+                }
+            )
+            if response.status_code == 200 and response.json():
+                return response.json()[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting draft by ID: {e}")
+            return None
+
+    async def update_draft(self, draft_id: str, user_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a draft"""
+        try:
+            # Add updated_at timestamp
+            update_data["updated_at"] = datetime.utcnow().isoformat()
+            
+            response = await self._make_request(
+                "PATCH", 
+                f"content_drafts?id=eq.{draft_id}&user_id=eq.{user_id}", 
+                data=update_data
+            )
+            if response.status_code == 200 and response.json():
+                return response.json()[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error updating draft: {e}")
+            return None
+
+    async def delete_draft(self, draft_id: str, user_id: str) -> bool:
+        """Delete a draft"""
+        try:
+            response = await self._make_request(
+                "DELETE", 
+                f"content_drafts?id=eq.{draft_id}&user_id=eq.{user_id}"
+            )
+            return response.status_code in [200, 204]
+        except Exception as e:
+            logger.error(f"Error deleting draft: {e}")
+            return False
+
+    async def get_draft_by_source_id(self, source_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get draft by source ID (e.g., from content planning)"""
+        try:
+            response = await self._make_request(
+                "GET", 
+                "content_drafts", 
+                params={
+                    "source_id": f"eq.{source_id}",
+                    "user_id": f"eq.{user_id}"
+                }
+            )
+            if response.status_code == 200 and response.json():
+                return response.json()[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting draft by source ID: {e}")
+            return None
+
 # Global instance
 supabase_client = SupabaseClient()
 

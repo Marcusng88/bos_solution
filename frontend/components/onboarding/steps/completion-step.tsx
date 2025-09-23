@@ -42,19 +42,19 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
       }
       
       toast({
-        title: "Welcome to Dashboard!",
-        description: "Your onboarding is complete. Enjoy using BOSSolution!",
+        title: "Welcome to BOSSolution!",
+        description: "Your onboarding is complete. Get ready for an amazing experience!",
       })
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      // Redirect to welcome page first
+      router.push("/welcome")
     } catch (error) {
       console.error('Failed to update onboarding status:', error)
       // Still mark as complete in local storage and redirect
       if (typeof window !== "undefined") {
         localStorage.setItem("onboardingComplete", "true")
       }
-      router.push("/dashboard")
+      router.push("/welcome")
     } finally {
       setIsRedirecting(false)
     }
@@ -128,7 +128,7 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
               </>
             ) : (
               <>
-                Go to Dashboard
+                Enter Your Journey
                 <ArrowRight className="ml-2 h-4 w-4" />
               </>
             )}

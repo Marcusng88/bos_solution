@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     TWITTER_BEARER_TOKEN: str = os.getenv("TWITTER_BEARER_TOKEN", "your_twitter_bearer_token_here")
     FACEBOOK_ACCESS_TOKEN: str = os.getenv("FACEBOOK_ACCESS_TOKEN", "your_facebook_access_token_here")
     LINKEDIN_ACCESS_TOKEN: str = os.getenv("LINKEDIN_ACCESS_TOKEN", "your_linkedin_access_token_here")
+    # Meta (Facebook/Instagram) App and Page configuration
+    META_APP_ID: Optional[str] = os.getenv("META_APP_ID", os.getenv("FACEBOOK_APP_ID", ""))
+    META_APP_VERSION: str = os.getenv("META_APP_VERSION", os.getenv("FACEBOOK_API_VERSION", "v23.0"))
+    META_PAGE_ACCESS_TOKEN: Optional[str] = os.getenv("META_PAGE_ACCESS_TOKEN", os.getenv("META_PAGE_ACCESS_TOKEN", os.getenv("FACEBOOK_ACCESS_TOKEN", "")))
+    META_PAGE_ID: Optional[str] = os.getenv("META_PAGE_ID", os.getenv("FACEBOOK_PAGE_ID", ""))
+    META_APP_SECRET: Optional[str] = os.getenv("META_APP_SECRET", os.getenv("FACEBOOK_APP_SECRET", ""))
     
     # API Keys for LLMs and services
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")

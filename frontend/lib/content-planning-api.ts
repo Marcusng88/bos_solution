@@ -264,6 +264,16 @@ export const contentPlanningAPI = {
       body: JSON.stringify(request),
     })
   },
+
+  // Approve content suggestion and save to drafts
+  async approveContentToDraft(suggestionId: string, title: string, userId: string): Promise<{ success: boolean; message: string; draft_id?: string; error?: string }> {
+    return apiCall<{ success: boolean; message: string; draft_id?: string; error?: string }>(`/content-planning/approve-to-draft?suggestion_id=${encodeURIComponent(suggestionId)}&title=${encodeURIComponent(title)}&user_id=${encodeURIComponent(userId)}`, {
+      method: 'POST',
+      headers: {
+        'X-User-ID': userId,
+      },
+    })
+  },
 }
 
 // Mock data for development/testing when backend is not available
@@ -589,9 +599,26 @@ export const mockContentPlanningAPI = {
       ],
     }
   },
+
+  // Mock approve content to draft
+  async approveContentToDraft(suggestionId: string, title: string, userId: string): Promise<{ success: boolean; message: string; draft_id?: string; error?: string }> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800))
+    
+    return {
+      success: true,
+      message: 'Content approved and saved to drafts successfully',
+      draft_id: `draft_${Date.now()}`
+    }
+  },
 }
 
 // Export the appropriate API based on environment
-export default process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_API_URL
+const api = process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_API_URL
   ? mockContentPlanningAPI
   : contentPlanningAPI
+
+export default api
+
+// Export individual functions for easier imports
+export const approveContentToDraft = api.approveContentToDraft.bind(api)
