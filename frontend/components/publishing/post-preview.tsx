@@ -9,6 +9,7 @@ import { useUser } from "@clerk/nextjs"
 
 interface PostPreviewProps {
   caption: string
+  hashtags?: string[]
   media: File[]
   platforms: string[]
   scheduledDate: string
@@ -21,7 +22,7 @@ const platformData = {
   instagram: { name: "Instagram", icon: Instagram, color: "bg-pink-600" },
 }
 
-export function PostPreview({ caption, media, platforms, scheduledDate, scheduledTime, postType }: PostPreviewProps) {
+export function PostPreview({ caption, hashtags = [], media, platforms, scheduledDate, scheduledTime, postType }: PostPreviewProps) {
   const { user } = useUser()
   const [fbProfile, setFbProfile] = useState<{ username?: string; name?: string; avatar?: string } | null>(null)
   const [igProfile, setIgProfile] = useState<{ username?: string; name?: string; avatar?: string } | null>(null)
@@ -124,6 +125,11 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
                   <p className="text-sm">
                     <span className="font-semibold">your_business</span> {caption || "Your caption will appear here..."}
                   </p>
+                  {hashtags && hashtags.length > 0 && (
+                    <p className="text-sm text-blue-500">
+                      {hashtags.map(tag => `#${tag}`).join(' ')}
+                    </p>
+                  )}
                 </div>
               </div>
             </Card>
@@ -144,6 +150,12 @@ export function PostPreview({ caption, media, platforms, scheduledDate, schedule
                 </div>
 
                 <p className="text-sm">{caption || "Your caption will appear here..."}</p>
+
+                {hashtags && hashtags.length > 0 && (
+                  <p className="text-sm text-blue-500">
+                    {hashtags.map(tag => `#${tag}`).join(' ')}
+                  </p>
+                )}
 
                 {media.length > 0 && media[0].type.startsWith("image/") && (
                   <div className="aspect-video bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
