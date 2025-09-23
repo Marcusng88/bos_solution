@@ -122,7 +122,45 @@ export function OnboardingWizard() {
     setData((prev) => ({ ...prev, ...updates }))
   }
 
-  const nextStep = () => {
+  const saveUserPreferences = async () => {
+    // Only save if we have a user and are on the goals step (step 3)
+    if (currentStep === 3 && data.industry && data.companySize && data.goals.length > 0 && data.budget) {
+      try {
+        // Get user from Clerk
+        const { useUser } = await import('@clerk/nextjs');
+        const { user } = useUser();
+        
+        if (user?.id) {
+          console.log('💾 Saving user preferences during onboarding...');
+          
+          const response = await fetch('/api/v1/user-preferences', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-ID': user.id,
+            },
+            body: JSON.stringify({
+              industry: data.industry,
+              company_size: data.companySize,
+              marketing_goals: data.goals,
+              monthly_budget: data.budget
+            }),
+          });
+
+          if (response.ok) {
+            console.log('✅ User preferences saved successfully');
+          } else {
+            console.warn('⚠️ Failed to save user preferences:', response.status);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Error saving user preferences:', error);
+        // Don't block the flow if saving fails
+      }
+    }
+  };
+
+  const nextStep = async () => {
     if (currentStep < steps.length) {
       // Validate current step before allowing next
       let canProceed = true
@@ -136,6 +174,10 @@ export function OnboardingWizard() {
           break
         case 3: // Goals step
           canProceed = Boolean(data.goals.length > 0 && data.budget)
+          // Save preferences when moving from goals step
+          if (canProceed) {
+            await saveUserPreferences();
+          }
           break
         case 4: // Competitors step
           canProceed = Boolean(data.competitors.length > 0)

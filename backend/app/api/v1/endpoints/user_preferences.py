@@ -3,8 +3,41 @@ from typing import List
 from app.core.supabase_client import supabase_client
 from app.schemas.user_preferences import UserPreferencesCreate, UserPreferencesUpdate, UserPreferences as UserPreferencesSchema
 from app.core.auth_utils import get_user_id_from_header
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+async def check_and_update_onboarding_completion(user_id: str):
+    """Check if user has completed onboarding and update the database flag"""
+    try:
+        # Get user preferences and competitors
+        preferences = await supabase_client.get_user_preferences(user_id)
+        competitors = await supabase_client.get_competitors_by_user(user_id)
+        
+        # Check if onboarding is complete
+        has_valid_preferences = bool(
+            preferences and 
+            preferences.get("industry") and 
+            preferences.get("marketing_goals") and
+            len(preferences.get("marketing_goals", [])) > 0 and
+            preferences.get("company_size")
+        )
+        
+        has_competitors = bool(competitors and len(competitors) > 0)
+        onboarding_complete = has_valid_preferences and has_competitors
+        
+        # Update the user's onboarding_complete status in database
+        if onboarding_complete:
+            logger.info(f"Marking onboarding as complete for user {user_id}")
+            await supabase_client.upsert_user({
+                "clerk_id": user_id,
+                "onboarding_complete": True
+            })
+        
+    except Exception as e:
+        logger.error(f"Error checking onboarding completion for {user_id}: {e}")
+        # Don't raise exception as this is a secondary operation
 
 @router.post("/", response_model=UserPreferencesSchema)
 async def create_user_preferences(
@@ -93,6 +126,8 @@ async def create_user_preferences(
         result = await supabase_client.upsert_user_preferences(preference_data)
         
         if result:
+            # Check if onboarding should be marked as complete
+            await check_and_update_onboarding_completion(user_id)
             # Return the created/updated preferences data
             return result
         else:
@@ -195,6 +230,8 @@ async def update_user_preferences(
         result = await supabase_client.upsert_user_preferences(preference_data)
         
         if result:
+            # Check if onboarding should be marked as complete
+            await check_and_update_onboarding_completion(user_id)
             # Return the updated preferences data
             return result
         else:

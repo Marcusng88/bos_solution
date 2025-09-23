@@ -22,6 +22,11 @@ interface UserStatusResponse {
   user: any;
   message: string;
   onboarding_complete?: boolean;
+  has_preferences?: boolean;
+  has_competitors?: boolean;
+  has_monitoring_settings?: boolean;
+  preferences?: any;
+  competitors?: any[];
 }
 
 export function useUserSync() {
@@ -54,6 +59,16 @@ export function useUserSync() {
       console.log('✅ User status response:', statusData);
       console.log('🎯 Redirect path:', statusData.redirect_to);
       console.log('✅ Onboarding complete:', statusData.onboarding_complete);
+      
+      // 🔍 DEBUGGING: Log the full response structure
+      console.log('🔬 Full backend response structure:', JSON.stringify(statusData, null, 2));
+      console.log('🔬 Preferences data:', statusData.preferences);
+      console.log('🔬 Competitors data:', statusData.competitors);
+      console.log('🔬 Backend validation flags:', {
+        has_preferences: statusData.has_preferences,
+        has_competitors: statusData.has_competitors,
+        has_monitoring_settings: statusData.has_monitoring_settings
+      });
       
       if (statusData.exists) {
         // User exists - check if they should go to dashboard or onboarding

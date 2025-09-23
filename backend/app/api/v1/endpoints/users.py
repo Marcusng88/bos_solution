@@ -183,7 +183,7 @@ async def get_user_onboarding_status(
     user_id: str,
     db: SupabaseClient = Depends(get_db)
 ):
-    """Get user onboarding completion status"""
+    """Get user onboarding completion status with robust validation"""
     try:
         # Check if user exists
         user = await db.get_user_by_clerk_id(user_id)
@@ -197,13 +197,6 @@ async def get_user_onboarding_status(
         # Check if user has competitors (another indicator of onboarding completion)
         competitors = await db.get_competitors_by_user(user_id)
         
-        # Consider onboarding complete if user has:
-        # 1. User preferences (industry, goals, etc.)
-        # 2. OR has set up competitors
-        # 3. OR has monitoring settings
-        has_preferences = bool(preferences and preferences.get("industry") and preferences.get("marketing_goals"))
-        has_competitors = bool(competitors and len(competitors) > 0)
-        
         # Try to get monitoring settings as well
         try:
             monitoring_settings = await db.get_user_monitoring_settings(user_id)
@@ -211,16 +204,46 @@ async def get_user_onboarding_status(
         except:
             has_monitoring_settings = False
         
-        onboarding_complete = has_preferences or has_competitors or has_monitoring_settings
+        # More robust validation criteria (same as auth.py)
+        has_valid_preferences = bool(
+            preferences and 
+            preferences.get("industry") and 
+            preferences.get("marketing_goals") and
+            len(preferences.get("marketing_goals", [])) > 0 and
+            preferences.get("company_size")
+        )
+        
+        has_competitors = bool(competitors and len(competitors) > 0)
+        
+        # Require BOTH preferences AND at least one competitor for completion
+        onboarding_complete = has_valid_preferences and has_competitors
+        
+        # Additional validation: check if user has actually completed the onboarding steps
+        if onboarding_complete:
+            # Double-check that the data is meaningful (not just empty records)
+            industry = preferences.get("industry", "").strip()
+            goals = preferences.get("marketing_goals", [])
+            valid_goals = [goal for goal in goals if goal and goal.strip()]
+            
+            # Ensure we have meaningful data
+            if not industry or len(valid_goals) == 0:
+                onboarding_complete = False
+                logger.warning(f"User {user_id} has incomplete preferences data")
         
         return {
             "user_id": user_id,
             "onboarding_complete": onboarding_complete,
-            "has_preferences": has_preferences,
+            "has_preferences": has_valid_preferences,
             "has_competitors": has_competitors,
             "has_monitoring_settings": has_monitoring_settings,
             "preferences": preferences,
-            "competitor_count": len(competitors) if competitors else 0
+            "competitor_count": len(competitors) if competitors else 0,
+            "validation_details": {
+                "industry_valid": bool(preferences and preferences.get("industry", "").strip()),
+                "goals_valid": bool(preferences and len([g for g in preferences.get("marketing_goals", []) if g and g.strip()]) > 0),
+                "company_size_valid": bool(preferences and preferences.get("company_size")),
+                "competitors_valid": has_competitors
+            }
         }
         
     except Exception as e:

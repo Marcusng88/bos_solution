@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Youtube, Upload, Video, Users, Eye, Settings } from "lucide-react"
-import { AuthGuard } from "@/components/auth/auth-guard"
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 import { YouTubeConnection } from "@/components/onboarding/youtube-connection"
 import { VideoUpload } from "@/components/onboarding/video-upload"
 import { useYouTubeStore } from "@/hooks/use-youtube"
@@ -16,7 +16,7 @@ export default function YouTubePage() {
   const { isConnected, channel } = useYouTubeStore()
 
   return (
-    <AuthGuard>
+    <DashboardLayout>
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -67,7 +67,7 @@ export default function YouTubePage() {
                       <span className="text-sm">Subscribers</span>
                     </div>
                     <Badge variant="secondary">
-                      {parseInt(channel.subscriber_count).toLocaleString()}
+                      {channel.subscriberCount ? parseInt(channel.subscriberCount.toString()).toLocaleString() : 'N/A'}
                     </Badge>
                   </div>
                   
@@ -77,7 +77,7 @@ export default function YouTubePage() {
                       <span className="text-sm">Videos</span>
                     </div>
                     <Badge variant="secondary">
-                      {channel.video_count}
+                      {channel.videoCount || 'N/A'}
                     </Badge>
                   </div>
                   
@@ -87,7 +87,7 @@ export default function YouTubePage() {
                       <span className="text-sm">Total Views</span>
                     </div>
                     <Badge variant="secondary">
-                      {parseInt(channel.view_count).toLocaleString()}
+                      {channel.viewCount ? parseInt(channel.viewCount.toString()).toLocaleString() : 'N/A'}
                     </Badge>
                   </div>
                 </CardContent>
@@ -161,6 +161,6 @@ export default function YouTubePage() {
           </Card>
         )}
       </div>
-    </AuthGuard>
+    </DashboardLayout>
   )
 }
