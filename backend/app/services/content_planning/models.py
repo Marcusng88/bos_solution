@@ -144,3 +144,22 @@ class SupportedOptionsResponse(BaseModel):
     platforms: List[str]
     content_types: List[str]
     tones: List[str]
+
+
+# Image Generation Models
+class ImageGenerationRequest(BaseModel):
+    """Request model for image generation"""
+    text_content: str = Field(..., description="Generated text content to base image on")
+    platform: str = Field(default="instagram", description="Social media platform")
+    content_type: str = Field(default="promotional", description="Type of content")
+    industry: Optional[str] = Field(None, description="Industry context")
+    custom_prompt: Optional[str] = Field(None, description="Custom image prompt override")
+
+
+class ImageGenerationResponse(BaseModel):
+    """Response model for image generation"""
+    success: bool
+    image_data: Optional[str] = Field(None, description="Base64 encoded image data")
+    prompt_used: Optional[str] = Field(None, description="Image generation prompt used")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Image metadata")
+    error: Optional[str] = None

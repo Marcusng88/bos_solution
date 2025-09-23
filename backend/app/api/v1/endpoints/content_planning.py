@@ -8,6 +8,7 @@ from typing import List, Optional
 import logging
 
 from app.services.content_planning.core_service import ContentPlanningService
+from app.services.content_planning.text_to_image.image import image_service
 from app.services.content_planning.models import (
     ContentGenerationRequest, ContentGenerationResponse,
     CompetitorAnalysisRequest, CompetitorAnalysisResponse,
@@ -16,7 +17,8 @@ from app.services.content_planning.models import (
     ContentCalendarRequest, ContentCalendarResponse,
     ContentGapsRequest, ContentGapsResponse,
     ScheduleOptimizationRequest, ScheduleOptimizationResponse,
-    DashboardDataResponse, IndustryInsightsResponse, SupportedOptionsResponse
+    DashboardDataResponse, IndustryInsightsResponse, SupportedOptionsResponse,
+    ImageGenerationRequest, ImageGenerationResponse
 )
 from app.core.supabase_client import supabase_client
 
@@ -692,4 +694,30 @@ async def approve_content_to_draft(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to approve content to draft: {str(e)}"
+        )
+
+
+@router.post("/generate-image", response_model=ImageGenerationResponse)
+async def generate_image(request: ImageGenerationRequest) -> ImageGenerationResponse:
+    """
+    Generate a realistic product image based on text content
+    """
+    try:
+        logger.info(f"🎨 Image generation request for platform: {request.platform}")
+        
+        result = await image_service.generate_image(
+            text_content=request.text_content,
+            platform=request.platform,
+            content_type=request.content_type,
+            industry=request.industry or "",
+            custom_prompt=request.custom_prompt
+        )
+        
+        return ImageGenerationResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"❌ Image generation endpoint error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image generation failed: {str(e)}"
         )
