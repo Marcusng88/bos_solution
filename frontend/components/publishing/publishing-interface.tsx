@@ -8,7 +8,6 @@ import { CreatePostForm } from "./create-post-form"
 import { ScheduledPosts } from "./scheduled-posts"
 import { PostTemplates } from "./post-templates"
 import { YouTubeUpload } from "./youtube-upload"
-import { SocialMediaTab } from "./social-media-tab"
 import { DraftTab } from "./draft-tab"
 import { Plus, Calendar, FileText, Clock, Share2, Youtube } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
@@ -155,15 +154,10 @@ export function PublishingInterface() {
           <TabsTrigger value="youtube" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">YouTube Upload</TabsTrigger>
           <TabsTrigger value="scheduled" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Scheduled Posts</TabsTrigger>
           <TabsTrigger value="templates" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Templates</TabsTrigger>
-          <TabsTrigger value="social-media" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Social Media</TabsTrigger>
         </TabsList>
 
         <TabsContent value="create" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <CreatePostForm />
-        </TabsContent>
-
-        <TabsContent value="drafts" className="space-y-6">
-          <DraftTab />
         </TabsContent>
 
         <TabsContent value="drafts" className="space-y-6">
@@ -180,9 +174,6 @@ export function PublishingInterface() {
 
         <TabsContent value="templates" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <PostTemplates />
-        </TabsContent>
-        <TabsContent value="social-media" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
-          <SocialMediaTab />
         </TabsContent>
       </Tabs>
     </div>

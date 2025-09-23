@@ -13,6 +13,37 @@ from app.core.supabase_client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+async def check_and_update_onboarding_completion(user_id: str, db: SupabaseClient):
+    """Check if user has completed onboarding and update the database flag"""
+    try:
+        # Get user preferences and competitors
+        preferences = await db.get_user_preferences(user_id)
+        competitors = await db.get_competitors_by_user(user_id)
+        
+        # Check if onboarding is complete
+        has_valid_preferences = bool(
+            preferences and 
+            preferences.get("industry") and 
+            preferences.get("marketing_goals") and
+            len(preferences.get("marketing_goals", [])) > 0 and
+            preferences.get("company_size")
+        )
+        
+        has_competitors = bool(competitors and len(competitors) > 0)
+        onboarding_complete = has_valid_preferences and has_competitors
+        
+        # Update the user's onboarding_complete status in database
+        if onboarding_complete:
+            logger.info(f"Marking onboarding as complete for user {user_id}")
+            await db.upsert_user({
+                "clerk_id": user_id,
+                "onboarding_complete": True
+            })
+        
+    except Exception as e:
+        logger.error(f"Error checking onboarding completion for {user_id}: {e}")
+        # Don't raise exception as this is a secondary operation
 def _sanitize_website(url_value):
     """Return a valid http(s) URL string or None if invalid."""
     if not url_value or not isinstance(url_value, str):
@@ -79,6 +110,8 @@ async def create_competitor(
         result = await db.create_competitor(competitor_dict)
         
         if result:
+            # Check if onboarding should be marked as complete
+            await check_and_update_onboarding_completion(user_id, db)
             return CompetitorResponse.model_validate(result)
         else:
             raise HTTPException(status_code=500, detail="Failed to create competitor")

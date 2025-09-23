@@ -180,9 +180,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     if (!isLoaded || onboardingComplete === null || isCheckingOnboarding) return
     
+    // Disable dashboard-level redirects - let AuthGuard handle this
     // Only redirect if we're not already on the onboarding page and onboarding is not complete
-    if (!onboardingComplete && pathname !== "/onboarding") {
-      router.replace("/onboarding")
+    // if (!onboardingComplete && pathname !== "/onboarding") {
+    //   router.replace("/onboarding")
+    // }
+    
+    // Just log the status for debugging
+    if (!onboardingComplete) {
+      console.log('🔍 Dashboard: Onboarding incomplete, but letting AuthGuard handle redirect')
     }
   }, [isLoaded, onboardingComplete, isCheckingOnboarding, router, pathname])
 

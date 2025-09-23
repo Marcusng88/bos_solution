@@ -42,53 +42,98 @@ async def check_user_status(
     user_id: str = Header(..., alias="X-User-ID"),
     db: SupabaseClient = Depends(get_db)
 ):
-    """Check if user exists and determine redirect path"""
+    """Check if user exists and determine redirect path with robust validation"""
     try:
         # Check if user exists in Supabase
         user = await db.get_user_by_clerk_id(user_id)
         
         if user:
             # User exists - check if they have completed onboarding
-            # Check if user has completed onboarding by looking for user preferences
+            # Get all required data for comprehensive validation
+            logger.info(f"🔍 Checking onboarding status for user {user_id}")
+            
             preferences = await db.get_user_preferences(user_id)
+            logger.info(f"📋 User preferences: {preferences}")
             
-            # Check if user has competitors (another indicator of onboarding completion)
             competitors = await db.get_competitors_by_user(user_id)
-            
-            # Consider onboarding complete if user has:
-            # 1. User preferences (industry, goals, etc.)
-            # 2. OR has set up competitors
-            # 3. OR has monitoring settings
-            has_preferences = bool(preferences and preferences.get("industry") and preferences.get("marketing_goals"))
-            has_competitors = bool(competitors and len(competitors) > 0)
+            logger.info(f"🏢 User competitors: {competitors}")
             
             # Try to get monitoring settings as well
             try:
                 monitoring_settings = await db.get_user_monitoring_settings(user_id)
                 has_monitoring_settings = bool(monitoring_settings)
-            except:
+                logger.info(f"📊 User monitoring settings: {monitoring_settings}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not get monitoring settings: {e}")
                 has_monitoring_settings = False
             
-            onboarding_complete = has_preferences or has_competitors or has_monitoring_settings
+            # More robust validation criteria
+            has_valid_preferences = bool(
+                preferences and 
+                preferences.get("industry") and 
+                preferences.get("marketing_goals") and
+                len(preferences.get("marketing_goals", [])) > 0 and
+                preferences.get("company_size")
+            )
+            
+            has_competitors = bool(competitors and len(competitors) > 0)
+            
+            logger.info(f"✅ Validation results: has_valid_preferences={has_valid_preferences}, has_competitors={has_competitors}")
+            
+            # Require BOTH preferences AND at least one competitor for completion
+            # This ensures user has gone through the full onboarding flow
+            onboarding_complete = has_valid_preferences and has_competitors
+            
+            logger.info(f"🎯 Final onboarding_complete status: {onboarding_complete}")
+            
+            # Additional validation: check if user has actually completed the onboarding steps
+            # by looking for specific data patterns that indicate completion
+            if onboarding_complete:
+                # Double-check that the data is meaningful (not just empty records)
+                industry = preferences.get("industry", "").strip()
+                goals = preferences.get("marketing_goals", [])
+                valid_goals = [goal for goal in goals if goal and goal.strip()]
+                
+                # Ensure we have meaningful data
+                if not industry or len(valid_goals) == 0:
+                    onboarding_complete = False
+                    logger.warning(f"User {user_id} has incomplete preferences data")
+                    logger.info(f"📝 Industry: '{industry}', Valid goals: {valid_goals}")
+            
+            logger.info(f"🏁 Final onboarding status after validation: {onboarding_complete}")
             
             if onboarding_complete:
                 # User has completed onboarding - they can go to dashboard
-                return {
+                response_data = {
                     "exists": True,
                     "redirect_to": "dashboard",
                     "user": user,
                     "onboarding_complete": True,
+                    "has_preferences": has_valid_preferences,
+                    "has_competitors": has_competitors,
+                    "has_monitoring_settings": has_monitoring_settings,
+                    "preferences": preferences,  # Include actual preferences data
+                    "competitors": competitors,  # Include actual competitors data
                     "message": "User found and onboarding completed, redirecting to dashboard"
                 }
+                logger.info(f"📤 Sending completed response: {response_data}")
+                return response_data
             else:
                 # User exists but hasn't completed onboarding
-                return {
+                response_data = {
                     "exists": True,
                     "redirect_to": "onboarding",
                     "user": user,
                     "onboarding_complete": False,
+                    "has_preferences": has_valid_preferences,
+                    "has_competitors": has_competitors,
+                    "has_monitoring_settings": has_monitoring_settings,
+                    "preferences": preferences,  # Include actual preferences data
+                    "competitors": competitors,  # Include actual competitors data
                     "message": "User found but onboarding incomplete, redirecting to onboarding"
                 }
+                logger.info(f"📤 Sending incomplete response: {response_data}")
+                return response_data
         else:
             # User doesn't exist - they need to go through onboarding
             return {
@@ -101,7 +146,15 @@ async def check_user_status(
             
     except Exception as e:
         logger.error(f"Error checking user status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to check user status: {str(e)}")
+        # Return safe default that won't cause infinite loops
+        return {
+            "exists": False,
+            "redirect_to": "onboarding",
+            "user": None,
+            "onboarding_complete": False,
+            "error": str(e),
+            "message": "Error checking user status, defaulting to onboarding"
+        }
 
 
 @router.post("/sync")

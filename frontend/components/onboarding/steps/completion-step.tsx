@@ -33,11 +33,77 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
 
     setIsRedirecting(true)
     try {
-      // Update Clerk metadata to mark onboarding as complete
+      // First, save all onboarding data to backend to ensure completion
+      console.log('💾 Saving onboarding data to backend...')
+      
+      // Save user preferences
+      const preferencesResponse = await fetch('/api/v1/user-preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id,
+        },
+        body: JSON.stringify({
+          industry: data.industry,
+          company_size: data.companySize,
+          marketing_goals: data.goals,
+          monthly_budget: data.budget
+        }),
+      })
+
+      if (!preferencesResponse.ok) {
+        throw new Error('Failed to save user preferences')
+      }
+
+      // Save competitors
+      console.log('💾 Saving competitors to backend...')
+      for (const competitor of data.competitors) {
+        const competitorResponse = await fetch('/api/v1/competitors', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': user.id,
+          },
+          body: JSON.stringify({
+            name: competitor.name,
+            website: competitor.website,
+            platforms: competitor.platforms,
+            description: competitor.description
+          }),
+        })
+
+        if (!competitorResponse.ok) {
+          console.warn(`Failed to save competitor: ${competitor.name}`)
+        }
+      }
+
+      // Verify backend completion status
+      console.log('🔍 Verifying backend completion status...')
+      const statusResponse = await fetch('/api/v1/auth/check-user-status', {
+        headers: {
+          'X-User-ID': user.id,
+        },
+      })
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json()
+        console.log('✅ Backend status:', statusData)
+        
+        if (!statusData.onboarding_complete) {
+          throw new Error('Backend verification failed. Please try again.')
+        }
+      } else {
+        throw new Error('Failed to verify completion status')
+      }
+
+      // Only update frontend state after backend verification
+      console.log('✅ Backend verification successful, updating frontend state...')
       await user?.update({ unsafeMetadata: { onboardingComplete: true } as any })
       
-      // Also update local storage for immediate effect
+      // Clear onboarding data from localStorage
       if (typeof window !== "undefined") {
+        localStorage.removeItem('onboarding_current_step')
+        localStorage.removeItem('onboarding_data')
         localStorage.setItem("onboardingComplete", "true")
       }
       
@@ -46,15 +112,15 @@ export function CompletionStep({ data, goToStep }: CompletionStepProps) {
         description: "Your onboarding is complete. Get ready for an amazing experience!",
       })
 
-      // Redirect to welcome page first
+      // Redirect to welcome page
       router.push("/welcome")
     } catch (error) {
-      console.error('Failed to update onboarding status:', error)
-      // Still mark as complete in local storage and redirect
-      if (typeof window !== "undefined") {
-        localStorage.setItem("onboardingComplete", "true")
-      }
-      router.push("/welcome")
+      console.error('❌ Failed to complete onboarding:', error)
+      toast({
+        title: "Setup Error",
+        description: error instanceof Error ? error.message : "Failed to complete setup. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsRedirecting(false)
     }

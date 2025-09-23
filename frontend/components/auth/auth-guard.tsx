@@ -3,8 +3,9 @@
 import { useUser } from '@clerk/nextjs';
 import { useUserSync } from '@/hooks/use-user-sync';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -18,8 +19,13 @@ export function AuthGuard({
   redirectTo = '/login' 
 }: AuthGuardProps) {
   const { isSignedIn, isLoaded } = useUser();
-  const { isSyncing, isSynced, error, redirectPath } = useUserSync();
+  const { isSyncing, isSynced, error, redirectPath, refreshUser, retrySync, retryCount, maxRetries } = useUserSync();
   const router = useRouter();
+  const [redirectTimeout, setRedirectTimeout] = useState<NodeJS.Timeout | null>(null);
+  const lastRedirectRef = useRef<string | null>(null);
+  const redirectTimestampRef = useRef<number>(0);
+  const REDIRECT_DEBOUNCE = 1000; // Increased to 1 second debounce for redirects
+  const MIN_REDIRECT_INTERVAL = 2000; // Minimum 2 seconds between redirects
 
   useEffect(() => {
     if (isLoaded && !isSignedIn && requireAuth) {
@@ -27,17 +33,63 @@ export function AuthGuard({
     }
   }, [isLoaded, isSignedIn, requireAuth, redirectTo, router]);
 
-  // Handle redirects based on user status
+  // Handle redirects based on user status with debouncing
   useEffect(() => {
     if (isLoaded && isSignedIn && isSynced && redirectPath) {
-      // Only redirect if not already on the target page
-      if (redirectPath === 'dashboard' && window.location.pathname.startsWith('/onboarding')) {
-        router.push('/dashboard');
-      } else if (redirectPath === 'onboarding' && window.location.pathname.startsWith('/dashboard')) {
-        router.push('/onboarding');
+      const currentPath = window.location.pathname;
+      
+      // Clear any existing timeout
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+        setRedirectTimeout(null);
+      }
+      
+      // Check if we actually need to redirect
+      const needsRedirect = (
+        (redirectPath === 'dashboard' && !currentPath.startsWith('/dashboard') && !currentPath.startsWith('/welcome')) ||
+        (redirectPath === 'onboarding' && !currentPath.startsWith('/onboarding') && !currentPath.startsWith('/welcome'))
+      );
+      
+      // Prevent duplicate redirects and redirect loops
+      const redirectKey = `${redirectPath}-${currentPath}`;
+      const now = Date.now();
+      const timeSinceLastRedirect = now - redirectTimestampRef.current;
+      
+      const isLoopingRedirect = (
+        (redirectPath === 'dashboard' && currentPath === '/onboarding') ||
+        (redirectPath === 'onboarding' && currentPath === '/dashboard')
+      );
+      
+      const isRecentRedirect = timeSinceLastRedirect < MIN_REDIRECT_INTERVAL;
+      
+      if (needsRedirect && lastRedirectRef.current !== redirectKey && !isLoopingRedirect && !isRecentRedirect) {
+        console.log(`🔄 AuthGuard: Planning redirect to ${redirectPath} from ${currentPath}`);
+        
+        // Debounce the redirect to prevent rapid jumping
+        const timeout = setTimeout(() => {
+          console.log(`🔄 AuthGuard: Executing redirect to /${redirectPath}`);
+          lastRedirectRef.current = redirectKey;
+          redirectTimestampRef.current = Date.now();
+          router.push(`/${redirectPath}`);
+        }, REDIRECT_DEBOUNCE);
+        
+        setRedirectTimeout(timeout);
+      } else if (isLoopingRedirect) {
+        console.warn(`⚠️ AuthGuard: Prevented potential redirect loop from ${currentPath} to /${redirectPath}`);
+      } else if (isRecentRedirect) {
+        console.warn(`⚠️ AuthGuard: Skipping redirect - too soon since last redirect (${timeSinceLastRedirect}ms ago)`);
+      } else if (!needsRedirect) {
+        console.log(`✅ AuthGuard: No redirect needed. Current path: ${currentPath}, Target: ${redirectPath}`);
       }
     }
-  }, [isLoaded, isSignedIn, isSynced, redirectPath, router]);
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
+    };
+  }, [isLoaded, isSignedIn, isSynced, redirectPath, router, REDIRECT_DEBOUNCE]);
 
   // Show loading state while Clerk is loading or user is syncing
   if (!isLoaded || (isSignedIn && !isSynced && isSyncing)) {
@@ -59,20 +111,48 @@ export function AuthGuard({
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="text-red-500 mb-4">
-            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
+            <AlertCircle className="h-12 w-12 mx-auto" />
           </div>
           <h2 className="text-xl font-semibold mb-2">Setup Error</h2>
           <p className="text-muted-foreground mb-4">
-            There was an error setting up your account. Please try refreshing the page.
+            {error}
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Refresh Page
-          </button>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={refreshUser}
+              className="w-full"
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh Status
+                </>
+              )}
+            </Button>
+            {retryCount < maxRetries && (
+              <Button
+                onClick={retrySync}
+                variant="outline"
+                className="w-full"
+                disabled={isSyncing}
+              >
+                Retry ({retryCount}/{maxRetries})
+              </Button>
+            )}
+            <Button
+              onClick={() => window.location.reload()}
+              variant="ghost"
+              className="w-full"
+            >
+              Reload Page
+            </Button>
+          </div>
         </div>
       </div>
     );
