@@ -149,7 +149,7 @@ export function PublishingInterface() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className={`transition-all duration-1000 delay-800 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-        <TabsList className="glass-card grid w-full grid-cols-5 p-1 bg-slate-800/40 border border-white/20 backdrop-blur-md">
+        <TabsList className="glass-card grid w-full grid-cols-6 p-1 bg-slate-800/40 border border-white/20 backdrop-blur-md">
           <TabsTrigger value="create" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Create Post</TabsTrigger>
           <TabsTrigger value="drafts" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">Drafts</TabsTrigger>
           <TabsTrigger value="youtube" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg font-semibold text-slate-300 transition-all duration-300">YouTube Upload</TabsTrigger>
@@ -160,10 +160,6 @@ export function PublishingInterface() {
 
         <TabsContent value="create" className={`space-y-6 transition-all duration-700 delay-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}>
           <CreatePostForm />
-        </TabsContent>
-
-        <TabsContent value="drafts" className="space-y-6">
-          <DraftTab />
         </TabsContent>
 
         <TabsContent value="drafts" className="space-y-6">
