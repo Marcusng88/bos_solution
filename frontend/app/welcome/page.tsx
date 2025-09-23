@@ -230,7 +230,7 @@ export default function WelcomePage() {
                     </GradientText>
                   </h2>
                   
-                  <p className="text-xl md:text-2xl leading-relaxed drop-shadow-md">
+                  <div className="text-xl md:text-2xl leading-relaxed drop-shadow-md">
                     <GradientText
                       colors={["#60a5fa", "#a78bfa", "#34d399", "#fbbf24", "#f87171"]}
                       animationSpeed={5}
@@ -239,7 +239,7 @@ export default function WelcomePage() {
                     >
                       Unlock unprecedented growth, dominate your competition, and achieve extraordinary results with our revolutionary platform.
                     </GradientText>
-                  </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap justify-center gap-4 mb-12">

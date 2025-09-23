@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Settings, RefreshCw, Clock } from "lucide-react"
+import { Facebook, Instagram, Twitter, Linkedin, Youtube, Mail, Settings, RefreshCw, Clock, Loader2, CheckCircle, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
+import { useYouTubeStore } from "@/hooks/use-youtube"
 import GradientText from "@/components/effects/GradientText"
 import ShinyText from "@/components/effects/ShinyText"
 
@@ -27,6 +28,17 @@ export function ConnectedAccounts() {
   const [isLoading, setIsLoading] = useState(false)
   const [showIgGuide, setShowIgGuide] = useState(false)
   const [igGuideReason, setIgGuideReason] = useState<string>("")
+  
+  // YouTube connection state
+  const { 
+    isConnected: isYouTubeConnected, 
+    channel: youtubeChannel, 
+    connect: connectYouTube, 
+    disconnect: disconnectYouTube,
+    connectionStatus: youtubeConnectionStatus,
+    isLoading: isYouTubeLoading,
+    error: youtubeError
+  } = useYouTubeStore()
 
   // Get real user data and check actual connections from database
   useEffect(() => {
@@ -101,6 +113,17 @@ export function ConnectedAccounts() {
           }
         })
 
+        // Update YouTube connection status from the store
+        const youtubeAccount = realAccounts.find(acc => acc.platform === 'youtube')
+        if (youtubeAccount) {
+          youtubeAccount.isConnected = isYouTubeConnected
+          if (isYouTubeConnected && youtubeChannel) {
+            youtubeAccount.username = youtubeChannel.title || ""
+            youtubeAccount.displayName = youtubeChannel.title || "YouTube"
+            youtubeAccount.lastSync = new Date().toISOString()
+          }
+        }
+
         setAccounts(realAccounts)
       } catch (error) {
         console.error('Error fetching connected accounts:', error)
@@ -153,7 +176,7 @@ export function ConnectedAccounts() {
     }
 
     checkRealConnections()
-  }, [user])
+  }, [user, isYouTubeConnected, youtubeChannel])
 
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
@@ -249,11 +272,47 @@ export function ConnectedAccounts() {
   }
 
   const handleConnect = async (platform: string) => {
-    // Show "Coming Soon" message for all platforms
-    toast({
-      title: "Coming Soon! 🚀",
-      description: `${getPlatformName(platform)} integration is currently under development. Stay tuned for updates!`,
-    })
+    if (platform === 'youtube') {
+      try {
+        // Store return context for settings
+        sessionStorage.setItem('youtube_return_context', 'settings')
+        sessionStorage.setItem('youtube_return_step', '4')
+        
+        await connectYouTube()
+        toast({
+          title: "Redirecting to YouTube",
+          description: "You'll be redirected to authorize access to your YouTube account.",
+        })
+      } catch (error) {
+        toast({
+          title: "Connection Failed",
+          description: "Failed to initiate YouTube connection. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } else {
+      // Show "Coming Soon" message for other platforms
+      toast({
+        title: "Coming Soon! 🚀",
+        description: `${getPlatformName(platform)} integration is currently under development. Stay tuned for updates!`,
+      })
+    }
+  }
+
+  const handleDisconnectYouTube = async () => {
+    try {
+      disconnectYouTube()
+      toast({
+        title: "YouTube Disconnected",
+        description: "Your YouTube account has been disconnected successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to disconnect YouTube account.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -322,26 +381,67 @@ export function ConnectedAccounts() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* YouTube Connection */}
-              <div 
-                className="border rounded-lg p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer backdrop-blur-sm bg-white/50 dark:bg-gray-900/50 border-white/20 shadow-lg hover:shadow-xl transform hover:scale-105 animate-slideUp animation-delay-300"
-                onClick={() => {
-                  toast({
-                    title: "Coming Soon! 🚀",
-                    description: "YouTube integration is currently under development. Stay tuned for updates!",
-                  })
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-lg">
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                    </svg>
+              <div className="border rounded-lg p-4 backdrop-blur-sm bg-white/50 dark:bg-gray-900/50 border-white/20 shadow-lg animate-slideUp animation-delay-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-lg">
+                      <Youtube className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">YouTube</h4>
+                      {isYouTubeConnected && youtubeChannel ? (
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-green-600 font-medium">{youtubeChannel.title}</p>
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {youtubeConnectionStatus === 'connecting' ? 'Connecting...' : 'Connect your channel'}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-medium">YouTube</h4>
-                    <p className="text-sm text-muted-foreground">Connect your channel</p>
+                  
+                  <div className="flex items-center gap-2">
+                    {isYouTubeConnected ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDisconnectYouTube}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        Disconnect
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => handleConnect('youtube')}
+                        disabled={isYouTubeLoading || youtubeConnectionStatus === 'connecting'}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        {isYouTubeLoading || youtubeConnectionStatus === 'connecting' ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          'Connect'
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
+                
+                {youtubeError && (
+                  <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {youtubeError.message || 'Connection error occurred'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Instagram Connection */}
