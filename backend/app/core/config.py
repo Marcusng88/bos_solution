@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     YOUTUBE_API_KEY: Optional[str] = os.getenv("YOUTUBE_API_KEY")
     TAVILY_API_KEY: Optional[str] = os.getenv("TAVILY_API_KEY")
     
+    # Image Generation
+    STABILITY_AI_API_KEY: Optional[str] = os.getenv("STABILITY_AI_API_KEY")
+    
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     
@@ -117,6 +120,11 @@ class Settings(BaseSettings):
     def youtube_api_key(self) -> Optional[str]:
         """Get YouTube API key"""
         return self.YOUTUBE_API_KEY
+    
+    @property
+    def stability_ai_api_key(self) -> Optional[str]:
+        """Get Stability AI API key"""
+        return self.STABILITY_AI_API_KEY
 
 
 settings = Settings()

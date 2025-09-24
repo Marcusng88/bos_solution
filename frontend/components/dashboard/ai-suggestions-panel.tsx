@@ -30,6 +30,8 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
   const [loadingApprove, setLoadingApprove] = useState<string | null>(null) // Track which suggestion is being approved
   const [showPromotionDialog, setShowPromotionDialog] = useState(false)
   const [promotionDescription, setPromotionDescription] = useState("")
+  const [loadingImage, setLoadingImage] = useState<string | null>(null) // Track which suggestion is generating image
+  const [generatedImages, setGeneratedImages] = useState<{ [key: string]: string }>({}) // Store base64 images by suggestion ID
   const { toast } = useToast()
   const { user } = useUser()
   
@@ -38,6 +40,7 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
     saveContentSuggestion, 
     getContentSuggestions, 
     updateContentSuggestion,
+    generateImage,
     selectedIndustry 
   } = useContentPlanning({ autoLoad: false })
 
@@ -223,6 +226,92 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
       })
     } finally {
       setLoadingCreate(false)
+    }
+  }
+
+  // Handle image generation for a specific suggestion
+  const handleGenerateImage = async (suggestion: any) => {
+    if (!suggestion?.content || !suggestion?.id) {
+      toast({
+        title: "Error",
+        description: "No content available to generate image from.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setLoadingImage(suggestion.id)
+      
+      const response = await generateImage({
+        text_content: suggestion.content,
+        platform: suggestion.platform || 'instagram',
+        content_type: suggestion.type || 'promotional',
+        industry: selectedIndustry || 'technology'
+      })
+
+      if (response.success && response.image_data) {
+        // Store the generated image
+        setGeneratedImages(prev => ({
+          ...prev,
+          [suggestion.id]: response.image_data!
+        }))
+        
+        toast({
+          title: "Success",
+          description: "Image generated successfully! You can now download it.",
+        })
+      } else {
+        throw new Error(response.error || 'Failed to generate image')
+      }
+    } catch (error) {
+      console.error('Failed to generate image:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate image. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingImage(null)
+    }
+  }
+
+  // Handle image download
+  const handleDownloadImage = (suggestionId: string, platform: string) => {
+    const imageData = generatedImages[suggestionId]
+    if (!imageData) return
+
+    try {
+      // Convert base64 to blob
+      const byteCharacters = atob(imageData)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: 'image/png' })
+
+      // Create download link
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `content-image-${platform}-${Date.now()}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Success",
+        description: "Image downloaded successfully!",
+      })
+    } catch (error) {
+      console.error('Failed to download image:', error)
+      toast({
+        title: "Error",
+        description: "Failed to download image. Please try again.",
+        variant: "destructive"
+      })
     }
   }
 
@@ -702,7 +791,44 @@ export function AISuggestionsPanel({ selectedDate }: AISuggestionsPanelProps) {
                         <Edit3 className="h-3 w-3 mr-1" />
                         Edit
                       </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleGenerateImage(suggestion)} 
+                        className="flex-shrink-0 text-xs px-2 py-1 h-7"
+                        disabled={loadingImage === suggestion.id}
+                      >
+                        <ImageIcon className="h-3 w-3 mr-1" />
+                        {loadingImage === suggestion.id ? 'Generating...' : 'Generate Image'}
+                      </Button>
                     </div>
+
+                    {/* Generated Image Display */}
+                    {generatedImages[suggestion.id] && (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                            <ImageIcon className="h-3 w-3" />
+                            AI Generated Image
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadImage(suggestion.id, suggestion.platform)}
+                            className="text-xs px-2 py-1 h-6"
+                          >
+                            Download
+                          </Button>
+                        </div>
+                        <div className="rounded-lg border bg-gray-50 dark:bg-gray-900/50 p-2">
+                          <img
+                            src={`data:image/png;base64,${generatedImages[suggestion.id]}`}
+                            alt="AI Generated Image"
+                            className="w-full h-32 object-cover rounded"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

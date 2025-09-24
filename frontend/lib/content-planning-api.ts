@@ -135,6 +135,28 @@ export interface ContentCalendarRequest {
   posts_per_day?: number
 }
 
+export interface ImageGenerationRequest {
+  text_content: string
+  platform?: string
+  content_type?: string
+  industry?: string
+  custom_prompt?: string
+}
+
+export interface ImageGenerationResponse {
+  success: boolean
+  image_data?: string  // Base64 encoded image
+  prompt_used?: string
+  metadata?: {
+    engine: string
+    platform: string
+    content_type: string
+    industry: string
+    dimensions: string
+  }
+  error?: string
+}
+
 // API Base URL - adjust based on your backend configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bos-solution.onrender.com/api/v1'
 
@@ -272,6 +294,14 @@ export const contentPlanningAPI = {
       headers: {
         'X-User-ID': userId,
       },
+    })
+  },
+
+  // Generate image based on text content
+  async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
+    return apiCall<ImageGenerationResponse>('/content-planning/generate-image', {
+      method: 'POST',
+      body: JSON.stringify(request),
     })
   },
 }
@@ -609,6 +639,28 @@ export const mockContentPlanningAPI = {
       success: true,
       message: 'Content approved and saved to drafts successfully',
       draft_id: `draft_${Date.now()}`
+    }
+  },
+
+  // Mock generate image based on text content
+  async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Return a mock response with a placeholder image (small base64 image)
+    const mockImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' // 1x1 transparent pixel
+    
+    return {
+      success: true,
+      image_data: mockImageBase64,
+      prompt_used: `Professional product photography of ${request.text_content.slice(0, 50)}...`,
+      metadata: {
+        engine: 'mock-stable-diffusion',
+        platform: request.platform || 'instagram',
+        content_type: request.content_type || 'promotional',
+        industry: request.industry || 'technology',
+        dimensions: '1024x1024'
+      }
     }
   },
 }
