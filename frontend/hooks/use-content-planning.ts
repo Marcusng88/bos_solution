@@ -14,7 +14,9 @@ import {
   type DashboardData, 
   type SupportedOptions,
   type ContentGenerationRequest,
-  type ContentGenerationResponse 
+  type ContentGenerationResponse,
+  type ImageGenerationRequest,
+  type ImageGenerationResponse
 } from '@/lib/content-planning-api'
 
 export interface UseContentPlanningOptions {
@@ -251,6 +253,28 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     }
   }, [selectedIndustry])
 
+  // Generate image based on text content - Only invoked when explicitly requested by user
+  const generateImage = useCallback(async (request: {
+    text_content: string
+    platform?: string
+    content_type?: string
+    industry?: string
+    custom_prompt?: string
+  }) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await contentPlanningAPI.generateImage(request)
+      return response
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate image'
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   // Change industry and reload data
   const changeIndustry = useCallback(async (newIndustry: string) => {
     setSelectedIndustry(newIndustry)
@@ -292,6 +316,7 @@ export function useContentPlanning(options: UseContentPlanningOptions = {}) {
     generateStrategy,
     generateCalendar,
     identifyContentGaps,
+    generateImage,
     changeIndustry,
     refreshData,
 
