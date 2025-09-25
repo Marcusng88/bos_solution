@@ -293,6 +293,247 @@ export default function WelcomePage() {
               ))}
             </div>
 
+            {/* Pricing Section */}
+            <div className={`mb-20 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+              <div className="text-center mb-12">
+                <h2 className="text-5xl md:text-6xl font-black mb-6">
+                  <GradientText
+                    colors={["#40ffaa", "#4079ff", "#ff6b40", "#ff40aa"]}
+                    animationSpeed={3}
+                    showBorder={false}
+                    className="text-5xl md:text-6xl font-black"
+                  >
+                    Try BOSSolution free for 14 days
+                  </GradientText>
+                </h2>
+                <p className="text-xl text-blue-200 mb-2">No credit card required. Cancel anytime.</p>
+                <p className="text-lg text-blue-300">75% more affordable than Sprout Social</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                {/* Starter Plan */}
+                <Card className="p-8 bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-500 group shadow-xl hover:shadow-2xl hover:shadow-blue-500/20 transform hover:scale-105 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative z-10">
+                    <div className="text-center mb-6">
+                      <h3 className="text-2xl font-bold text-white mb-2">Starter</h3>
+                      <p className="text-blue-200 text-sm mb-4">Perfect for solopreneurs and small teams</p>
+                      <div className="mb-4">
+                        <span className="text-4xl font-black text-white">RM49</span>
+                        <span className="text-blue-200">/month</span>
+                      </div>
+                      <div className="text-xs text-blue-300 mb-6">
+                        Compare: Sprout Social RM899/month
+                      </div>
+                    </div>
+                    
+                    <Button className="w-full mb-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0 rounded-full py-3">
+                      Start your free trial
+                    </Button>
+                    
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center text-blue-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        3 social media profiles
+                      </div>
+                      <div className="flex items-center text-blue-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        AI content generation (50 posts/month)
+                      </div>
+                      <div className="flex items-center text-blue-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        Basic competitor monitoring
+                      </div>
+                      <div className="flex items-center text-blue-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        ROI analytics dashboard
+                      </div>
+                      <div className="flex items-center text-blue-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        Email support
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Growth Plan - Most Popular */}
+                <Card className="p-8 bg-gradient-to-br from-green-500/20 to-blue-500/20 backdrop-blur-md border-green-400/50 hover:from-green-500/25 hover:to-blue-500/25 transition-all duration-500 group shadow-xl hover:shadow-2xl hover:shadow-green-500/30 transform hover:scale-105 relative overflow-hidden">
+                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                    <Badge className="bg-gradient-to-r from-green-400 to-green-500 text-white px-4 py-1 text-xs font-bold">
+                      Most Popular
+                    </Badge>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-transparent to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative z-10">
+                    <div className="text-center mb-6">
+                      <h3 className="text-2xl font-bold text-white mb-2">Growth</h3>
+                      <p className="text-green-200 text-sm mb-4">Best for growing businesses</p>
+                      <div className="mb-4">
+                        <span className="text-4xl font-black text-white">RM99</span>
+                        <span className="text-green-200">/month</span>
+                      </div>
+                      <div className="text-xs text-green-300 mb-6">
+                        Compare: Sprout Social RM1,349/month
+                      </div>
+                    </div>
+                    
+                    <Button className="w-full mb-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 rounded-full py-3">
+                      Start your free trial
+                    </Button>
+                    
+                    <div className="space-y-3 text-sm">
+                      <div className="text-green-200 font-medium mb-2">Everything in Starter, plus:</div>
+                      <div className="flex items-center text-green-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        10 social media profiles
+                      </div>
+                      <div className="flex items-center text-green-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        Unlimited AI content generation
+                      </div>
+                      <div className="flex items-center text-green-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        Advanced competitor analysis
+                      </div>
+                      <div className="flex items-center text-green-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        Automated content scheduling
+                      </div>
+                      <div className="flex items-center text-green-200">
+                        <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                        AI chat assistant
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Pro Plan */}
+                <Card className="p-8 bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-500 group shadow-xl hover:shadow-2xl hover:shadow-purple-500/20 transform hover:scale-105 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative z-10">
+                    <div className="text-center mb-6">
+                      <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
+                      <p className="text-purple-200 text-sm mb-4">Built for marketing teams & agencies</p>
+                      <div className="mb-4">
+                        <span className="text-4xl font-black text-white">RM199</span>
+                        <span className="text-purple-200">/month</span>
+                      </div>
+                      <div className="text-xs text-purple-300 mb-6">
+                        Compare: Sprout Social RM1,799/month
+                      </div>
+                    </div>
+                    
+                    <Button className="w-full mb-6 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white border-0 rounded-full py-3">
+                      Start your free trial
+                    </Button>
+                    
+                    <div className="space-y-3 text-sm">
+                      <div className="text-purple-200 font-medium mb-2">Everything in Growth, plus:</div>
+                      <div className="flex items-center text-purple-200">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-3"></div>
+                        25 social media profiles
+                      </div>
+                      <div className="flex items-center text-purple-200">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-3"></div>
+                        Real-time competitor alerts
+                      </div>
+                      <div className="flex items-center text-purple-200">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-3"></div>
+                        Advanced AI insights
+                      </div>
+                      <div className="flex items-center text-purple-200">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-3"></div>
+                        White-label reporting
+                      </div>
+                      <div className="flex items-center text-purple-200">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full mr-3"></div>
+                        Priority support
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Enterprise Plan */}
+                <Card className="p-8 bg-gradient-to-br from-orange-500/20 to-red-500/20 backdrop-blur-md border-orange-400/50 hover:from-orange-500/25 hover:to-red-500/25 transition-all duration-500 group shadow-xl hover:shadow-2xl hover:shadow-orange-500/30 transform hover:scale-105 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative z-10">
+                    <div className="text-center mb-6">
+                      <h3 className="text-2xl font-bold text-white mb-2">Enterprise</h3>
+                      <p className="text-orange-200 text-sm mb-4">For large organizations</p>
+                      <div className="mb-4">
+                        <span className="text-4xl font-black text-white">Custom</span>
+                      </div>
+                      <div className="text-xs text-orange-300 mb-6">
+                        Tailored pricing for your needs
+                      </div>
+                    </div>
+                    
+                    <Button className="w-full mb-6 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0 rounded-full py-3">
+                      Schedule a demo
+                    </Button>
+                    
+                    <div className="space-y-3 text-sm">
+                      <div className="text-orange-200 font-medium mb-2">Everything in Pro, plus:</div>
+                      <div className="flex items-center text-orange-200">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full mr-3"></div>
+                        Unlimited social profiles
+                      </div>
+                      <div className="flex items-center text-orange-200">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full mr-3"></div>
+                        Custom AI model training
+                      </div>
+                      <div className="flex items-center text-orange-200">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full mr-3"></div>
+                        Dedicated account manager
+                      </div>
+                      <div className="flex items-center text-orange-200">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full mr-3"></div>
+                        Custom integrations
+                      </div>
+                      <div className="flex items-center text-orange-200">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full mr-3"></div>
+                        24/7 priority support
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Competitive Advantages */}
+              <div className="mt-16 text-center">
+                <h3 className="text-3xl font-bold text-white mb-8">
+                  <GradientText
+                    colors={["#40ffaa", "#4079ff", "#ff6b40"]}
+                    animationSpeed={3}
+                    showBorder={false}
+                    className="text-3xl font-bold"
+                  >
+                    Why Choose BOSSolution Over Sprout Social?
+                  </GradientText>
+                </h3>
+                
+                <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                  <div className="text-center p-6 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <DollarSign className="w-12 h-12 mx-auto mb-4 text-green-400" />
+                    <h4 className="text-xl font-bold text-white mb-2">75% Cost Savings</h4>
+                    <p className="text-blue-200">Get enterprise-level features at a fraction of the cost</p>
+                  </div>
+                  
+                  <div className="text-center p-6 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <Brain className="w-12 h-12 mx-auto mb-4 text-purple-400" />
+                    <h4 className="text-xl font-bold text-white mb-2">AI-First Approach</h4>
+                    <p className="text-blue-200">Built-in AI content generation and competitor analysis</p>
+                  </div>
+                  
+                  <div className="text-center p-6 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 hover:bg-white/15 transition-all duration-300">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-4 text-blue-400" />
+                    <h4 className="text-xl font-bold text-white mb-2">Comprehensive ROI</h4>
+                    <p className="text-blue-200">Advanced analytics and predictive insights included</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* CTA Section */}
             <div className={`text-center transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
               <div className="flex justify-center items-center mb-6">
